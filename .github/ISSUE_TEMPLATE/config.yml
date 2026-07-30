@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/nrk8286/agentid-services/security/policy
+    about: Report vulnerabilities privately using the repository security policy.
+  - name: AgentID Services support
+    url: https://agentid.services/contact
+    about: Contact the business about services, billing, or an active engagement.

@@ -1,0 +1,24 @@
+{
+  "service": "agentid-services-agent-system",
+  "site": "https://agentid.services",
+  "capabilities": {
+    "aiSearch": "agentid-services-search",
+    "analyticsEngine": "agentid_services_events",
+    "d1": "agentid-services",
+    "kv": "gptmarketplus-agent-state",
+    "queue": "agentid-services-events",
+    "queueDeadLetter": "agentid-services-events-dlq",
+    "rateLimiting": {
+      "formsPerMinute": 5,
+      "eventsPerMinute": 60
+    },
+    "r2": "gptmarketplus-assets",
+    "smartPlacement": true,
+    "workersObservability": {
+      "logs": true,
+      "traces": true,
+      "samplingRate": 0.1
+    }
+  },
+  "purpose": "Machine-readable deployment manifest for AgentID Services Cloudflare integrations."
+}

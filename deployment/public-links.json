@@ -1,0 +1,22 @@
+{
+  "repository": "https://github.com/nrk8286/agentid-services",
+  "site": "https://agentid.services",
+  "links": {
+    "home": "https://agentid.services/",
+    "pricing": "https://agentid.services/pricing",
+    "services": "https://agentid.services/services",
+    "agents": "https://agentid.services/agents/",
+    "resources": "https://agentid.services/resources",
+    "contact": "https://agentid.services/contact",
+    "consultation": "https://agentid.services/book-a-consultation",
+    "sponsor": "https://agentid.services/sponsor",
+    "advertise": "https://agentid.services/advertise",
+    "health": "https://agentid.services/api/agents/health",
+    "genaiStatus": "https://agentid.services/api/genai/status",
+    "utmCatalog": "https://agentid.services/api/utm-links",
+    "sitemap": "https://agentid.services/sitemap.xml",
+    "robots": "https://agentid.services/robots.txt",
+    "llms": "https://agentid.services/llms.txt",
+    "security": "https://agentid.services/.well-known/security.txt"
+  }
+}

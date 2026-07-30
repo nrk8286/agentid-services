@@ -1,0 +1,151 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "agentid-services-agent-system",
+  "main": "src/index.js",
+  "compatibility_date": "2026-05-28",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "workers_dev": true,
+  "preview_urls": true,
+  "placement": {
+    "mode": "smart"
+  },
+  "observability": {
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 0.1,
+      "invocation_logs": true
+    },
+    "traces": {
+      "enabled": true,
+      "head_sampling_rate": 0.1
+    }
+  },
+  "keep_vars": true,
+  "routes": [
+    {
+      "pattern": "agentid.services/*",
+      "zone_name": "agentid.services"
+    },
+    {
+      "pattern": "www.agentid.services/*",
+      "zone_name": "agentid.services"
+    }
+  ],
+  "vars": {
+    "SITE_URL": "https://agentid.services",
+    "BRAND_NAME": "AgentID Services",
+    "PUBLIC_OFFER_URL": "https://agentid.services/#start",
+    "SUPPORT_EMAIL": "admin@agentid.services",
+    "CONTACT_EMAIL": "",
+    "OWNER_EMAIL": "",
+    "BOOKING_URL": "",
+    "CALENDAR_EMBED_URL": "",
+    "CRM_WEBHOOK_URL": "",
+    "EMAIL_FROM": "",
+    "TURNSTILE_SITE_KEY": "",
+    "GOOGLE_TAG_ID": "GTM-NVW28HCG",
+    "GOOGLE_ANALYTICS_ID": "G-3BCSR51WHZ",
+    "GOOGLE_CLOUD_PROJECT": "agentid-genai-app-2026",
+    "GOOGLE_CLOUD_LOCATION": "global",
+    "GOOGLE_DISCOVERY_ENGINE_ID": "agentid-answer-engine",
+    "ADSENSE_CLIENT_ID": "ca-pub-7354323580032872",
+    "ADSENSE_ENABLED": "true",
+    "META_PIXEL_ID": "",
+    "LINKEDIN_INSIGHT_ID": "",
+    "POSTHOG_API_KEY": "",
+    "POSTHOG_HOST": "",
+    "GOOGLE_ADS_CONVERSION_ID": "",
+    "GOOGLE_ADS_CONVERSION_LABEL": "",
+    "PAYPAL_MODE": "live",
+    "PAYPAL_PAYMENT_LINK": "",
+    "BANK_TRANSFER_URL": "",
+    "CRYPTO_PAYMENT_LINK": "",
+    "GOOGLE_TAG_GATEWAY_PATH": "/gtag",
+    "INDEXNOW_KEY": "1d5260617cd977fefe781ec5c2080e48",
+    "FACEBOOK_URL": "",
+    "TIKTOK_URL": "",
+    "LINKEDIN_URL": "",
+    "X_URL": "",
+    "YOUTUBE_URL": "",
+    "INSTAGRAM_URL": "",
+    "AGENT_ACTIONS_ENABLED": "true",
+    "AGENT_DAILY_SPEND_LIMIT_CENTS": "1000",
+    "AGENT_MONTHLY_SPEND_LIMIT_CENTS": "10000"
+  },
+  "kv_namespaces": [
+    {
+      "binding": "GMP_KV",
+      "id": "1ac8c8dd4da0430c96fc164d0b951c96"
+    }
+  ],
+  "d1_databases": [
+    {
+      "binding": "GMP_DB",
+      "database_name": "agentid-services",
+      "database_id": "27ec53b6-0645-452a-bca0-4fdac016c0e5"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "GMP_ASSETS",
+      "bucket_name": "gptmarketplus-assets",
+      "remote": true
+    }
+  ],
+  "ai_search": [
+    {
+      "binding": "AGENTID_AI_SEARCH",
+      "instance_name": "agentid-services-search",
+      "remote": true
+    }
+  ],
+  "analytics_engine_datasets": [
+    {
+      "binding": "ANALYTICS_ENGINE",
+      "dataset": "agentid_services_events"
+    }
+  ],
+  "ratelimits": [
+    {
+      "name": "FORM_RATE_LIMITER",
+      "namespace_id": "1202607301",
+      "simple": {
+        "limit": 5,
+        "period": 60
+      }
+    },
+    {
+      "name": "EVENT_RATE_LIMITER",
+      "namespace_id": "1202607302",
+      "simple": {
+        "limit": 60,
+        "period": 60
+      }
+    }
+  ],
+  "queues": {
+    "producers": [
+      {
+        "binding": "GMP_QUEUE",
+        "queue": "agentid-services-events"
+      }
+    ],
+    "consumers": [
+      {
+        "queue": "agentid-services-events",
+        "max_batch_size": 10,
+        "max_batch_timeout": 5,
+        "dead_letter_queue": "agentid-services-events-dlq"
+      }
+    ]
+  },
+  "flagship": [
+    {
+      "binding": "FLAGSHIP",
+      "app_id": "4ddd3190-a369-4fea-94f3-d2d480251598",
+      "remote": true
+    }
+  ]
+}

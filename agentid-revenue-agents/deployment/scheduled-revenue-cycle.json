@@ -1,0 +1,11 @@
+{
+  "event_type": "scheduled_revenue_cycle",
+  "source": "cloud_scheduler",
+  "site": "https://agentid.services",
+  "goal": "Inspect current evidence and execute the highest-value eligible zero-cost revenue action through a verified live adapter.",
+  "constraints": {
+    "dry_run": false,
+    "daily_spend_limit_cents": 1000,
+    "monthly_spend_limit_cents": 10000
+  }
+}

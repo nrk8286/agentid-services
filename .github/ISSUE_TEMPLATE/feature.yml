@@ -1,0 +1,38 @@
+name: Feature request
+description: Propose a measurable product, revenue, reliability, or developer-experience improvement.
+title: "[Feature]: "
+labels: ["enhancement", "triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or opportunity
+      description: Describe the customer or operational outcome, not only the implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+    validations:
+      required: true
+  - type: dropdown
+    id: impact
+    attributes:
+      label: Primary impact
+      options:
+        - Revenue
+        - Conversion
+        - Reliability
+        - Security
+        - Analytics
+        - Developer experience
+    validations:
+      required: true
+  - type: textarea
+    id: success
+    attributes:
+      label: Success measure
+      description: State how the result should be verified.
+    validations:
+      required: true

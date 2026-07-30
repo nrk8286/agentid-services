@@ -1,0 +1,70 @@
+# JavaScript dependencies and generated Worker state
+node_modules/
+**/node_modules/
+.wrangler/
+**/.wrangler/
+.playwright-cli/
+worker-configuration.d.ts
+
+# Local secrets and credentials
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+.dev.vars
+.dev.vars.*
+*.pem
+*.key
+*.p12
+*.pfx
+*-key.json
+credentials*.json
+
+# Python environments and caches
+.venv/
+**/.venv/
+__pycache__/
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+**/.pytest_cache/
+.ruff_cache/
+**/.ruff_cache/
+.mypy_cache/
+**/.mypy_cache/
+.ty/
+**/.ty/
+
+# Google Agents CLI local state and generated evaluation artifacts
+.agents-cli-scripts/
+**/.agents-cli-scripts/
+.google-agents-cli/
+**/.google-agents-cli/
+agentid-revenue-agents/artifacts/
+
+# Terraform local state, plans, and environment-specific inputs
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+crash.log
+crash.*.log
+
+# Test, coverage, and local output
+coverage/
+htmlcov/
+.coverage
+.coverage.*
+dist/
+build/
+tmp/
+*.log
+
+# Editors and operating systems
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

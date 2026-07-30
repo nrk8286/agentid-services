@@ -1,0 +1,33 @@
+{
+  "displayName": "AgentID Agent Runtime - high latency",
+  "documentation": {
+    "content": "Alerts when the deployed AgentID Agent Runtime p95 request latency exceeds ten seconds for five minutes.",
+    "mimeType": "text/markdown"
+  },
+  "combiner": "OR",
+  "enabled": true,
+  "conditions": [
+    {
+      "displayName": "Agent Runtime p95 latency above 10 seconds",
+      "conditionThreshold": {
+        "filter": "resource.type=\"aiplatform.googleapis.com/ReasoningEngine\" AND metric.type=\"aiplatform.googleapis.com/reasoning_engine/request_latencies\"",
+        "comparison": "COMPARISON_GT",
+        "thresholdValue": 10000,
+        "duration": "300s",
+        "aggregations": [
+          {
+            "alignmentPeriod": "300s",
+            "perSeriesAligner": "ALIGN_PERCENTILE_95",
+            "crossSeriesReducer": "REDUCE_MAX",
+            "groupByFields": [
+              "resource.label.\"reasoning_engine_id\""
+            ]
+          }
+        ],
+        "trigger": {
+          "count": 1
+        }
+      }
+    }
+  ]
+}

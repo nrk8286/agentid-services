@@ -1,0 +1,49 @@
+name: Bug report
+description: Report a reproducible problem in the Worker, agent runtime, or public site.
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Cloudflare Worker
+        - Google Agent Runtime
+        - Public website
+        - Analytics and attribution
+        - Payments and monetization
+        - Documentation
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: What happened?
+      description: Include the route or component and the observed behavior. Do not include credentials or customer data.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Deployment or commit
+      description: Worker version, commit SHA, or approximate observation time.
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety check
+      options:
+        - label: I removed secrets, personal information, payment data, and customer content.
+          required: true

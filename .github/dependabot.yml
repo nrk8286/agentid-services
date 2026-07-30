@@ -1,0 +1,34 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: America/Chicago
+    groups:
+      worker-dependencies:
+        patterns: ["*"]
+    labels: ["dependencies", "area/cloudflare"]
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: pip
+    directory: /agentid-revenue-agents
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:30"
+      timezone: America/Chicago
+    groups:
+      agent-dependencies:
+        patterns: ["*"]
+    labels: ["dependencies", "area/google-cloud"]
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    labels: ["dependencies", "area/github"]
+    open-pull-requests-limit: 5
