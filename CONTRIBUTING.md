@@ -15,6 +15,13 @@ uv run ruff check .
 uv run ruff format . --check
 uv run codespell
 uv run ty check .
+uv run pytest tests/unit tests/integration -m "not live_model" -q
+```
+
+The `live_model` tests require authenticated Google model access and consume
+cloud quota. Run the full suite only in an approved Google Cloud environment:
+
+```bash
 uv run pytest tests/unit tests/integration -q
 ```
 

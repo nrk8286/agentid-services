@@ -10,7 +10,7 @@ Explain the user, revenue, reliability, security, or maintenance impact.
 
 - [ ] `npm run validate`
 - [ ] `npm run validate:links:live`
-- [ ] `cd agentid-revenue-agents && uv run pytest tests/unit tests/integration -q`
+- [ ] `cd agentid-revenue-agents && uv run pytest tests/unit tests/integration -m "not live_model" -q`
 - [ ] No secrets, local credentials, generated state, or customer data are included
 
 ## Deployment
