@@ -10,6 +10,7 @@ worker-configuration.d.ts
 .env
 .env.*
 !.env.example
+gha-creds-*.json
 **/.env
 **/.env.*
 !**/.env.example

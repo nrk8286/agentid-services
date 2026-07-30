@@ -233,6 +233,7 @@ def test_a2a_chat_stream(server_fixture: subprocess.Popen[str]) -> None:
     assert final_responses[-1].result.status.state == "completed"
 
 
+@pytest.mark.live_model
 def test_agent_card(server_fixture: subprocess.Popen[str]) -> None:
     """Test that the A2A agent card is served at the well-known URI."""
     response = requests.get(AGENT_CARD_URL, timeout=10)
@@ -243,6 +244,7 @@ def test_agent_card(server_fixture: subprocess.Popen[str]) -> None:
         assert field in served_agent_card, f"Missing field in agent card: {field}"
 
 
+@pytest.mark.live_model
 def test_collect_feedback(server_fixture: subprocess.Popen[str]) -> None:
     """Test the feedback collection endpoint (/feedback)."""
     feedback_data = {

@@ -1,0 +1,42 @@
+name: Live agent end-to-end
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: live-agent-e2e
+  cancel-in-progress: false
+
+jobs:
+  live-agent-e2e:
+    name: Google-backed agent tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    defaults:
+      run:
+        working-directory: agentid-revenue-agents
+    env:
+      GOOGLE_GENAI_USE_VERTEXAI: "TRUE"
+      GOOGLE_CLOUD_PROJECT: ${{ vars.GOOGLE_CLOUD_PROJECT }}
+      GOOGLE_CLOUD_LOCATION: ${{ vars.GOOGLE_CLOUD_REGION }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          credentials_json: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: agentid-revenue-agents/uv.lock
+      - name: Require production configuration
+        run: |
+          test -n "$GOOGLE_CLOUD_PROJECT"
+          test -n "$GOOGLE_CLOUD_LOCATION"
+      - run: uv sync --dev --extra lint
+      - name: Run Google-backed integration tests
+        run: uv run pytest tests/integration -m live_model -q
