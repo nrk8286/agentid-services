@@ -44,7 +44,7 @@ npm run deploy
 
 The shell needs `CLOUDFLARE_API_TOKEN` set for `wrangler deploy`.
 
-The Cloudflare account is currently at its free-plan cron trigger limit. To make the system run anyway, the existing `apex` Worker's `0 */6 * * *` cron now dispatches `POST https://agentid.services/api/agents/run` after its normal full orchestrator cycle.
+The AgentID Worker uses a SQLite-backed Durable Object alarm to run its guarded agent cycle every six hours without consuming an account Cron Trigger. A health request idempotently initializes or repairs the alarm, and `GET /api/agents/scheduler` reports its next run and last outcome. The Worker also exposes the duplicate-run-guarded `POST /api/agents/run` endpoint for operational testing and recovery.
 
 Cloudflare routes are configured to send the full `agentid.services/*` site surface through this Worker, so the Worker owns the live site instead of only selected subpaths.
 
@@ -52,6 +52,7 @@ Cloudflare routes are configured to send the full `agentid.services/*` site surf
 
 ```bash
 curl https://agentid.services/api/agents/health
+curl https://agentid.services/api/agents/scheduler
 curl https://agentid.services/api/agents/state
 curl https://agentid.services/software-builds
 curl https://agentid.services/llms.txt
@@ -264,7 +265,7 @@ This Worker now uses:
 - `KV`
 - `D1`
 - `Queues`
-- `Cron Triggers`
+- `Durable Objects and alarms`
 - `Turnstile`
 - `Observability`
 - `caches.default`
@@ -383,6 +384,6 @@ wrangler secret put LEAD_WEBHOOK_URL
 wrangler secret put AGENT_WEBHOOK_URL
 ```
 
-`ADMIN_TOKEN` protects `/api/agents/run` and `/api/agents/state`.
+`ADMIN_TOKEN` protects forced `/api/agents/run` calls. Non-forced calls keep the 30-minute duplicate-run guard, while `/api/agents/state` remains a public read-only operational snapshot.
 `LEAD_WEBHOOK_URL` receives new leads.
 `AGENT_WEBHOOK_URL` receives the latest generated marketing plan every six hours.

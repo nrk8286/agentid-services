@@ -2,7 +2,7 @@
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "agentid-services-agent-system",
   "main": "src/index.js",
-  "compatibility_date": "2026-05-28",
+  "compatibility_date": "2026-07-30",
   "compatibility_flags": [
     "nodejs_compat"
   ],
@@ -10,6 +10,20 @@
   "preview_urls": true,
   "placement": {
     "mode": "smart"
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "AGENT_SCHEDULER",
+        "class_name": "AgentScheduler"
+      }
+    ]
+  },
+  "exports": {
+    "AgentScheduler": {
+      "type": "durable-object",
+      "storage": "sqlite"
+    }
   },
   "observability": {
     "logs": {

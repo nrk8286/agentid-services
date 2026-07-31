@@ -5667,9 +5667,7 @@ new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
 j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 '${escapeJs(gatewayPath)}/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
 })(window,document,'script','dataLayer','${escapeJs(tagManagerId)}');</script>`);
-  }
-
-  if (analyticsId.startsWith("G-")) {
+  } else if (analyticsId.startsWith("G-")) {
     snippets.push(`<script async src="${escapeHtml(gatewayPath)}/gtag/js?id=${encodeURIComponent(analyticsId)}"></script>
 <script>
   window.dataLayer = window.dataLayer || [];
@@ -5822,7 +5820,9 @@ function renderAnalyticsBootstrap(env) {
           if (window.dataLayer) {
             window.dataLayer.push(Object.assign({ event: eventName }, eventProperties));
           }
-          if (window.__agentidAnalyticsConfig.googleAnalyticsId && typeof window.gtag === "function") {
+          if (!window.__agentidAnalyticsConfig.googleTagId.startsWith("GTM-")
+              && window.__agentidAnalyticsConfig.googleAnalyticsId
+              && typeof window.gtag === "function") {
             window.gtag("event", eventName, eventProperties);
           }
           await fetch("/api/events", {
@@ -5855,8 +5855,19 @@ function renderAnalyticsBootstrap(env) {
             }
           });
         }
-        window.addEventListener("scroll", evaluate, { passive: true });
-        evaluate();
+        let evaluationPending = false;
+        function scheduleEvaluation() {
+          if (evaluationPending) return;
+          evaluationPending = true;
+          requestAnimationFrame(() => {
+            setTimeout(() => {
+              evaluationPending = false;
+              evaluate();
+            }, 0);
+          });
+        }
+        window.addEventListener("scroll", scheduleEvaluation, { passive: true });
+        scheduleEvaluation();
       }
 
       function trackFaqOpen() {
@@ -5948,7 +5959,7 @@ function renderChatBootstrap(env) {
 
         function ensureConversation() {
           if (!state.conversationId) {
-            state.conversationId = (crypto.randomUUID && crypto.randomUUID()) || String(Date.now()) + Math.random().toString(16).slice(2);
+            state.conversationId = crypto.randomUUID();
             state.messages = [];
             state.step = state.step || 0;
           }
@@ -5971,7 +5982,9 @@ function renderChatBootstrap(env) {
               : "";
             return '<div class="chat-line ' + esc(item.role) + '"><div class="chat-bubble"><div>' + esc(item.text) + '</div>' + sourceHtml + '</div></div>';
           }).join("");
-          list.scrollTop = list.scrollHeight;
+          requestAnimationFrame(() => {
+            list.scrollTop = list.scrollHeight;
+          });
         }
 
         function appendMessage(role, text, meta) {

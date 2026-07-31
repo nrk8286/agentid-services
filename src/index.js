@@ -1,3 +1,4 @@
+import { DurableObject } from "cloudflare:workers";
 import {
   agentIdIndexablePaths,
   agentIdOneTimeProducts,
@@ -29,6 +30,10 @@ const CSS_HEADERS = {
   "cache-control": "public, max-age=3600",
 };
 
+const AGENT_ALARM_INTERVAL_MS = 6 * 60 * 60 * 1000;
+const AGENT_ALARM_BOOTSTRAP_DELAY_MS = 15 * 1000;
+const AGENT_ALARM_RETRY_MS = 5 * 60 * 1000;
+const AGENT_SCHEDULER_NAME = "agentid-primary";
 const RUN_INTERVAL_SECONDS = 60 * 30;
 const LEAD_SPIDER_INTERVAL_SECONDS = 60 * 60 * 6;
 const MAX_SPIDER_SOURCES = 8;
@@ -622,20 +627,25 @@ export default {
     }
 
     if (url.pathname === "/api/agents/health") {
-      return jsonResponse({
-        ok: true,
-        service: serviceName(env),
-        storage: Boolean(env.GMP_KV),
-        flagship: Boolean(env.FLAGSHIP),
-        artifacts: Boolean(env.GMP_ASSETS),
-        analyticsEngine: Boolean(env.ANALYTICS_ENGINE),
-        cloudflareAiSearch: Boolean(env.AGENTID_AI_SEARCH),
-        nativeRateLimiting: Boolean(env.FORM_RATE_LIMITER && env.EVENT_RATE_LIMITER),
-        googleTagGateway: googleTagGatewayStatus(env),
-        indexNow: indexNowStatus(env),
-        requestCf: requestCfSummary(request),
-        timestamp: new Date().toISOString(),
-      });
+      const health = agentHealthStatus(env, request);
+      if (env.AGENT_SCHEDULER) {
+        ctx.waitUntil(ensureAgentScheduler(env).catch((error) => {
+          console.error(JSON.stringify({
+            event: "agent_scheduler_ensure_failed",
+            message: error instanceof Error ? error.message : String(error),
+            timestamp: new Date().toISOString(),
+          }));
+        }));
+      }
+      if (url.searchParams.get("deep") === "1") {
+        health.routes = await inspectSite(env);
+      }
+      return jsonResponse(health);
+    }
+
+    if (url.pathname === "/api/agents/scheduler" && request.method === "GET") {
+      const scheduler = await agentSchedulerStatus(env);
+      return jsonResponse(scheduler, scheduler.ok ? 200 : 503);
     }
 
     if (url.pathname === "/api/agents/flags") {
@@ -770,7 +780,12 @@ export default {
 
     if (url.pathname === "/api/agents/run" && request.method === "POST") {
       const body = await readJson(request) || {};
-      const plan = await runAgentLoop(env, body.force ? "manual_force" : "manual", Boolean(body.force));
+      const forceRequested = Boolean(body.force);
+      const isAdmin = forceRequested ? await hasAdminAccess(request, env) : false;
+      if (forceRequested && !isAdmin) {
+        return jsonResponse({ ok: false, error: "Admin access required for a forced run." }, 403);
+      }
+      const plan = await runAgentLoop(env, forceRequested ? "manual_force" : "manual", forceRequested);
       ctx.waitUntil(pingIndexNow(env));
       ctx.waitUntil(sendWebhook(env, "agent_plan", plan));
       return jsonResponse(plan);
@@ -797,13 +812,137 @@ export default {
     }
   },
 
-  async scheduled(event, env, ctx) {
-    for (const scopedEnv of scheduledEnvs(env)) {
-      ctx.waitUntil(runAgentLoop(scopedEnv, event.cron, false).then((plan) => sendWebhook(scopedEnv, "agent_plan", plan)));
-      ctx.waitUntil(pingIndexNow(scopedEnv));
-    }
-  },
 };
+
+export class AgentScheduler extends DurableObject {
+  constructor(ctx, env) {
+    super(ctx, env);
+    this.ctx = ctx;
+    this.env = env;
+  }
+
+  async fetch(request) {
+    const pathname = new URL(request.url).pathname;
+    if (pathname === "/ensure" && request.method === "POST") {
+      return jsonResponse(await this.ensureSchedule());
+    }
+    if (pathname === "/status" && request.method === "GET") {
+      return jsonResponse(await this.status());
+    }
+    return jsonResponse({ ok: false, error: "Not found." }, 404);
+  }
+
+  async ensureSchedule() {
+    const initializedAt = await this.ctx.storage.get("initializedAt");
+    let nextAlarmAt = await this.ctx.storage.getAlarm();
+
+    if (!initializedAt) {
+      const now = new Date().toISOString();
+      nextAlarmAt = Date.now() + AGENT_ALARM_BOOTSTRAP_DELAY_MS;
+      await this.ctx.storage.put({
+        initializedAt: now,
+        bootstrapPending: true,
+      });
+      await this.ctx.storage.setAlarm(nextAlarmAt);
+    } else if (nextAlarmAt === null) {
+      nextAlarmAt = Date.now() + AGENT_ALARM_RETRY_MS;
+      await this.ctx.storage.setAlarm(nextAlarmAt);
+    }
+
+    return this.status();
+  }
+
+  async status() {
+    const [
+      initializedAt,
+      lastRunAt,
+      lastOutcome,
+      lastError,
+      nextAlarmAt,
+    ] = await Promise.all([
+      this.ctx.storage.get("initializedAt"),
+      this.ctx.storage.get("lastRunAt"),
+      this.ctx.storage.get("lastOutcome"),
+      this.ctx.storage.get("lastError"),
+      this.ctx.storage.getAlarm(),
+    ]);
+
+    return {
+      ok: true,
+      provider: "durable-object-alarm",
+      initialized: Boolean(initializedAt),
+      initializedAt: initializedAt || null,
+      intervalSeconds: AGENT_ALARM_INTERVAL_MS / 1000,
+      nextAlarmAt: nextAlarmAt ? new Date(nextAlarmAt).toISOString() : null,
+      lastRunAt: lastRunAt || null,
+      lastOutcome: lastOutcome || null,
+      lastError: lastError || null,
+      duplicateRunGuardSeconds: RUN_INTERVAL_SECONDS,
+    };
+  }
+
+  async alarm(alarmInfo = {}) {
+    const startedAt = new Date().toISOString();
+    const bootstrapPending = Boolean(await this.ctx.storage.get("bootstrapPending"));
+    if (bootstrapPending) {
+      // Consume the one-time force flag before external work so an alarm retry
+      // cannot force a second run after a partial completion.
+      await this.ctx.storage.delete("bootstrapPending");
+    }
+
+    console.log(JSON.stringify({
+      event: "agent_scheduler_alarm_started",
+      startedAt,
+      bootstrap: bootstrapPending,
+      retryCount: Number(alarmInfo.retryCount || 0),
+    }));
+
+    try {
+      const scopedEnv = requestScopedEnv(this.env, new URL("https://agentid.services/agents/"));
+      const plan = await runAgentLoop(scopedEnv, "durable_object_alarm", bootstrapPending);
+      await Promise.allSettled([
+        sendWebhook(scopedEnv, "agent_plan", plan),
+        pingIndexNow(scopedEnv),
+      ]);
+
+      const completedAt = new Date().toISOString();
+      const outcome = {
+        ok: true,
+        skipped: Boolean(plan && plan.skipped),
+        reason: plan && plan.reason ? plan.reason : null,
+        generatedAt: plan && plan.generatedAt ? plan.generatedAt : null,
+      };
+      await this.ctx.storage.put({
+        lastRunAt: completedAt,
+        lastOutcome: outcome,
+        lastError: null,
+      });
+      await this.ctx.storage.setAlarm(Date.now() + AGENT_ALARM_INTERVAL_MS);
+      console.log(JSON.stringify({
+        event: "agent_scheduler_alarm_completed",
+        completedAt,
+        ...outcome,
+      }));
+    } catch (error) {
+      const failedAt = new Date().toISOString();
+      const lastError = {
+        at: failedAt,
+        message: String(error instanceof Error ? error.message : error).slice(0, 500),
+      };
+      await this.ctx.storage.put({
+        lastRunAt: failedAt,
+        lastOutcome: { ok: false },
+        lastError,
+      });
+      await this.ctx.storage.setAlarm(Date.now() + AGENT_ALARM_RETRY_MS);
+      console.error(JSON.stringify({
+        event: "agent_scheduler_alarm_failed",
+        ...lastError,
+        retryInSeconds: AGENT_ALARM_RETRY_MS / 1000,
+      }));
+    }
+  }
+}
 
 async function handleLead(request, env, ctx) {
   const body = await readJson(request);
@@ -2480,12 +2619,28 @@ function buildPlan(env, trigger, now, siteHealth, metrics, existingTasks) {
 
 async function inspectSite(env) {
   const targets = [
-    { id: "home", url: siteUrl(env) },
-    { id: "agents", url: `${siteUrl(env)}/agents/` },
-    { id: "agent_api", url: `${siteUrl(env)}/api/agents/health` },
+    {
+      id: "home",
+      url: siteUrl(env),
+      render: () => handleAgentIdSiteRequest(
+        new Request(siteUrl(env)),
+        env,
+        { waitUntil() {} },
+      ),
+    },
+    {
+      id: "agents",
+      url: `${siteUrl(env)}/agents/`,
+      render: async () => htmlResponse(renderDashboard(env, await publicState(env))),
+    },
+    {
+      id: "agent_api",
+      url: `${siteUrl(env)}/api/agents/health`,
+      render: () => jsonResponse(agentHealthStatus(env)),
+    },
   ];
 
-  const checks = await Promise.all(targets.map((target) => fetchWithFallback(target)));
+  const checks = await Promise.all(targets.map((target) => inspectInternalRoute(target)));
 
   return {
     status: checks.every((check) => check.ok) ? "healthy" : "attention",
@@ -2493,58 +2648,30 @@ async function inspectSite(env) {
   };
 }
 
-async function fetchWithFallback(target) {
+async function inspectInternalRoute(target) {
   const started = Date.now();
-  const urls = [target.url];
-
   try {
-    const parsed = new URL(target.url);
-    if (!parsed.hostname.startsWith("www.")) {
-      const wwwUrl = new URL(target.url);
-      wwwUrl.hostname = `www.${parsed.hostname}`;
-      urls.push(wwwUrl.toString());
-    }
-  } catch {
-    // Use the original URL only if it cannot be parsed.
+    const response = await target.render();
+    const status = response instanceof Response ? response.status : 500;
+    return {
+      id: target.id,
+      ok: status < 500,
+      status,
+      ms: Date.now() - started,
+      url: target.url,
+      probe: "internal-render",
+    };
+  } catch (error) {
+    return {
+      id: target.id,
+      ok: false,
+      status: 500,
+      ms: Date.now() - started,
+      error: error && error.message ? error.message : "internal render failed",
+      url: target.url,
+      probe: "internal-render",
+    };
   }
-
-  for (const url of urls) {
-    try {
-      const response = await fetch(url, { method: "GET" });
-      if (response.status < 500) {
-        return {
-          id: target.id,
-          ok: true,
-          status: response.status,
-          ms: Date.now() - started,
-          url,
-          fallbackUsed: url !== target.url,
-        };
-      }
-    } catch (error) {
-      if (url === urls[urls.length - 1]) {
-        return {
-          id: target.id,
-          ok: false,
-          status: 0,
-          ms: Date.now() - started,
-          error: error && error.message ? error.message : "fetch failed",
-          url,
-          fallbackUsed: url !== target.url,
-        };
-      }
-    }
-  }
-
-  return {
-    id: target.id,
-    ok: false,
-    status: 522,
-    ms: Date.now() - started,
-    error: "all probes returned 5xx",
-    url: urls[urls.length - 1],
-    fallbackUsed: urls.length > 1,
-  };
 }
 
 function recommendationFor(agentId, seed, weakSpot, leadCount, pendingCount) {
@@ -5738,12 +5865,6 @@ function requestScopedEnv(env, url) {
   return env;
 }
 
-function scheduledEnvs(env) {
-  return [
-    requestScopedEnv(env, new URL("https://agentid.services/agents/")),
-  ];
-}
-
 function storageKey(env, key) {
   const host = new URL(siteUrl(env)).hostname.replace(/^www\./, "").toLowerCase();
   if (!host) return key;
@@ -5818,7 +5939,9 @@ function googleTagGatewayStatus(env) {
     cloudflareDocs: GOOGLE_TAG_GATEWAY.docs,
     webVitals: webVitalsStatus(env),
     note: tagId || analyticsId
-      ? "Worker pages load Google tags through the first-party proxy path on this site."
+      ? tagId.startsWith("GTM-")
+        ? "Worker pages load Google Tag Manager through the first-party proxy; the Analytics ID is retained as a fallback without loading a duplicate tag."
+        : "Worker pages load Google tags through the first-party proxy path on this site."
       : "Set GOOGLE_TAG_ID or GOOGLE_ANALYTICS_ID to enable the first-party proxy path.",
   };
 }
@@ -6292,6 +6415,63 @@ function requestCfSummary(request) {
     asOrganization: cf.asOrganization || null,
     botManagement: Boolean(cf.botManagement),
   };
+}
+
+function agentHealthStatus(env, request = null) {
+  return {
+    ok: true,
+    service: serviceName(env),
+    storage: Boolean(env.GMP_KV),
+    flagship: Boolean(env.FLAGSHIP),
+    artifacts: Boolean(env.GMP_ASSETS),
+    analyticsEngine: Boolean(env.ANALYTICS_ENGINE),
+    cloudflareAiSearch: Boolean(env.AGENTID_AI_SEARCH),
+    nativeRateLimiting: Boolean(env.FORM_RATE_LIMITER && env.EVENT_RATE_LIMITER),
+    scheduler: {
+      configured: Boolean(env.AGENT_SCHEDULER),
+      provider: "durable-object-alarm",
+      intervalSeconds: AGENT_ALARM_INTERVAL_MS / 1000,
+      statusUrl: `${siteUrl(env)}/api/agents/scheduler`,
+      duplicateRunGuardSeconds: RUN_INTERVAL_SECONDS,
+    },
+    googleTagGateway: googleTagGatewayStatus(env),
+    indexNow: indexNowStatus(env),
+    requestCf: request ? requestCfSummary(request) : null,
+    timestamp: new Date().toISOString(),
+  };
+}
+
+function agentSchedulerStub(env) {
+  if (!env.AGENT_SCHEDULER || typeof env.AGENT_SCHEDULER.getByName !== "function") return null;
+  return env.AGENT_SCHEDULER.getByName(AGENT_SCHEDULER_NAME);
+}
+
+async function ensureAgentScheduler(env) {
+  const stub = agentSchedulerStub(env);
+  if (!stub) {
+    return {
+      ok: false,
+      provider: "durable-object-alarm",
+      configured: false,
+      error: "AGENT_SCHEDULER binding is unavailable.",
+    };
+  }
+  const response = await stub.fetch(new Request("https://agent-scheduler.internal/ensure", { method: "POST" }));
+  return response.json();
+}
+
+async function agentSchedulerStatus(env) {
+  const stub = agentSchedulerStub(env);
+  if (!stub) {
+    return {
+      ok: false,
+      provider: "durable-object-alarm",
+      configured: false,
+      error: "AGENT_SCHEDULER binding is unavailable.",
+    };
+  }
+  const response = await stub.fetch(new Request("https://agent-scheduler.internal/status"));
+  return response.json();
 }
 
 function escapeHtml(value) {

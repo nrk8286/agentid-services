@@ -7,6 +7,18 @@ const workerSource = readFileSync(new URL("../src/index.js", import.meta.url), "
 const siteSource = readFileSync(new URL("../src/agentid-site.js", import.meta.url), "utf8");
 const failures = [];
 
+if (!/"durable_objects"\s*:\s*\{[\s\S]{0,220}?"name"\s*:\s*"AGENT_SCHEDULER"[\s\S]{0,120}?"class_name"\s*:\s*"AgentScheduler"/.test(raw)) {
+  failures.push("AGENT_SCHEDULER Durable Object binding is missing");
+}
+
+if (!/"exports"\s*:\s*\{[\s\S]{0,180}?"AgentScheduler"\s*:\s*\{[\s\S]{0,120}?"type"\s*:\s*"durable-object"[\s\S]{0,80}?"storage"\s*:\s*"sqlite"/.test(raw)) {
+  failures.push("AgentScheduler must be declared as a SQLite Durable Object export");
+}
+
+if (/"triggers"\s*:\s*\{[\s\S]{0,160}?"crons"/.test(raw)) {
+  failures.push("AgentID must use its Durable Object alarm instead of consuming an account Cron Trigger");
+}
+
 const dbBinding = raw.match(/"binding"\s*:\s*"GMP_DB"[\s\S]{0,300}?"database_id"\s*:\s*"([^"]+)"/);
 if (!dbBinding) {
   failures.push("GMP_DB must include database_id in wrangler.jsonc");
@@ -57,6 +69,10 @@ if (!runtimeMigration.includes("CREATE TABLE IF NOT EXISTS agent_state") || !run
 
 if (/\b(?:d1SchemaPromise|schemaPromise)\b/.test(`${workerSource}\n${siteSource}`)) {
   failures.push("Worker source must not keep request-bound D1 promises in module scope");
+}
+
+if (!siteSource.includes('} else if (analyticsId.startsWith("G-")) {')) {
+  failures.push("Google Analytics fallback must not load beside Google Tag Manager");
 }
 
 const securityResponse = await handleAgentIdSiteRequest(
