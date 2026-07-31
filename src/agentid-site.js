@@ -55,6 +55,10 @@ const EVENT_RATE_LIMIT = {
   maxPerDay: 1000,
 };
 
+const MAX_JSON_BODY_BYTES = 128 * 1024;
+const MAX_STRIPE_WEBHOOK_BODY_BYTES = 1024 * 1024;
+const BODY_TOO_LARGE = Symbol("body-too-large");
+
 let googleAccessTokenCache = {
   token: "",
   expiresAt: 0,
@@ -1447,12 +1451,50 @@ function svgResponse(svg, status = 200, headers = {}) {
   });
 }
 
+async function readRequestText(request, maxBytes) {
+  const contentLength = Number.parseInt(request.headers.get("content-length") || "", 10);
+  if (Number.isFinite(contentLength) && contentLength > maxBytes) return BODY_TOO_LARGE;
+  if (!request.body) return "";
+
+  const reader = request.body.getReader();
+  const chunks = [];
+  let totalBytes = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    totalBytes += value.byteLength;
+    if (totalBytes > maxBytes) {
+      await reader.cancel("Request body exceeds the configured limit.").catch(() => {});
+      return BODY_TOO_LARGE;
+    }
+    chunks.push(value);
+  }
+
+  const bytes = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(bytes);
+}
+
 async function readJson(request) {
+  const rawBody = await readRequestText(request, MAX_JSON_BODY_BYTES);
+  if (rawBody === BODY_TOO_LARGE) return BODY_TOO_LARGE;
   try {
-    return await request.json();
+    return JSON.parse(rawBody);
   } catch {
     return null;
   }
+}
+
+function payloadTooLargeResponse(maxBytes = MAX_JSON_BODY_BYTES) {
+  return jsonResponse({
+    ok: false,
+    error: "Request body is too large.",
+    maxBytes,
+  }, 413);
 }
 
 function toTitle(value) {
@@ -2595,6 +2637,7 @@ function coldLeadMessage() {
 
 async function handleChat(request, env, ctx) {
   const body = await readJson(request);
+  if (body === BODY_TOO_LARGE) return payloadTooLargeResponse();
   if (!body || typeof body !== "object") {
     return jsonResponse({ ok: false, error: "Invalid JSON." }, 400);
   }
@@ -3968,10 +4011,10 @@ function renderBookingPage(env) {
     ? `<iframe class="calendar-embed" src="${escapeHtml(calendarEmbedUrl(env))}" title="Booking calendar" loading="lazy"></iframe>`
     : `
       <div class="calendar-placeholder">
-        <p class="card-kicker">Booking embed area</p>
-        <strong>Connect your calendar embed to show live availability here.</strong>
-        <p>Until the embed is connected, use the qualification form and we’ll capture the request.</p>
-        ${bookingUrl(env) ? `<a class="button-primary" href="${escapeHtml(bookingUrl(env))}" target="_blank" rel="noopener">Open booking link</a>` : `<a class="button-secondary" href="/contact">Request a call time</a>`}
+        <p class="card-kicker">Flexible scheduling</p>
+        <strong>Tell us about the workflow you want to improve.</strong>
+        <p>Submit the short form and we’ll follow up to confirm a call time that works for you.</p>
+        ${bookingUrl(env) ? `<a class="button-primary" href="${escapeHtml(bookingUrl(env))}" target="_blank" rel="noopener">See available times</a>` : `<a class="button-secondary" href="/contact">Request a written AI agent plan instead</a>`}
       </div>`;
 
   const form = renderLeadForm({
@@ -4355,6 +4398,7 @@ async function storePurchaseFromSession(env, session, fallbackProduct = null) {
 
 async function handleCheckout(request, env) {
   const body = await readJson(request);
+  if (body === BODY_TOO_LARGE) return payloadTooLargeResponse();
   if (!body || typeof body !== "object") {
     return jsonResponse({ ok: false, error: "Invalid JSON." }, 400);
   }
@@ -4380,7 +4424,8 @@ async function handleStripeWebhook(request, env, ctx) {
     return jsonResponse({ ok: false, error: "Stripe is not configured." }, 503);
   }
   const signature = request.headers.get("stripe-signature") || "";
-  const rawBody = await request.text();
+  const rawBody = await readRequestText(request, MAX_STRIPE_WEBHOOK_BODY_BYTES);
+  if (rawBody === BODY_TOO_LARGE) return payloadTooLargeResponse(MAX_STRIPE_WEBHOOK_BODY_BYTES);
   const secret = String(env.STRIPE_WEBHOOK_SECRET || "").trim();
   if (!secret) {
     return jsonResponse({ ok: false, error: "STRIPE_WEBHOOK_SECRET is not configured." }, 503);
@@ -4390,7 +4435,12 @@ async function handleStripeWebhook(request, env, ctx) {
     return jsonResponse({ ok: false, error: verified.error }, 400);
   }
 
-  const event = JSON.parse(rawBody);
+  let event;
+  try {
+    event = JSON.parse(rawBody);
+  } catch {
+    return jsonResponse({ ok: false, error: "Invalid JSON payload." }, 400);
+  }
   if (event.type !== "checkout.session.completed") {
     return jsonResponse({ ok: true, ignored: true, type: event.type });
   }
@@ -4509,6 +4559,7 @@ function renderOnboardingPage(env, context = {}) {
 
 async function handleOnboarding(request, env, ctx) {
   const body = await readJson(request);
+  if (body === BODY_TOO_LARGE) return payloadTooLargeResponse();
   if (!body || typeof body !== "object") {
     return jsonResponse({ ok: false, error: "Invalid JSON." }, 400);
   }
@@ -9267,6 +9318,7 @@ async function renderAdminDashboardPage(env, request) {
 
 async function handleContactSubmission(request, env, ctx) {
   const body = await readJson(request);
+  if (body === BODY_TOO_LARGE) return payloadTooLargeResponse();
   if (!body || typeof body !== "object") {
     return jsonResponse({ ok: false, error: "Invalid JSON." }, 400);
   }
@@ -9303,6 +9355,7 @@ async function handleContactSubmission(request, env, ctx) {
 
 async function handleBookingSubmission(request, env, ctx) {
   const body = await readJson(request);
+  if (body === BODY_TOO_LARGE) return payloadTooLargeResponse();
   if (!body || typeof body !== "object") {
     return jsonResponse({ ok: false, error: "Invalid JSON." }, 400);
   }
@@ -9337,6 +9390,7 @@ async function handleBookingSubmission(request, env, ctx) {
 
 async function handleLeadMagnetSubmission(request, env, ctx) {
   const body = await readJson(request);
+  if (body === BODY_TOO_LARGE) return payloadTooLargeResponse();
   if (!body || typeof body !== "object") {
     return jsonResponse({ ok: false, error: "Invalid JSON." }, 400);
   }
@@ -9367,6 +9421,7 @@ async function handleLeadMagnetSubmission(request, env, ctx) {
 
 async function handleAnalyticsEventSubmission(request, env, ctx) {
   const body = await readJson(request);
+  if (body === BODY_TOO_LARGE) return payloadTooLargeResponse();
   if (!body || typeof body !== "object") {
     return jsonResponse({ ok: false, error: "Invalid JSON." }, 400);
   }

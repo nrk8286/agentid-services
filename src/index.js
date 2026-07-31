@@ -39,6 +39,9 @@ const LEAD_SPIDER_INTERVAL_SECONDS = 60 * 60 * 6;
 const MAX_SPIDER_SOURCES = 8;
 const MAX_SOURCE_BYTES = 70000;
 const SPONSOR_STARTER_CHECKOUT_URL = "";
+const MAX_JSON_BODY_BYTES = 128 * 1024;
+const MAX_STRIPE_WEBHOOK_BODY_BYTES = 1024 * 1024;
+const BODY_TOO_LARGE = Symbol("body-too-large");
 
 const AGENTS = [
   {
@@ -410,6 +413,69 @@ const FLAGSHIP_APP = {
   ],
 };
 
+async function flagshipEvaluationStatus(env, request) {
+  const bindingReady = Boolean(env.FLAGSHIP && typeof env.FLAGSHIP.getBooleanDetails === "function");
+  const requestUrl = new URL(request.url);
+  const context = {
+    path: requestUrl.pathname,
+    host: requestUrl.hostname,
+    country: cleanText(request.cf?.country || "unknown", 12),
+  };
+
+  if (!bindingReady) {
+    return {
+      ok: true,
+      app: FLAGSHIP_APP,
+      bindingReady: false,
+      evaluationAttempted: false,
+      safeDefault: true,
+      evaluations: FLAGSHIP_APP.flags.map((flagKey) => ({
+        flagKey,
+        value: true,
+        variant: null,
+        reason: "binding_unavailable",
+        errorCode: null,
+      })),
+    };
+  }
+
+  const evaluations = await Promise.all(FLAGSHIP_APP.flags.map(async (flagKey) => {
+    try {
+      const details = await env.FLAGSHIP.getBooleanDetails(flagKey, true, context);
+      return {
+        flagKey,
+        value: Boolean(details.value),
+        variant: cleanText(details.variant || "", 120) || null,
+        reason: cleanText(details.reason || "", 120) || null,
+        errorCode: cleanText(details.errorCode || "", 120) || null,
+      };
+    } catch (error) {
+      console.error(JSON.stringify({
+        event: "flagship_evaluation_failed",
+        flagKey,
+        message: error instanceof Error ? error.message : String(error),
+        timestamp: new Date().toISOString(),
+      }));
+      return {
+        flagKey,
+        value: true,
+        variant: null,
+        reason: "safe_default",
+        errorCode: "evaluation_failed",
+      };
+    }
+  }));
+
+  return {
+    ok: true,
+    app: FLAGSHIP_APP,
+    bindingReady: true,
+    evaluationAttempted: true,
+    safeDefault: true,
+    evaluations,
+  };
+}
+
 const GOOGLE_TAG_GATEWAY = {
   path: "/gtag",
   docs: "https://developers.cloudflare.com/google-tag-gateway/",
@@ -649,7 +715,7 @@ export default {
     }
 
     if (url.pathname === "/api/agents/flags") {
-      return jsonResponse({ ok: true, app: FLAGSHIP_APP, bindingReady: Boolean(env.FLAGSHIP) });
+      return jsonResponse(await flagshipEvaluationStatus(env, request));
     }
 
     if (url.pathname === "/api/agents/tags") {
@@ -748,7 +814,9 @@ export default {
     }
 
     if (url.pathname === "/api/agents/lead-spider/run" && request.method === "POST") {
-      const body = await readJson(request) || {};
+      const parsedBody = await readJson(request);
+      if (parsedBody === BODY_TOO_LARGE) return payloadTooLargeResponse();
+      const body = parsedBody || {};
       const isAdmin = await hasAdminAccess(request, env);
       const report = await runLeadSpider(env, {
         trigger: isAdmin && body.force ? "manual_force" : "manual",
@@ -779,7 +847,9 @@ export default {
     }
 
     if (url.pathname === "/api/agents/run" && request.method === "POST") {
-      const body = await readJson(request) || {};
+      const parsedBody = await readJson(request);
+      if (parsedBody === BODY_TOO_LARGE) return payloadTooLargeResponse();
+      const body = parsedBody || {};
       const forceRequested = Boolean(body.force);
       const isAdmin = forceRequested ? await hasAdminAccess(request, env) : false;
       if (forceRequested && !isAdmin) {
@@ -946,6 +1016,7 @@ export class AgentScheduler extends DurableObject {
 
 async function handleLead(request, env, ctx) {
   const body = await readJson(request);
+  if (body === BODY_TOO_LARGE) return payloadTooLargeResponse();
   if (!body) return jsonResponse({ ok: false, error: "Invalid JSON." }, 400);
   if (!(await verifyLeadTurnstile(body, request, env))) {
     return jsonResponse({ ok: false, error: "Turnstile verification failed." }, 403);
@@ -1241,6 +1312,7 @@ async function handlePaypalSubscriptionCheckout(request, env) {
   const rate = await paypalCheckoutRateLimit(env, request);
   if (!rate.ok) return jsonResponse({ ok: false, error: rate.error }, 429);
   const body = await readJson(request);
+  if (body === BODY_TOO_LARGE) return payloadTooLargeResponse();
   if (!body || typeof body !== "object") {
     return jsonResponse({ ok: false, error: "Invalid JSON." }, 400);
   }
@@ -1338,6 +1410,7 @@ async function handlePaypalOrderCreate(request, env) {
   }
 
   const body = await readJson(request);
+  if (body === BODY_TOO_LARGE) return payloadTooLargeResponse();
   if (!body || typeof body !== "object") {
     return jsonResponse({ ok: false, error: "Invalid JSON." }, 400);
   }
@@ -1446,6 +1519,7 @@ async function handlePaypalOrderCapture(request, env, ctx) {
     return jsonResponse({ ok: false, error: "Secure order storage is unavailable." }, 503);
   }
   const body = await readJson(request);
+  if (body === BODY_TOO_LARGE) return payloadTooLargeResponse();
   const orderId = cleanText(body?.orderId || body?.token || "", 80);
   if (!/^[A-Za-z0-9-]{8,80}$/.test(orderId)) {
     return jsonResponse({ ok: false, error: "A valid PayPal order ID is required." }, 400);
@@ -1728,6 +1802,7 @@ async function handlePaypalWebhook(request, env, ctx) {
     return jsonResponse({ ok: false, error: "PayPal API credentials are not configured." }, 503);
   }
   const event = await readJson(request);
+  if (event === BODY_TOO_LARGE) return payloadTooLargeResponse();
   if (!event || typeof event !== "object") {
     return jsonResponse({ ok: false, error: "Invalid JSON." }, 400);
   }
@@ -1785,6 +1860,7 @@ async function handlePaypalWebhook(request, env, ctx) {
 
 async function handleAdCheckout(request, env) {
   const body = await readJson(request);
+  if (body === BODY_TOO_LARGE) return payloadTooLargeResponse();
   if (!body) return jsonResponse({ ok: false, error: "Invalid JSON." }, 400);
 
   const adPackage = adPackages(env).find((item) => item.id === cleanText(body.packageId, 40));
@@ -1833,6 +1909,7 @@ async function handleAdCheckout(request, env) {
 
 async function handleSoftwareBuildCheckout(request, env) {
   const body = await readJson(request);
+  if (body === BODY_TOO_LARGE) return payloadTooLargeResponse();
   if (!body) return jsonResponse({ ok: false, error: "Invalid JSON." }, 400);
 
   const build = SOFTWARE_BUILDS.find((item) => item.id === cleanText(body.buildId, 80));
@@ -1887,7 +1964,8 @@ async function handleStripeWebhook(request, env, ctx) {
   }
 
   const signature = request.headers.get("stripe-signature") || "";
-  const rawBody = await request.text();
+  const rawBody = await readRequestText(request, MAX_STRIPE_WEBHOOK_BODY_BYTES);
+  if (rawBody === BODY_TOO_LARGE) return payloadTooLargeResponse(MAX_STRIPE_WEBHOOK_BODY_BYTES);
   const verified = await verifyStripeSignature(rawBody, signature, env.STRIPE_WEBHOOK_SECRET);
   if (!verified.ok) {
     return jsonResponse({ ok: false, error: verified.error }, 400);
@@ -3820,6 +3898,7 @@ async function reserveAgentSpend(request, env) {
     return [{ ok: false, status: "unavailable", code: "spend_ledger_unavailable" }, 503];
   }
   const body = await readJson(request);
+  if (body === BODY_TOO_LARGE) return [{ ok: false, status: "blocked", code: "body_too_large", maxBytes: MAX_JSON_BODY_BYTES }, 413];
   if (!body) return [{ ok: false, status: "blocked", code: "invalid_json" }, 400];
 
   const amountCents = Number(body.amount_cents);
@@ -3927,6 +4006,7 @@ async function executeAgentAction(request, env, ctx) {
     return [{ ok: false, status: "unavailable", code: "action_storage_unavailable" }, 503];
   }
   const body = await readJson(request);
+  if (body === BODY_TOO_LARGE) return [{ ok: false, status: "blocked", code: "body_too_large", maxBytes: MAX_JSON_BODY_BYTES }, 413];
   if (!body) return [{ ok: false, status: "blocked", code: "invalid_json" }, 400];
 
   const idempotencyKey = String(body.idempotency_key || "").trim();
@@ -4117,12 +4197,50 @@ async function timingSafeStringEqual(candidate, expected) {
   return diff === 0;
 }
 
+async function readRequestText(request, maxBytes) {
+  const contentLength = Number.parseInt(request.headers.get("content-length") || "", 10);
+  if (Number.isFinite(contentLength) && contentLength > maxBytes) return BODY_TOO_LARGE;
+  if (!request.body) return "";
+
+  const reader = request.body.getReader();
+  const chunks = [];
+  let totalBytes = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    totalBytes += value.byteLength;
+    if (totalBytes > maxBytes) {
+      await reader.cancel("Request body exceeds the configured limit.").catch(() => {});
+      return BODY_TOO_LARGE;
+    }
+    chunks.push(value);
+  }
+
+  const bytes = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(bytes);
+}
+
 async function readJson(request) {
+  const rawBody = await readRequestText(request, MAX_JSON_BODY_BYTES);
+  if (rawBody === BODY_TOO_LARGE) return BODY_TOO_LARGE;
   try {
-    return await request.json();
+    return JSON.parse(rawBody);
   } catch {
     return null;
   }
+}
+
+function payloadTooLargeResponse(maxBytes = MAX_JSON_BODY_BYTES) {
+  return jsonResponse({
+    ok: false,
+    error: "Request body is too large.",
+    maxBytes,
+  }, 413);
 }
 
 async function getJson(env, key) {
