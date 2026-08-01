@@ -99,8 +99,8 @@ const NAV_LINKS = [
   { path: "/use-cases", label: "Use Cases" },
   { path: "/resources", label: "Resources" },
   { path: "/pricing", label: "Pricing" },
-  { path: "/about", label: "About" },
-  { path: "/faq", label: "FAQ" },
+  { path: "/about", label: "About", optional: true },
+  { path: "/faq", label: "FAQ", optional: true },
   { path: "/contact", label: "Contact" },
 ];
 
@@ -3225,7 +3225,7 @@ function renderHomePage(env, state) {
     <section class="hero">
       <div class="hero-copy">
         <p class="eyebrow">GPTMarketPlus</p>
-        <h1>Custom AI Agents Built to Help Your Business Sell, Respond, and Operate Faster</h1>
+        <h1>Custom AI Agents That Help Your Business Sell, Respond, and Operate Faster</h1>
         <p class="hero-lede">Turn missed leads, slow follow-up, repetitive customer questions, and manual admin into one AI workflow your business can use every day.</p>
         <div class="cta-row">
           <a class="button-primary" href="/book-a-consultation" data-track-event="cta_click" data-track-label="Book a Free AI Strategy Call">Book a Free AI Strategy Call</a>
@@ -3243,6 +3243,15 @@ function renderHomePage(env, state) {
       </div>
       ${renderHeroVisual()}
     </section>
+
+    <div class="ownership-strip" aria-label="GPTMarketPlus platform advantages">
+      <span>First-party sales tool</span>
+      <span>No platform lock-in</span>
+      <span>Secure checkout</span>
+      <span>Automated delivery</span>
+    </div>
+
+    ${renderOpportunityScannerBootstrap()}
 
     <section class="section split-section">
       <div>
@@ -5734,7 +5743,7 @@ const AGENTID_PUBLIC_PAGES = [
 
 function renderNav(activePath) {
   const items = NAV_LINKS.map((item) => `
-    <a class="${normalizePath(activePath) === item.path ? "active" : ""}" href="${item.path}">${escapeHtml(item.label)}</a>
+    <a class="${normalizePath(activePath) === item.path ? "active " : ""}${item.optional ? "nav-optional" : ""}" href="${item.path}">${escapeHtml(item.label)}</a>
   `).join("");
 
   return `
@@ -5855,46 +5864,141 @@ function renderShell(env, { path, title, description, body, schema = [], extraHe
 
 function renderHeroVisual() {
   return `
-    <div class="hero-visual">
-      <div class="visual-top">
-        <span class="visual-chip">AI Agent Command Center</span>
-        <span class="visual-chip muted">Lead Capture</span>
-      </div>
-      <div class="visual-panel visual-large">
+    <div class="hero-visual opportunity-scanner" id="opportunity-scanner">
+      <div class="scanner-heading">
         <div>
-          <p class="visual-label">Live workflow</p>
-          <strong>Respond fast</strong>
-          <span>Capture leads, qualify requests, and move customers to the next step.</span>
+          <p class="visual-label">Free first-party tool</p>
+          <h2>Find your best AI opportunity</h2>
         </div>
-        <div class="visual-bars">
-          <span style="width:82%"></span>
-          <span style="width:67%"></span>
-          <span style="width:91%"></span>
-        </div>
+        <span class="scanner-badge">No signup</span>
       </div>
-      <div class="visual-grid">
-        <div class="visual-panel">
-          <p class="visual-label">Chat</p>
-          <strong>24/7 Sales Assistant</strong>
-          <span>Always on, clearly identified as AI.</span>
+
+      <div class="scanner-fields">
+        <label>
+          <span>Business type</span>
+          <select id="scanner-business-type">
+            <option value="service">Local or home service</option>
+            <option value="professional">Professional service</option>
+            <option value="agency">Agency or consultancy</option>
+            <option value="ecommerce">E-commerce or retail</option>
+            <option value="operations">Operations team</option>
+          </select>
+        </label>
+        <label>
+          <span>Monthly inquiries</span>
+          <input id="scanner-monthly-leads" type="number" min="0" max="100000" step="1" value="40" inputmode="numeric">
+        </label>
+        <label>
+          <span>Average customer value</span>
+          <span class="money-input"><span aria-hidden="true">$</span><input id="scanner-customer-value" type="number" min="0" max="10000000" step="25" value="750" inputmode="decimal"></span>
+        </label>
+        <label>
+          <span>Repetitive admin hours / week</span>
+          <input id="scanner-admin-hours" type="number" min="0" max="168" step="1" value="10" inputmode="decimal">
+        </label>
+      </div>
+
+      <button class="scanner-submit" id="scanner-submit" type="button">Calculate my opportunity <span aria-hidden="true">→</span></button>
+
+      <div class="scanner-results" id="scanner-results" aria-live="polite" hidden>
+        <div class="scanner-result-card">
+          <span>12% inquiry-value scenario</span>
+          <strong id="scanner-opportunity-value">$0</strong>
         </div>
-        <div class="visual-panel">
-          <p class="visual-label">CRM</p>
-          <strong>Lead Routing</strong>
-          <span>Summaries and next steps for the owner.</span>
+        <div class="scanner-result-card">
+          <span>50% admin-time scenario</span>
+          <strong id="scanner-hours-value">0 hours / month</strong>
         </div>
-        <div class="visual-panel">
-          <p class="visual-label">Workflow</p>
-          <strong>Automation Map</strong>
-          <span>Forms, calendars, tasks, and follow-up.</span>
+        <div class="scanner-recommendation">
+          <span>Recommended first build</span>
+          <strong id="scanner-agent-value">Lead Capture &amp; Follow-Up Agent</strong>
+          <p id="scanner-agent-reason">Respond to inquiries, collect the right details, and keep follow-up moving.</p>
         </div>
-        <div class="visual-panel">
-          <p class="visual-label">Analytics</p>
-          <strong>Event Tracking</strong>
-          <span>CTA clicks, leads, bookings, and purchases.</span>
+        <p class="scanner-disclaimer">Planning scenarios only—not promised revenue, savings, or results. Your actual outcome depends on traffic, close rate, workflow quality, and adoption.</p>
+        <div class="scanner-actions">
+          <a class="button-primary" href="/book-a-consultation?source=opportunity-scanner" data-track-event="cta_click" data-track-label="Discuss Scanner Result">Discuss my result</a>
+          <a class="button-secondary" href="/pricing" data-track-event="cta_click" data-track-label="Scanner View Pricing">View pricing</a>
         </div>
       </div>
     </div>`;
+}
+
+function renderOpportunityScannerBootstrap() {
+  return `<script>
+    (() => {
+      const root = document.getElementById("opportunity-scanner");
+      if (!root) return;
+
+      const businessType = document.getElementById("scanner-business-type");
+      const monthlyLeads = document.getElementById("scanner-monthly-leads");
+      const customerValue = document.getElementById("scanner-customer-value");
+      const adminHours = document.getElementById("scanner-admin-hours");
+      const submit = document.getElementById("scanner-submit");
+      const results = document.getElementById("scanner-results");
+      const opportunityOutput = document.getElementById("scanner-opportunity-value");
+      const hoursOutput = document.getElementById("scanner-hours-value");
+      const agentOutput = document.getElementById("scanner-agent-value");
+      const reasonOutput = document.getElementById("scanner-agent-reason");
+
+      const clampNumber = (input, minimum, maximum) => {
+        const parsed = Number(input.value);
+        if (!Number.isFinite(parsed)) return minimum;
+        return Math.min(maximum, Math.max(minimum, parsed));
+      };
+
+      const recommendationFor = (type, leads, hours) => {
+        if (leads >= 80) return {
+          name: "Lead Capture & Follow-Up Agent",
+          reason: "Prioritize fast qualification, routing, and consistent follow-up across a higher inquiry volume."
+        };
+        if (hours >= 15 || type === "operations") return {
+          name: "Operations Automation Agent",
+          reason: "Start with repetitive internal work, structured handoffs, summaries, and task creation."
+        };
+        if (type === "ecommerce") return {
+          name: "Customer Support & Sales Agent",
+          reason: "Answer common product questions, guide buyers, and route exceptions to a person."
+        };
+        if (type === "professional" || type === "agency") return {
+          name: "Client Intake & Scheduling Agent",
+          reason: "Collect project details, qualify fit, and move good inquiries toward a scheduled call."
+        };
+        return {
+          name: "Lead Capture & Follow-Up Agent",
+          reason: "Respond to inquiries, collect the right details, and keep follow-up moving."
+        };
+      };
+
+      submit.addEventListener("click", () => {
+        const leads = clampNumber(monthlyLeads, 0, 100000);
+        const value = clampNumber(customerValue, 0, 10000000);
+        const hours = clampNumber(adminHours, 0, 168);
+        const opportunityScenario = leads * 0.12 * value;
+        const monthlyHoursScenario = hours * 4.33 * 0.5;
+        const recommendation = recommendationFor(businessType.value, leads, hours);
+
+        opportunityOutput.textContent = new Intl.NumberFormat("en-US", {
+          style: "currency",
+          currency: "USD",
+          maximumFractionDigits: 0
+        }).format(opportunityScenario) + " / month";
+        hoursOutput.textContent = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 }).format(monthlyHoursScenario) + " hours / month";
+        agentOutput.textContent = recommendation.name;
+        reasonOutput.textContent = recommendation.reason;
+        results.hidden = false;
+        submit.textContent = "Recalculate opportunity";
+
+        if (window.agentidTrackEvent) {
+          window.agentidTrackEvent("opportunity_scan_completed", {
+            businessType: businessType.value,
+            monthlyLeadsBand: leads < 25 ? "under_25" : leads < 80 ? "25_79" : "80_plus",
+            adminHoursBand: hours < 5 ? "under_5" : hours < 15 ? "5_14" : "15_plus",
+            recommendedAgent: recommendation.name
+          });
+        }
+      });
+    })();
+  </script>`;
 }
 
 function renderStatCards(stats) {
@@ -6931,7 +7035,7 @@ main {
   padding: 16px 18px;
   display: flex;
   align-items: center;
-  gap: 18px;
+  gap: 12px;
   justify-content: space-between;
   border: 1px solid var(--line);
   border-radius: calc(var(--radius-xl) + 4px);
@@ -6946,7 +7050,7 @@ main {
 .nav-brand {
   display: grid;
   gap: 4px;
-  min-width: 180px;
+  min-width: 158px;
 }
 
 .brand-mark {
@@ -6957,21 +7061,24 @@ main {
 
 .brand-sub {
   color: var(--muted);
-  font-size: 0.82rem;
+  font-size: 0.74rem;
 }
 
 .nav-links {
   display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
+  flex: 1;
+  gap: 2px;
+  flex-wrap: nowrap;
   justify-content: center;
 }
 
 .nav-links a {
-  padding: 10px 12px;
+  padding: 9px 9px;
   border-radius: 999px;
   color: var(--muted);
   border: 1px solid transparent;
+  font-size: 0.88rem;
+  white-space: nowrap;
   transition: transform 180ms ease, background 180ms ease, color 180ms ease, border-color 180ms ease;
 }
 
@@ -7004,6 +7111,11 @@ main {
   font-weight: 800;
   box-shadow: 0 14px 30px rgba(63, 153, 255, 0.24);
   transition: transform 180ms ease, box-shadow 180ms ease, filter 180ms ease;
+}
+
+.nav-cta {
+  padding: 11px 14px;
+  font-size: 0.9rem;
 }
 
 .nav-cta:hover,
@@ -7060,7 +7172,8 @@ main {
 }
 
 .hero {
-  min-height: calc(100vh - 160px);
+  min-height: min(680px, calc(100vh - 138px));
+  padding: 34px 0 24px;
 }
 
 .hero-copy h1,
@@ -7075,8 +7188,8 @@ main {
 }
 
 .hero-copy h1 {
-  font-size: clamp(2.5rem, 6vw, 5.35rem);
-  max-width: 11.5ch;
+  font-size: clamp(2.65rem, 4.4vw, 4.15rem);
+  max-width: 15ch;
 }
 
 .hero-lede {
@@ -7162,6 +7275,211 @@ main {
   backdrop-filter: blur(20px);
   position: relative;
   overflow: hidden;
+}
+
+.opportunity-scanner {
+  align-self: center;
+}
+
+.scanner-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  position: relative;
+  z-index: 1;
+}
+
+.scanner-heading h2 {
+  margin: 0;
+  font-size: clamp(1.45rem, 2.2vw, 2rem);
+  letter-spacing: -0.025em;
+}
+
+.scanner-badge {
+  flex: 0 0 auto;
+  padding: 7px 10px;
+  border: 1px solid rgba(93, 240, 198, 0.28);
+  border-radius: 999px;
+  background: rgba(93, 240, 198, 0.08);
+  color: var(--success);
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.scanner-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+  position: relative;
+  z-index: 1;
+}
+
+.scanner-fields label {
+  display: grid;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.scanner-fields input,
+.scanner-fields select {
+  width: 100%;
+  min-height: 46px;
+  padding: 11px 12px;
+  border: 1px solid rgba(127, 205, 255, 0.2);
+  border-radius: 12px;
+  outline: none;
+  background: rgba(3, 10, 19, 0.74);
+  color: var(--text);
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.scanner-fields input:focus,
+.scanner-fields select:focus {
+  border-color: rgba(113, 214, 255, 0.7);
+  box-shadow: 0 0 0 3px rgba(113, 214, 255, 0.1);
+}
+
+.money-input {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  border: 1px solid rgba(127, 205, 255, 0.2);
+  border-radius: 12px;
+  background: rgba(3, 10, 19, 0.74);
+  overflow: hidden;
+}
+
+.money-input > span {
+  padding-left: 12px;
+  color: var(--accent);
+}
+
+.money-input input {
+  border: 0;
+  background: transparent;
+}
+
+.money-input:focus-within {
+  border-color: rgba(113, 214, 255, 0.7);
+  box-shadow: 0 0 0 3px rgba(113, 214, 255, 0.1);
+}
+
+.scanner-submit {
+  width: 100%;
+  min-height: 48px;
+  margin-top: 14px;
+  border: 1px solid rgba(112, 214, 255, 0.36);
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(97, 168, 255, 0.98), rgba(90, 240, 198, 0.9));
+  color: #04111e;
+  font-weight: 850;
+  cursor: pointer;
+  box-shadow: 0 14px 30px rgba(63, 153, 255, 0.2);
+  position: relative;
+  z-index: 1;
+  transition: transform 160ms ease, filter 160ms ease;
+}
+
+.scanner-submit:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.04);
+}
+
+.scanner-results {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+  position: relative;
+  z-index: 1;
+}
+
+.scanner-results[hidden] {
+  display: none;
+}
+
+.scanner-result-card,
+.scanner-recommendation {
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(6, 15, 27, 0.78);
+}
+
+.scanner-result-card span,
+.scanner-recommendation > span {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.scanner-result-card strong {
+  color: var(--accent);
+  font-size: 1rem;
+}
+
+.scanner-recommendation,
+.scanner-disclaimer,
+.scanner-actions {
+  grid-column: 1 / -1;
+}
+
+.scanner-recommendation strong {
+  display: block;
+  margin-bottom: 5px;
+}
+
+.scanner-recommendation p,
+.scanner-disclaimer {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.scanner-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.scanner-actions a {
+  flex: 1 1 180px;
+}
+
+.ownership-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  padding: 14px 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: rgba(8, 17, 29, 0.62);
+  color: var(--muted);
+  font-size: 0.82rem;
+  text-align: center;
+}
+
+.ownership-strip span {
+  position: relative;
+  padding-left: 16px;
+}
+
+.ownership-strip span::before {
+  content: "";
+  position: absolute;
+  top: 0.45em;
+  left: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 12px rgba(93, 240, 198, 0.65);
 }
 
 .hero-visual::before,
@@ -8363,6 +8681,10 @@ main {
 }
 
 @media (max-width: 1120px) {
+  .nav-optional:not(.active) {
+    display: none;
+  }
+
   .feature-rack {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -8412,10 +8734,15 @@ main {
 
   .hero {
     min-height: auto;
+    padding-top: 22px;
   }
 
   .hero-copy h1 {
     max-width: 100%;
+  }
+
+  .ownership-strip {
+    margin-top: 22px;
   }
 }
 
@@ -8462,6 +8789,21 @@ main {
 
   .benefit-list {
     grid-template-columns: 1fr;
+  }
+
+  .scanner-fields,
+  .scanner-results,
+  .ownership-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .ownership-strip {
+    gap: 8px;
+    text-align: left;
+  }
+
+  .ownership-strip span {
+    width: fit-content;
   }
 
   .roi-calculator fieldset,

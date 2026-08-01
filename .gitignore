@@ -4,6 +4,8 @@ node_modules/
 .wrangler/
 **/.wrangler/
 .playwright-cli/
+.playwright/
+output/playwright/
 worker-configuration.d.ts
 
 # Local secrets and credentials
