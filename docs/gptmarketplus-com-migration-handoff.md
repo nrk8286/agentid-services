@@ -54,7 +54,7 @@ Removed or gated: unsupported card readiness, public sponsor subscriptions, unfu
 - Lead-spider controls and prospect records require authorization.
 - Public agent state exposes aggregates rather than customer, task-detail, checkout-session, or token records.
 - Onboarding derives entitlement only from a verified paid Stripe session, paid purchase token, or completed PayPal order token.
-- Stripe storage is idempotent and requires `payment_status=paid`; card checkout remains disabled without a webhook secret.
+- Stripe storage is idempotent and requires `payment_status=paid`. Card checkout is enabled with a signed production webhook at `https://gptmarketplus.com/api/stripe/webhook`; the signing secret is stored only as a Cloudflare Worker secret.
 - Checkout and forms use rate limiting; forms additionally require Turnstile.
 - `npm audit` reported zero dependency vulnerabilities during the migration audit.
 
@@ -125,8 +125,8 @@ Playwright evidence covered 1440px desktop and 390px mobile layouts, canonical r
 
 1. **Old domain retirement — owner/registrar, urgent.** `gptmarketplus.org` expired 2026-05-23, is `pendingDelete`, and returns NXDOMAIN. Decide immediately whether to attempt registrar recovery (which may be impossible or fee-bearing) so the domain can serve 301 redirects for at least a year. Otherwise accept loss of redirect/search continuity and the future impersonation risk after deletion. No domain ownership action was taken.
 2. **Real purchase acceptance — owner/PayPal.** Authorize and complete one real $29 purchase, verify the provider receipt, gated download, refund/support path, and then refund it if desired.
-3. **Card payments — owner/Stripe.** Reauthenticate the Stripe connector, register the `.com` webhook, store `STRIPE_WEBHOOK_SECRET`, and run provider test-mode success/failure/refund cases before changing `STRIPE_CHECKOUT_ENABLED`.
-4. **Search Console Domain property — owner/Cloudflare, optional.** Reauthorize the official Cloudflare MCP with `dns.write`, publish the Google apex TXT, and verify `sc-domain:gptmarketplus.com`. The production URL-prefix property and sitemap are already verified and operational.
+3. **Card-payment acceptance — owner/Stripe.** The live `.com` webhook and signing secret are configured and signed delivery was verified. A real authorized charge, customer delivery, and refund still need acceptance testing before the full financial lifecycle can be claimed proven.
+4. **Cloudflare zone hardening and Search Console Domain property — owner/Cloudflare.** The current Wrangler OAuth grant can deploy Workers but lacks DNS, Zone Settings, Cache Rules, and Zone WAF read/write permissions. Create a zone-scoped API token with `Zone Read`, `DNS Write`, `Zone Settings Write`, `Cache Purge`, `Cache Rules Edit`, `Transform Rules Edit`, `Zone WAF Edit`, and `Bot Management Edit` for `gptmarketplus.com`. Use it to set minimum TLS 1.2, enable DNSSEC, add CAA and Google verification TXT records, inspect/configure WAF and cache rules, and finish `sc-domain:gptmarketplus.com`. Until minimum TLS can be set at the zone, the Worker rejects TLS 1.0/1.1 application requests with HTTP 426. The production URL-prefix Search Console property and sitemap are already verified and operational.
 
 ## Rollback and recovery
 

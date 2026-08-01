@@ -110,7 +110,7 @@ wrangler vars put GOOGLE_ADS_CONVERSION_ID
 wrangler vars put GOOGLE_ADS_CONVERSION_LABEL
 ```
 
-`STRIPE_SECRET_KEY` is present, but card checkout remains deliberately disabled until the `.com` webhook secret and provider test cases are complete. The $29 AI Agent Launch Kit uses the verified live PayPal order/capture flow and serves its download only after an exact completed capture. A completed capture also sends the secure delivery URL through the customer transactional-email adapter and records the sanitized provider result. For Google measurement, the site uses `GOOGLE_TAG_GATEWAY_PATH=/gtag` and serves that path from the Worker itself.
+Stripe card checkout is enabled with a live `.com` webhook at `/api/stripe/webhook`; `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` are stored as Worker secrets. Webhook signatures are verified before paid entitlement is persisted, and the fulfillment path remains idempotent. The $29 AI Agent Launch Kit also supports the verified live PayPal order/capture flow and serves its download only after an exact completed capture. Completed captures send the secure delivery URL through the customer transactional-email adapter and store only sanitized provider results. For Google measurement, the site uses `GOOGLE_TAG_GATEWAY_PATH=/gtag` and serves that path from the Worker itself.
 
 ### Google Cloud Agent Search
 

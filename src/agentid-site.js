@@ -1,10 +1,14 @@
 const SECURITY_HEADERS = {
   "strict-transport-security": "max-age=31536000; includeSubDomains; preload",
   "content-security-policy": "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self' https://www.paypal.com https://www.sandbox.paypal.com; script-src 'self' 'unsafe-inline' https://pagead2.googlesyndication.com https://*.google.com https://*.googleapis.com https://*.gstatic.com https://challenges.cloudflare.com https://static.cloudflareinsights.com https://*.adtrafficquality.google; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://analytics.google.com https://*.google-analytics.com https://stats.g.doubleclick.net https://*.adtrafficquality.google https://*.cloudflareinsights.com https://*.paypal.com; frame-src https://challenges.cloudflare.com https://*.adtrafficquality.google https://*.google.com https://*.googlesyndication.com https://*.doubleclick.net https://*.paypal.com; upgrade-insecure-requests",
+  "cross-origin-opener-policy": "same-origin-allow-popups",
+  "cross-origin-resource-policy": "same-site",
+  "origin-agent-cluster": "?1",
   "permissions-policy": "camera=(), microphone=(), geolocation=()",
   "referrer-policy": "strict-origin-when-cross-origin",
   "x-content-type-options": "nosniff",
   "x-frame-options": "SAMEORIGIN",
+  "x-permitted-cross-domain-policies": "none",
 };
 
 const JSON_HEADERS = {

@@ -63,7 +63,7 @@
     "OWNER_NOTIFICATION_EMAIL": "nrk8286@gmail.com",
     "GMAIL_SENDER_EMAIL": "nrk8286@gmail.com",
     "STORAGE_SCOPE": "agentid.services",
-    "STRIPE_CHECKOUT_ENABLED": "false",
+    "STRIPE_CHECKOUT_ENABLED": "true",
     "SPONSOR_CHECKOUT_ENABLED": "false",
     "SERVICE_CHECKOUT_ENABLED": "false",
     "CONTACT_EMAIL": "admin@gptmarketplus.com",

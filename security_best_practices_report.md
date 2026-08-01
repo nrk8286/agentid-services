@@ -9,7 +9,7 @@ Status: production hardening applied and verified on 2026-07-31 America/Chicago.
 - Prevented caller-supplied onboarding data from creating a paid entitlement.
 - Separated administrator and autonomous-runtime authorization and removed query-string admin tokens.
 - Required payment-provider evidence before entitlement and made Stripe session fulfillment idempotent.
-- Disabled Stripe, sponsor, and custom-service checkout until their webhook and fulfillment requirements are met.
+- Enabled Stripe card checkout only after creating the canonical `.com` webhook, installing its signing secret, and verifying a signed production probe. Sponsor and custom-service checkout remain disabled until their fulfillment requirements are met.
 - Added rate limiting, request-size limits, Turnstile, private cache controls, and noindex controls.
 - Added an enforced CSP plus HSTS, frame, MIME, referrer, and permissions protections.
 - Restricted analytics/webhook relaying and suppressed analytics on private pages.
@@ -28,6 +28,10 @@ Application-originated purchase, fulfillment, and support messages are active. O
 ### Medium: full paid lifecycle needs an authorized charge
 
 The live provider created an approval order and unpaid access was denied, but capture, provider receipt, tokenized delivery, and refund have not been exercised with a real charge.
+
+### Medium: Cloudflare zone controls require a broader scoped token
+
+The current Wrangler OAuth grant cannot read or write DNS, Zone Settings, Cache Rules, Bot Management, or Zone WAF resources. Public probes show DNSSEC and CAA are absent and the edge still negotiates TLS 1.0/1.1. The Worker rejects application requests negotiated below TLS 1.2 with HTTP 426, but the stronger fix is a Cloudflare zone setting. Create a token restricted to `gptmarketplus.com`, apply minimum TLS 1.2, DNSSEC, CAA, cache-bypass rules for private/API paths, and compatible WAF/rate-limit rules. Do not enable Free Bot Fight Mode because it cannot exempt payment webhooks and may challenge API traffic.
 
 ### Low: legacy resource names remain internal
 
