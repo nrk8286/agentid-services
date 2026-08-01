@@ -97,7 +97,7 @@ If Cloudflare Managed `robots.txt` is enabled for the zone, it can prepend `Disa
 
 Stripe Checkout for sponsor placements is implemented at the public pricing surface and API. The pricing page also exposes invoice, ACH, bank transfer, PayPal, and crypto request paths for buyers who cannot use Stripe.
 
-Google Tag Manager and Google Analytics are wired through the Worker's first-party `/gtag` proxy path. `GTM-NVW28HCG` loads at the start of `<head>`, while `G-3BCSR51WHZ` is loaded directly so GA4 measurement does not depend on the current GTM container publishing a GA4 Configuration tag. Set the IDs and, if you want Ads conversion tracking, the conversion ID and label:
+Google Analytics is wired through the Worker's first-party `/gtag` proxy path. `G-3BCSR51WHZ` loads directly, so measurement does not depend on a Tag Manager container. The verified GA4 stream identifies GPTMarketPlus at `https://gptmarketplus.com`; `generate_lead` and the default `purchase` are the only Key Events. Set a GTM or Ads identifier only when a real published container or conversion action exists:
 
 ```bash
 curl https://gptmarketplus.com/pricing
@@ -110,7 +110,7 @@ wrangler vars put GOOGLE_ADS_CONVERSION_ID
 wrangler vars put GOOGLE_ADS_CONVERSION_LABEL
 ```
 
-`STRIPE_SECRET_KEY` is configured on the `agentid-services-agent-system` Worker for live Checkout. Deposits/payouts are handled by the Stripe account payout settings. The $29 AI Agent Launch Kit uses the same hosted Checkout flow and serves its download only after the Worker retrieves the Checkout session from Stripe and confirms that it is complete and paid. For Google measurement, the site uses `GOOGLE_TAG_GATEWAY_PATH=/gtag` and serves that path from the Worker itself.
+`STRIPE_SECRET_KEY` is present, but card checkout remains deliberately disabled until the `.com` webhook secret and provider test cases are complete. The $29 AI Agent Launch Kit uses the verified live PayPal order/capture flow and serves its download only after an exact completed capture. A completed capture also sends the secure delivery URL through the customer transactional-email adapter and records the sanitized provider result. For Google measurement, the site uses `GOOGLE_TAG_GATEWAY_PATH=/gtag` and serves that path from the Worker itself.
 
 ### Google Cloud Agent Search
 
@@ -229,7 +229,7 @@ The response contains a PayPal approval URL. PayPal returns the approved buyer t
 
 The subscription catalog bootstrap is idempotent through the stored product and plan IDs plus PayPal request IDs. PayPal subscription events are received at `/api/paypal/webhook`; completed recurring payments and verified one-time captures are written into the existing revenue ledger and trigger fulfillment work.
 
-The public pages emit `scroll_depth` at 25%, 50%, 75%, and 90%, retain first-touch UTM/referrer data for site events and lead source pages, and emit `chat_open` only when a visitor actually opens chat. `chat_open` is marked as a Key Event in GA4 property `514250564` (`clean-base-1`).
+The public pages emit `scroll_depth` at 25%, 50%, 75%, and 90%, retain first-touch UTM/referrer data for site events and lead source pages, and emit `chat_open` only when a visitor actually opens chat. GA4 property `514250564` uses exactly two Key Events: `generate_lead` and the default `purchase`; no synthetic conversion was fired during verification.
 
 Each browser tab also receives an anonymous session ID in `sessionStorage`. Site events send that ID to D1 so the private admin dashboard can distinguish tagged sessions from direct or untagged sessions without storing cookies, names, email addresses, or other visitor identity in the attribution report.
 
@@ -323,8 +323,8 @@ TikTok
 - Re-share the same URLs after any major page change
 
 Google
-- Verify ownership in Search Console
-- Submit /sitemap.xml
+- URL-prefix ownership for https://gptmarketplus.com/ is verified in Search Console
+- /sitemap.xml is processed successfully with 35 discovered pages as of 2026-08-01
 - Inspect /agents/, /social, and /playbook for indexing
 
 Bing

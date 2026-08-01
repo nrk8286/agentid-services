@@ -4,6 +4,7 @@ import {
   agentIdOneTimeProducts,
   handleAgentIdSiteRequest,
   renderLaunchKitMarkdown,
+  sendCustomerTransactionalEmail,
 } from "./agentid-site.js";
 
 const JSON_HEADERS = {
@@ -1455,6 +1456,75 @@ function paypalOrderDeliveryUrl(env, order) {
   return `${siteUrl(env)}/onboarding?${params}`;
 }
 
+function paypalCustomerEmail(env, order) {
+  const deliveryUrl = paypalOrderDeliveryUrl(env, order);
+  const support = cleanEmail(env.SUPPORT_EMAIL || "") || "admin@gptmarketplus.com";
+  const amount = paypalAmountValue(order.amountCents);
+  const subject = `Your ${order.productName || "GPTMarketPlus purchase"} is ready`;
+  const text = [
+    "Thank you for your GPTMarketPlus purchase.",
+    `Order: ${order.id}`,
+    `Product: ${order.productName || order.productId}`,
+    `Amount: $${amount} USD`,
+    `Secure access: ${deliveryUrl}`,
+    `Support: ${support}`,
+    "Keep this message private because the access link is tied to your completed order.",
+  ].join("\n");
+  const html = `
+    <div style="font-family:Arial,sans-serif;line-height:1.55;color:#17211d;max-width:640px">
+      <h1 style="font-size:24px">Your GPTMarketPlus purchase is ready</h1>
+      <p>Thank you for your purchase.</p>
+      <p><strong>Product:</strong> ${escapeHtml(order.productName || order.productId)}<br>
+      <strong>Amount:</strong> $${escapeHtml(amount)} USD<br>
+      <strong>Order:</strong> ${escapeHtml(order.id)}</p>
+      <p><a href="${escapeHtml(deliveryUrl)}" style="display:inline-block;padding:12px 18px;background:#0e7c66;color:#fff;text-decoration:none;border-radius:8px">Open your secure purchase</a></p>
+      <p>Keep this message private because the access link is tied to your completed order.</p>
+      <p>Need help? Email <a href="mailto:${escapeHtml(support)}">${escapeHtml(support)}</a>.</p>
+    </div>`;
+  return { subject, text, html };
+}
+
+function paypalEmailDeliverySnapshot(result) {
+  return {
+    delivered: Boolean(result?.delivered),
+    provider: cleanText(result?.provider || "none", 80),
+    code: cleanText(result?.code || "provider_error", 80),
+    messageId: cleanText(result?.messageId || "", 200),
+    attemptedAt: new Date().toISOString(),
+  };
+}
+
+function paypalEmailRetryAllowed(order) {
+  if (order?.emailDelivery?.delivered) return false;
+  const attemptedAt = Date.parse(order?.emailDelivery?.attemptedAt || "");
+  return !Number.isFinite(attemptedAt) || Date.now() - attemptedAt >= 15 * 60 * 1000;
+}
+
+async function deliverAndRecordPaypalCustomerEmail(env, order) {
+  if (!order.payerEmail || !paypalEmailRetryAllowed(order)) return order;
+  try {
+    const email = paypalCustomerEmail(env, order);
+    const result = await sendCustomerTransactionalEmail(
+      env,
+      order.payerEmail,
+      email.subject,
+      email.text,
+      email.html,
+    );
+    const updatedOrder = {
+      ...order,
+      emailDelivery: paypalEmailDeliverySnapshot(result),
+    };
+    await putJson(env, `paypal:order:${order.id}`, updatedOrder, 60 * 60 * 24 * 365);
+    return updatedOrder;
+  } catch (error) {
+    console.error("paypal customer email recording failed", {
+      message: cleanText(error instanceof Error ? error.message : error, 240),
+    });
+    return order;
+  }
+}
+
 async function handlePaypalOrderCreate(request, env) {
   const rate = await paypalCheckoutRateLimit(env, request);
   if (!rate.ok) return jsonResponse({ ok: false, error: rate.error }, 429);
@@ -1590,13 +1660,15 @@ async function handlePaypalOrderCapture(request, env, ctx) {
     return jsonResponse({ ok: false, error: "This PayPal order is unknown or expired." }, 404);
   }
   if (pending.status === "COMPLETED" && pending.accessToken) {
+    const completedOrder = await deliverAndRecordPaypalCustomerEmail(env, pending);
     return jsonResponse({
       ok: true,
       provider: "paypal",
       captured: true,
       orderId,
-      productId: pending.productId,
-      deliveryUrl: paypalOrderDeliveryUrl(env, pending),
+      productId: completedOrder.productId,
+      deliveryUrl: paypalOrderDeliveryUrl(env, completedOrder),
+      emailSent: Boolean(completedOrder.emailDelivery?.delivered),
     });
   }
 
@@ -1668,14 +1740,16 @@ async function handlePaypalOrderCapture(request, env, ctx) {
   if (recorded.recorded) {
     queueBackgroundWork(env, ctx, "paid_checkout", revenueEvent, appendTask(env, paidCustomerTask(revenueEvent)));
   }
+  const fulfilledOrder = await deliverAndRecordPaypalCustomerEmail(env, paidOrder);
 
   return jsonResponse({
     ok: true,
     provider: "paypal",
     captured: true,
     orderId,
-    productId: paidOrder.productId,
-    deliveryUrl: paypalOrderDeliveryUrl(env, paidOrder),
+    productId: fulfilledOrder.productId,
+    deliveryUrl: paypalOrderDeliveryUrl(env, fulfilledOrder),
+    emailSent: Boolean(fulfilledOrder.emailDelivery?.delivered),
   });
 }
 

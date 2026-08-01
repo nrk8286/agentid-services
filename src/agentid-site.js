@@ -66,6 +66,7 @@ const EVENT_RATE_LIMIT = {
 const MAX_JSON_BODY_BYTES = 128 * 1024;
 const MAX_STRIPE_WEBHOOK_BODY_BYTES = 1024 * 1024;
 const BODY_TOO_LARGE = Symbol("body-too-large");
+const GOOGLE_SITE_VERIFICATION = "hxvcDl32V0BA5LSTQx-OfIUE6DAIR6TrRp2pUbE5XZo";
 
 let googleAccessTokenCache = {
   token: "",
@@ -1214,6 +1215,25 @@ function bytesToBase64Url(bytes) {
     binary += String.fromCharCode(bytes[index]);
   }
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+function base64UrlToBytes(value) {
+  const normalized = String(value || "").replace(/-/g, "+").replace(/_/g, "/");
+  const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+  const binary = atob(padded);
+  return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+}
+
+function bytesToBase64(bytes) {
+  let binary = "";
+  for (let index = 0; index < bytes.length; index += 1) {
+    binary += String.fromCharCode(bytes[index]);
+  }
+  return btoa(binary);
+}
+
+function textToBase64(value) {
+  return bytesToBase64(new TextEncoder().encode(String(value || "")));
 }
 
 function textToBase64Url(value) {
@@ -2398,30 +2418,236 @@ async function sendWebhook(env, type, payload) {
   }
 }
 
+function emailDeliveryResult({ delivered = false, provider = "none", code, detail = "", attempts = [] }) {
+  return {
+    ok: delivered,
+    delivered,
+    provider,
+    code,
+    ...(detail ? { detail } : {}),
+    ...(attempts.length ? { attempts } : {}),
+  };
+}
+
+function emailFailureDetail(error) {
+  return cleanText(error instanceof Error ? error.message : error, 240) || "Email provider request failed.";
+}
+
+async function sendCloudflareOwnerEmail(env, subject, text, html, replyTo = "") {
+  const binding = env.TRANSACTIONAL_EMAIL;
+  const recipient = cleanEmail(env.OWNER_NOTIFICATION_EMAIL || "");
+  const sender = cleanEmail(supportEmail(env));
+  if (!binding || typeof binding.send !== "function") {
+    return emailDeliveryResult({ provider: "cloudflare_send_email", code: "provider_not_configured" });
+  }
+  if (!recipient || !sender) {
+    return emailDeliveryResult({ provider: "cloudflare_send_email", code: "provider_misconfigured" });
+  }
+
+  const message = {
+    from: { name: brandName(env), email: sender },
+    to: recipient,
+    subject: cleanText(subject, 300),
+    text: String(text || ""),
+    html: String(html || ""),
+  };
+  const replyAddress = cleanEmail(replyTo);
+  if (replyAddress) message.replyTo = replyAddress;
+
+  try {
+    const result = await binding.send(message);
+    return {
+      ...emailDeliveryResult({ delivered: true, provider: "cloudflare_send_email", code: "accepted" }),
+      ...(result?.messageId ? { messageId: cleanText(result.messageId, 200) } : {}),
+    };
+  } catch (error) {
+    const detail = emailFailureDetail(error);
+    console.warn("gptmarketplus owner email delivery failed", { provider: "cloudflare_send_email", detail });
+    return emailDeliveryResult({ provider: "cloudflare_send_email", code: "provider_error", detail });
+  }
+}
+
+function combineEmailDeliveryFailures(results) {
+  const attempts = results.map((result) => ({ provider: result.provider, code: result.code }));
+  const providerFailure = results.find((result) => result.code === "provider_error" || result.code === "provider_misconfigured");
+  return emailDeliveryResult({
+    provider: providerFailure?.provider || "none",
+    code: providerFailure?.code || "provider_not_configured",
+    detail: providerFailure?.detail || "",
+    attempts,
+  });
+}
+
+async function googleOAuthGmailConnection(env) {
+  if (!env.GMP_KV || !env.GOOGLE_OAUTH_CLIENT_ID || !env.GOOGLE_OAUTH_CLIENT_SECRET || !env.GOOGLE_OAUTH_TOKEN_KEY) {
+    return null;
+  }
+  const connection = await env.GMP_KV.get("google-oauth:gmail-connection", "json");
+  if (
+    !connection?.ciphertext
+    || !connection?.iv
+    || !Array.isArray(connection.scopes)
+    || !connection.scopes.includes("https://www.googleapis.com/auth/gmail.send")
+  ) {
+    return null;
+  }
+  return connection;
+}
+
+async function decryptGoogleOAuthRefreshToken(env, connection) {
+  const rawKey = base64UrlToBytes(env.GOOGLE_OAUTH_TOKEN_KEY || "");
+  const iv = base64UrlToBytes(connection.iv || "");
+  if (rawKey.byteLength !== 32 || iv.byteLength !== 12) throw new Error("invalid_google_oauth_encryption_record");
+  const key = await crypto.subtle.importKey("raw", rawKey, { name: "AES-GCM" }, false, ["decrypt"]);
+  const plaintext = await crypto.subtle.decrypt(
+    { name: "AES-GCM", iv },
+    key,
+    base64UrlToBytes(connection.ciphertext || ""),
+  );
+  return new TextDecoder().decode(plaintext);
+}
+
+async function gmailOAuthAccessToken(env, connection) {
+  const refreshToken = await decryptGoogleOAuthRefreshToken(env, connection);
+  const response = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: env.GOOGLE_OAUTH_CLIENT_ID,
+      client_secret: env.GOOGLE_OAUTH_CLIENT_SECRET,
+      refresh_token: refreshToken,
+      grant_type: "refresh_token",
+    }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || !payload.access_token) throw new Error(`Google OAuth token refresh returned HTTP ${response.status}`);
+  return String(payload.access_token);
+}
+
+function gmailRawMessage(env, recipient, subject, text, html, replyTo = "") {
+  const sender = cleanEmail(env.GMAIL_SENDER_EMAIL || env.OWNER_NOTIFICATION_EMAIL || "");
+  if (!sender) throw new Error("gmail_sender_not_configured");
+  const boundary = `gptmarketplus-${bytesToBase64Url(crypto.getRandomValues(new Uint8Array(18)))}`;
+  const wrapBase64 = (value) => textToBase64(value).replace(/.{1,76}/g, "$&\r\n").trimEnd();
+  const headers = [
+    `From: =?UTF-8?B?${textToBase64(brandName(env))}?= <${sender}>`,
+    `To: ${recipient}`,
+    `Subject: =?UTF-8?B?${textToBase64(cleanText(subject, 300))}?=`,
+    `Date: ${new Date().toUTCString()}`,
+    "MIME-Version: 1.0",
+  ];
+  const replyAddress = cleanEmail(replyTo);
+  if (replyAddress) headers.push(`Reply-To: ${replyAddress}`);
+  headers.push(`Content-Type: multipart/alternative; boundary="${boundary}"`);
+  return [
+    ...headers,
+    "",
+    `--${boundary}`,
+    "Content-Type: text/plain; charset=UTF-8",
+    "Content-Transfer-Encoding: base64",
+    "",
+    wrapBase64(text),
+    `--${boundary}`,
+    "Content-Type: text/html; charset=UTF-8",
+    "Content-Transfer-Encoding: base64",
+    "",
+    wrapBase64(html),
+    `--${boundary}--`,
+    "",
+  ].join("\r\n");
+}
+
+async function sendGmailOAuthEmail(env, recipient, subject, text, html, replyTo = "") {
+  const to = cleanEmail(recipient);
+  if (!to) return emailDeliveryResult({ provider: "gmail_oauth", code: "invalid_recipient" });
+  try {
+    const connection = await googleOAuthGmailConnection(env);
+    if (!connection) return emailDeliveryResult({ provider: "gmail_oauth", code: "provider_not_configured" });
+    const accessToken = await gmailOAuthAccessToken(env, connection);
+    const raw = bytesToBase64Url(new TextEncoder().encode(gmailRawMessage(env, to, subject, text, html, replyTo)));
+    const response = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${accessToken}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ raw }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || !payload.id) throw new Error(`Gmail send returned HTTP ${response.status}`);
+    return {
+      ...emailDeliveryResult({ delivered: true, provider: "gmail_oauth", code: "delivered" }),
+      messageId: cleanText(payload.id, 160),
+    };
+  } catch (error) {
+    const detail = emailFailureDetail(error);
+    console.warn("gptmarketplus email delivery failed", { provider: "gmail_oauth", detail });
+    return emailDeliveryResult({ provider: "gmail_oauth", code: "provider_error", detail });
+  }
+}
+
+export async function sendOwnerTransactionalEmail(env, subject, text, html, replyTo = "") {
+  const cloudflareResult = await sendCloudflareOwnerEmail(env, subject, text, html, replyTo);
+  if (cloudflareResult.delivered) return cloudflareResult;
+
+  const gmailResult = await sendGmailOAuthEmail(
+    env,
+    cleanEmail(env.OWNER_NOTIFICATION_EMAIL || ownerEmail(env)),
+    subject,
+    text,
+    html,
+    replyTo,
+  );
+  if (gmailResult.delivered) return gmailResult;
+
+  const resendResult = await sendResendEmail(env, [ownerEmail(env)], subject, text, html, replyTo);
+  if (resendResult.delivered) return resendResult;
+  return combineEmailDeliveryFailures([cloudflareResult, gmailResult, resendResult]);
+}
+
+export async function sendCustomerTransactionalEmail(env, to, subject, text, html) {
+  const recipient = cleanEmail(to);
+  if (!recipient) return emailDeliveryResult({ code: "invalid_recipient" });
+  const gmailResult = await sendGmailOAuthEmail(env, recipient, subject, text, html, "");
+  if (gmailResult.delivered) return gmailResult;
+  const resendResult = await sendResendEmail(env, [recipient], subject, text, html, "");
+  if (resendResult.delivered) return resendResult;
+  return combineEmailDeliveryFailures([gmailResult, resendResult]);
+}
+
 async function maybeSendOwnerEmail(env, subject, text, html, replyTo = "") {
-  return sendResendEmail(env, [ownerEmail(env)], subject, text, html, replyTo);
+  return sendOwnerTransactionalEmail(env, subject, text, html, replyTo);
 }
 
 async function maybeSendCustomerEmail(env, to, subject, text, html) {
-  const recipient = cleanEmail(to);
-  if (!recipient) return;
-  return sendResendEmail(env, [recipient], subject, text, html, "");
+  const result = await sendCustomerTransactionalEmail(env, to, subject, text, html);
+  if (!result.delivered) {
+    console.warn("gptmarketplus customer email not delivered", {
+      provider: result.provider,
+      code: result.code,
+      detail: result.detail || "",
+    });
+  }
+  return result;
 }
 
 async function sendResendEmail(env, recipients, subject, text, html, replyTo = "") {
   const apiKey = String(env.RESEND_API_KEY || "").trim();
-  if (!apiKey || !recipients || !recipients.length) return;
+  if (!apiKey) return emailDeliveryResult({ provider: "resend", code: "provider_not_configured" });
+  const validRecipients = Array.isArray(recipients) ? recipients.map(cleanEmail).filter(Boolean) : [];
+  if (!validRecipients.length) return emailDeliveryResult({ provider: "resend", code: "invalid_recipient" });
   const from = String(env.EMAIL_FROM || `GPTMarketPlus <${supportEmail(env)}>`).trim();
   const payload = {
     from,
-    to: recipients,
-    subject,
-    text,
-    html,
+    to: validRecipients,
+    subject: cleanText(subject, 300),
+    text: String(text || ""),
+    html: String(html || ""),
   };
-  if (replyTo) payload.reply_to = replyTo;
+  const replyAddress = cleanEmail(replyTo);
+  if (replyAddress) payload.reply_to = replyAddress;
   try {
-    await fetch("https://api.resend.com/emails", {
+    const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
         authorization: `Bearer ${apiKey}`,
@@ -2429,8 +2655,14 @@ async function sendResendEmail(env, recipients, subject, text, html, replyTo = "
       },
       body: JSON.stringify(payload),
     });
+    if (!response.ok) {
+      throw new Error(`Resend returned HTTP ${response.status}`);
+    }
+    return emailDeliveryResult({ delivered: true, provider: "resend", code: "delivered" });
   } catch (error) {
-    console.debug("agentid resend failed", error);
+    const detail = emailFailureDetail(error);
+    console.warn("gptmarketplus email delivery failed", { provider: "resend", detail });
+    return emailDeliveryResult({ provider: "resend", code: "provider_error", detail });
   }
 }
 
@@ -5579,6 +5811,7 @@ function renderShell(env, { path, title, description, body, schema = [], extraHe
   ${privatePage ? "" : renderAdSenseHead(env, path)}
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  ${path === "/" ? `<meta name="google-site-verification" content="${GOOGLE_SITE_VERIFICATION}">` : ""}
   <title>${escapeHtml(title)} | ${escapeHtml(brandName(env))}</title>
   <meta name="description" content="${escapeHtml(description)}">
   <meta name="robots" content="${escapeHtml(robots)}">

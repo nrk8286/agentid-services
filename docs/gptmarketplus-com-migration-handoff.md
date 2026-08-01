@@ -1,6 +1,6 @@
 # GPTMarketPlus.com production migration handoff
 
-Status date: 2026-07-31 America/Chicago (production deployment timestamp: 2026-08-01 UTC)
+Status date: 2026-08-01 America/Chicago
 
 ## Executive status
 
@@ -33,7 +33,7 @@ Observed production evidence: live mode, PayPal credentials configured, PayPal w
 - Deployed Cloudflare Turnstile for the apex and `www`, stored the secret as a Worker secret, rendered the public widget, and verified a complete form payload without a token is rejected with HTTP 403.
 - Kept D1, KV, R2, Queue, Durable Object scheduler, Analytics Engine, AI Search, rate limiting, and Flagship bindings attached.
 
-Current Worker deployment version: `ecdca4cb-3875-4a8c-b860-5d4fbf6b0822`.
+Current Worker deployment version: `bbb31100-0857-4919-8e70-1f48676722cc`.
 
 ## Commercial model
 
@@ -65,16 +65,20 @@ Residual security constraint: inline application scripts require CSP `unsafe-inl
 - Direct GA4 tag `G-3BCSR51WHZ` loads through the first-party `/gtag` gateway.
 - Browser verification observed a real GA4 `page_view` request returning HTTP 204.
 - The empty GTM container is no longer treated as proof of measurement readiness.
-- GA4 Key Event configuration is reported as unverified until confirmed in the GA4 property.
+- GA4 property `514250564` and web stream `13045958159` now identify GPTMarketPlus at `https://gptmarketplus.com`; the stream reports active data collection and Data flowing. Realtime showed four active users, four page views, and genuine `first_visit`, `page_view`, `session_start`, and `user_engagement` events during verification.
+- GA4 Key Events were cleaned to exactly `generate_lead` and the default `purchase`. No synthetic lead or purchase event was fired; neither conversion had stream data at verification time.
 - Sitemap, robots, canonical links, structured data, `llms.txt`, feeds, security policy, and 17 critical public links use `.com`.
 - The sitemap contains the refund policy and excludes onboarding/customer/admin routes.
-- Search Console ownership, sitemap submission, and Change of Address have not been confirmed. The `.org` NXDOMAIN state prevents a valid Change of Address workflow.
+- Search Console URL-prefix property `https://gptmarketplus.com/` is ownership-verified through the exact production HTML tag. `https://gptmarketplus.com/sitemap.xml` was processed successfully on 2026-08-01 with 35 discovered pages and zero discovered videos.
+- The optional Domain property remains pending because the Cloudflare MCP grant lacks `dns.write`; no apex DNS record was changed. Change of Address remains unavailable because the `.org` domain is NXDOMAIN.
 
 ## Support and transactional communication
 
-The connected owner Gmail mailbox was verified with a self-delivery message and is the temporary published support address. Cloudflare Email Routing could list the verified destination but returned authentication error `10000` for both enablement and rule creation; therefore `admin@gptmarketplus.com` is not advertised as deliverable.
+Cloudflare Email Routing is enabled and ready for `gptmarketplus.com`. The enabled literal rule forwards `admin@gptmarketplus.com` to the verified owner destination; public and authoritative DNS expose Cloudflare MX, SPF, and DKIM records. A live Gmail message to the branded address was accepted for delivery. The branded address is the published support identity.
 
-PayPal supplies the payment receipt for the live self-service product. Branded outbound transactional email remains blocked until a verified sending identity/provider and secret are supplied.
+Application-originated email now has two verified adapters. The restricted Cloudflare binding sends only owner notifications from `admin@gptmarketplus.com`; a production diagnostic returned a Cloudflare message ID and the independent Gmail inbox showed the message as unread. The encrypted Gmail OAuth adapter is connected with `gmail.send` and sends arbitrary customer recipients; a production diagnostic returned Gmail message ID `19fbbba4d33bffcd`, which Gmail independently listed in Sent. Resend remains a non-required fallback when configured.
+
+Completed PayPal captures now call the customer adapter, email the secure delivery URL to the PayPal payer address, persist a sanitized provider result, expose only an `emailSent` Boolean to checkout, and enforce a 15-minute failure-retry interval. PayPal still supplies the payment receipt. A real capture/email acceptance test remains owner-authorized because it requires a real $29 charge.
 
 ## Validation ledger
 
@@ -99,6 +103,12 @@ curl -X POST https://gptmarketplus.com/api/paypal/orders/create ...
 
 curl -X POST https://gptmarketplus.com/api/contact ...
 # complete form without Turnstile token rejected HTTP 403
+
+curl https://gptmarketplus.com/api/agents/google/oauth/status
+# connected=true; gmailSendReady=true; gmail.send grant encrypted in KV
+
+curl https://gptmarketplus.com/
+# exact Google Search Console verification tag present in <head>
 ```
 
 Playwright evidence covered 1440px desktop and 390px mobile layouts, canonical redirect behavior, the PayPal CTA, quote-only service flows, absent sponsor subscription controls, direct GA4 delivery, and a clean application console on the home/pricing/launch-kit surfaces. Turnstile loaded successfully; headless Chromium emitted third-party WebGL diagnostics inside the Cloudflare challenge iframe, not application exceptions.
@@ -115,15 +125,13 @@ Playwright evidence covered 1440px desktop and 390px mobile layouts, canonical r
 
 1. **Old domain retirement — owner/registrar, urgent.** `gptmarketplus.org` expired 2026-05-23, is `pendingDelete`, and returns NXDOMAIN. Decide immediately whether to attempt registrar recovery (which may be impossible or fee-bearing) so the domain can serve 301 redirects for at least a year. Otherwise accept loss of redirect/search continuity and the future impersonation risk after deletion. No domain ownership action was taken.
 2. **Real purchase acceptance — owner/PayPal.** Authorize and complete one real $29 purchase, verify the provider receipt, gated download, refund/support path, and then refund it if desired.
-3. **Branded inbound email — owner/Cloudflare.** Refresh Cloudflare authorization or enable Email Routing in the dashboard, then route `admin@gptmarketplus.com` to the verified destination and perform an external delivery test.
-4. **Branded transactional email — owner/provider.** Verify a sending domain with an email provider and supply its production credential; implement event-driven purchase, fulfillment, and support messages.
-5. **Card payments — owner/Stripe.** Reauthenticate the Stripe connector, register the `.com` webhook, store `STRIPE_WEBHOOK_SECRET`, and run provider test-mode success/failure/refund cases before changing `STRIPE_CHECKOUT_ENABLED`.
-6. **Google control plane — owner/Google.** Confirm the `.com` Search Console property and sitemap, verify GA4 Realtime/DebugView receipt, and configure only genuine conversion events as Key Events.
+3. **Card payments — owner/Stripe.** Reauthenticate the Stripe connector, register the `.com` webhook, store `STRIPE_WEBHOOK_SECRET`, and run provider test-mode success/failure/refund cases before changing `STRIPE_CHECKOUT_ENABLED`.
+4. **Search Console Domain property — owner/Cloudflare, optional.** Reauthorize the official Cloudflare MCP with `dns.write`, publish the Google apex TXT, and verify `sc-domain:gptmarketplus.com`. The production URL-prefix property and sitemap are already verified and operational.
 
 ## Rollback and recovery
 
-- Application rollback: `npx wrangler rollback 751468e2-9105-4bf6-8ff9-8c1979bf04d8` restores the immediately prior `.com` build if the current deployment causes a regression.
-- Data recovery: current D1 Time Travel bookmark at handoff was `00000400-00000004-000050ba-645a7adbd1b3ca69d4227f540fa456b9`; use `wrangler d1 time-travel restore agentid-services --bookmark=<bookmark>` only after confirming the restore target and impact.
+- Application rollback: `npx wrangler rollback ecdca4cb-3875-4a8c-b860-5d4fbf6b0822` restores the last verified pre-email `.com` build if the current deployment causes a regression.
+- Data recovery: current D1 Time Travel bookmark at handoff was `00000410-00000000-000050ba-0e86abe79b68e614a5e4c264eda1b4a8`; use `wrangler d1 time-travel restore agentid-services --bookmark=<bookmark>` only after confirming the restore target and impact.
 - KV continuity: do not remove `STORAGE_SCOPE=agentid.services` until data is explicitly migrated and reconciled.
 - Payment continuity: do not remove legacy webhook exceptions until PayPal/Stripe dashboards are confirmed on `.com` and delivery logs show no old-host traffic.
 - Domain rollback: custom domains and the retained `agentid.services` routes allow a previous Worker version to be redeployed without changing storage.
@@ -132,6 +140,6 @@ Playwright evidence covered 1440px desktop and 390px mobile layouts, canonical r
 
 Current observed baseline: zero verified revenue and zero paid checkouts in the public revenue ledger at handoff. No revenue forecast is asserted.
 
-- Days 1-30: complete one real purchase/refund acceptance test; establish branded inbound/outbound email; verify GA4 and Search Console; publish weekly buyer-intent content; measure visit-to-checkout-start, approval, paid delivery, refund, and support rates.
+- Days 1-30: complete one real purchase/refund acceptance test; publish weekly buyer-intent content; monitor the verified GA4 and Search Console baselines; measure visit-to-checkout-start, approval, paid delivery, refund, and support rates.
 - Days 31-60: improve the Launch Kit from observed completion/support questions; test one landing-page message at a time; add an ethical referral mechanism; interview purchasers before enabling any higher-priced offer.
 - Days 61-90: enable exactly one additional product only if the first offer has reliable fulfillment and measurable demand; use observed conversion, refund, support burden, and retention data to decide between a recurring toolkit, reviewed sponsor inventory, or a productized implementation service.

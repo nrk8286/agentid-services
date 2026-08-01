@@ -13,6 +13,7 @@ Status: production hardening applied and verified on 2026-07-31 America/Chicago.
 - Added rate limiting, request-size limits, Turnstile, private cache controls, and noindex controls.
 - Added an enforced CSP plus HSTS, frame, MIME, referrer, and permissions protections.
 - Restricted analytics/webhook relaying and suppressed analytics on private pages.
+- Added provider-separated transactional email: a destination-restricted Cloudflare binding for owner alerts and an encrypted Gmail OAuth grant for customer recipients. Provider failures are checked and never reported as delivered.
 
 ## Residual findings
 
@@ -20,9 +21,9 @@ Status: production hardening applied and verified on 2026-07-31 America/Chicago.
 
 The Worker renders several inline scripts, so CSP cannot yet remove `unsafe-inline`. Migrate scripts into static assets or use response-specific nonces/hashes, then tighten `script-src`.
 
-### Medium: branded transactional email is unavailable
+### Medium: customer mail uses a verified Gmail sender
 
-PayPal sends payment receipts, but application-originated purchase, fulfillment, and support messages are not active. A verified provider credential and domain authentication are required.
+Application-originated purchase, fulfillment, and support messages are active. Owner alerts use `admin@gptmarketplus.com`; customer mail currently uses the verified owner Gmail address with a GPTMarketPlus display name. Fully branded arbitrary-recipient mail requires onboarding `gptmarketplus.com` to an outbound service such as Cloudflare Email Sending or a separately verified provider. Do not change the sender address until the provider verifies it.
 
 ### Medium: full paid lifecycle needs an authorized charge
 

@@ -59,7 +59,9 @@
     "SITE_URL": "https://gptmarketplus.com",
     "BRAND_NAME": "GPTMarketPlus",
     "PUBLIC_OFFER_URL": "https://gptmarketplus.com/#start",
-    "SUPPORT_EMAIL": "nrk8286@gmail.com",
+    "SUPPORT_EMAIL": "admin@gptmarketplus.com",
+    "OWNER_NOTIFICATION_EMAIL": "nrk8286@gmail.com",
+    "GMAIL_SENDER_EMAIL": "nrk8286@gmail.com",
     "STORAGE_SCOPE": "agentid.services",
     "STRIPE_CHECKOUT_ENABLED": "false",
     "SPONSOR_CHECKOUT_ENABLED": "false",
@@ -131,6 +133,16 @@
     {
       "binding": "ANALYTICS_ENGINE",
       "dataset": "agentid_services_events"
+    }
+  ],
+  "send_email": [
+    {
+      "name": "TRANSACTIONAL_EMAIL",
+      "remote": true,
+      "destination_address": "nrk8286@gmail.com",
+      "allowed_sender_addresses": [
+        "admin@gptmarketplus.com"
+      ]
     }
   ],
   "ratelimits": [
