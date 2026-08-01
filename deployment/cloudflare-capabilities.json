@@ -1,6 +1,6 @@
 {
   "service": "agentid-services-agent-system",
-  "site": "https://agentid.services",
+  "site": "https://gptmarketplus.com",
   "capabilities": {
     "aiSearch": "agentid-services-search",
     "analyticsEngine": "agentid_services_events",
@@ -20,5 +20,5 @@
       "samplingRate": 0.1
     }
   },
-  "purpose": "Machine-readable deployment manifest for AgentID Services Cloudflare integrations."
+  "purpose": "Machine-readable deployment manifest for GPTMarketPlus Cloudflare integrations."
 }

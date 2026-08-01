@@ -2,7 +2,7 @@
 
 ## Supported version
 
-Security fixes are applied to the current `main` branch and the production deployment at `agentid.services`.
+Security fixes are applied to the current `main` branch and the production deployment at `gptmarketplus.com`.
 
 ## Report a vulnerability
 

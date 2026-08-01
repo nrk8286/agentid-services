@@ -39,6 +39,14 @@
   "keep_vars": true,
   "routes": [
     {
+      "pattern": "gptmarketplus.com",
+      "custom_domain": true
+    },
+    {
+      "pattern": "www.gptmarketplus.com",
+      "custom_domain": true
+    },
+    {
       "pattern": "agentid.services/*",
       "zone_name": "agentid.services"
     },
@@ -48,18 +56,22 @@
     }
   ],
   "vars": {
-    "SITE_URL": "https://agentid.services",
-    "BRAND_NAME": "AgentID Services",
-    "PUBLIC_OFFER_URL": "https://agentid.services/#start",
-    "SUPPORT_EMAIL": "admin@agentid.services",
+    "SITE_URL": "https://gptmarketplus.com",
+    "BRAND_NAME": "GPTMarketPlus",
+    "PUBLIC_OFFER_URL": "https://gptmarketplus.com/#start",
+    "SUPPORT_EMAIL": "nrk8286@gmail.com",
+    "STORAGE_SCOPE": "agentid.services",
+    "STRIPE_CHECKOUT_ENABLED": "false",
+    "SPONSOR_CHECKOUT_ENABLED": "false",
+    "SERVICE_CHECKOUT_ENABLED": "false",
     "CONTACT_EMAIL": "",
     "OWNER_EMAIL": "",
     "BOOKING_URL": "",
     "CALENDAR_EMBED_URL": "",
     "CRM_WEBHOOK_URL": "",
     "EMAIL_FROM": "",
-    "TURNSTILE_SITE_KEY": "",
-    "GOOGLE_TAG_ID": "GTM-NVW28HCG",
+    "TURNSTILE_SITE_KEY": "0x4AAAAAAEDV6FptQZLhgXVz",
+    "GOOGLE_TAG_ID": "",
     "GOOGLE_ANALYTICS_ID": "G-3BCSR51WHZ",
     "GOOGLE_CLOUD_PROJECT": "agentid-genai-app-2026",
     "GOOGLE_CLOUD_LOCATION": "global",

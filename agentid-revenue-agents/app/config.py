@@ -50,7 +50,7 @@ class AgentIdConfig:
     def from_environment(cls) -> AgentIdConfig:
         project_id = os.getenv("GOOGLE_CLOUD_PROJECT", "agentid-genai-app-2026")
         return cls(
-            base_url=os.getenv("AGENTID_BASE_URL", "https://agentid.services").rstrip(
+            base_url=os.getenv("AGENTID_BASE_URL", "https://gptmarketplus.com").rstrip(
                 "/"
             ),
             project_id=project_id,

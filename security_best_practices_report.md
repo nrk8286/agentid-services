@@ -1,0 +1,43 @@
+# Security best-practices report
+
+Status: production hardening applied and verified on 2026-07-31 America/Chicago.
+
+## Fixed in this migration
+
+- Removed public access to detailed tasks, prospect boards, customer/payment events, checkout sessions, and tokens.
+- Removed email-, lead-, purchase-, and session-ID customer-dashboard lookups; access now requires a high-entropy dashboard token.
+- Prevented caller-supplied onboarding data from creating a paid entitlement.
+- Separated administrator and autonomous-runtime authorization and removed query-string admin tokens.
+- Required payment-provider evidence before entitlement and made Stripe session fulfillment idempotent.
+- Disabled Stripe, sponsor, and custom-service checkout until their webhook and fulfillment requirements are met.
+- Added rate limiting, request-size limits, Turnstile, private cache controls, and noindex controls.
+- Added an enforced CSP plus HSTS, frame, MIME, referrer, and permissions protections.
+- Restricted analytics/webhook relaying and suppressed analytics on private pages.
+
+## Residual findings
+
+### Medium: inline scripts require `unsafe-inline`
+
+The Worker renders several inline scripts, so CSP cannot yet remove `unsafe-inline`. Migrate scripts into static assets or use response-specific nonces/hashes, then tighten `script-src`.
+
+### Medium: branded transactional email is unavailable
+
+PayPal sends payment receipts, but application-originated purchase, fulfillment, and support messages are not active. A verified provider credential and domain authentication are required.
+
+### Medium: full paid lifecycle needs an authorized charge
+
+The live provider created an approval order and unpaid access was denied, but capture, provider receipt, tokenized delivery, and refund have not been exercised with a real charge.
+
+### Low: legacy resource names remain internal
+
+Cloudflare D1, KV, queue, AI Search, analytics dataset, and Worker names retain `agentid-services` identifiers. They are not customer-facing and preserve data continuity. Rename only through a planned data migration.
+
+## Verification
+
+- Worker test suite passed.
+- ADK suite: 19 passed, 4 upstream deprecation warnings.
+- `npm audit`: zero vulnerabilities during the migration audit.
+- Production private routes return `no-store` and `noindex`.
+- Unauthorized runtime, prospect, and sponsor actions return 403/503.
+- Complete contact payload without Turnstile proof returns 403.
+- Playwright home/pricing/launch-kit checks reported zero application console errors after CSP tuning.

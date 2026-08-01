@@ -1,7 +1,7 @@
 {
   "event_type": "scheduled_revenue_cycle",
   "source": "cloud_scheduler",
-  "site": "https://agentid.services",
+  "site": "https://gptmarketplus.com",
   "goal": "Inspect current evidence and execute the highest-value eligible zero-cost revenue action through a verified live adapter.",
   "constraints": {
     "dry_run": false,

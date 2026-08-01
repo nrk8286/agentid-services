@@ -113,8 +113,8 @@ def build_utm_url(
     parsed = urlparse(destination_url)
     if parsed.scheme not in {"http", "https"}:
         raise ValueError("destination_url must use http or https")
-    if parsed.hostname not in {"agentid.services", "www.agentid.services"}:
-        raise ValueError("destination_url must point to agentid.services")
+    if parsed.hostname not in {"gptmarketplus.com", "www.gptmarketplus.com"}:
+        raise ValueError("destination_url must point to gptmarketplus.com")
 
     query = dict(parse_qsl(parsed.query, keep_blank_values=True))
     query.update(

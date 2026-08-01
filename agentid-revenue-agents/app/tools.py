@@ -44,7 +44,7 @@ def _mock_snapshot(section: str) -> dict[str, Any]:
         "source": "integration_fixture",
         "section": section,
         "data": {
-            "site": "agentid.services",
+            "site": "gptmarketplus.com",
             "daily_spend_limit_cents": CONFIG.daily_spend_limit_cents,
             "monthly_spend_limit_cents": CONFIG.monthly_spend_limit_cents,
         },
@@ -517,7 +517,7 @@ def create_agentid_search_tool() -> Any:
                 "results": [
                     {
                         "title": "AgentID Services",
-                        "url": "https://agentid.services/",
+                        "url": "https://gptmarketplus.com/",
                         "summary": (
                             "AgentID offers agent discovery, sponsor inventory, "
                             "and productized software-build services."

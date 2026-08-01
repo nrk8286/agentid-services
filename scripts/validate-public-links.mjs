@@ -10,7 +10,7 @@ const seen = new Set();
 if (registry.repository !== "https://github.com/nrk8286/agentid-services") {
   failures.push("repository must point to the canonical GitHub repository");
 }
-if (registry.site !== "https://agentid.services") {
+if (registry.site !== "https://gptmarketplus.com") {
   failures.push("site must point to the canonical production origin");
 }
 if (entries.length < 10) failures.push("public-link registry is unexpectedly small");
@@ -24,8 +24,8 @@ for (const [name, value] of entries) {
     continue;
   }
   if (parsed.protocol !== "https:") failures.push(`${name} must use HTTPS`);
-  if (parsed.hostname !== "agentid.services") {
-    failures.push(`${name} must use the canonical agentid.services hostname`);
+  if (parsed.hostname !== "gptmarketplus.com") {
+    failures.push(`${name} must use the canonical gptmarketplus.com hostname`);
   }
   if (seen.has(value)) failures.push(`${name} duplicates another public URL`);
   seen.add(value);

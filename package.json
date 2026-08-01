@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "description": "Production Cloudflare Worker and Google Agent Runtime for AgentID Services.",
-  "homepage": "https://agentid.services",
+  "homepage": "https://gptmarketplus.com",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/nrk8286/agentid-services.git"

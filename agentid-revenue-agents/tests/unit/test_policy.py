@@ -62,7 +62,7 @@ def test_outreach_honors_suppression(
 
 def test_utm_builder_preserves_existing_query() -> None:
     url = build_utm_url(
-        "https://agentid.services/pricing?plan=sponsor",
+        "https://gptmarketplus.com/pricing?plan=sponsor",
         "newsletter",
         "email",
         "summer_launch",
@@ -74,7 +74,7 @@ def test_utm_builder_preserves_existing_query() -> None:
 
 
 def test_utm_builder_rejects_external_destination() -> None:
-    with pytest.raises(ValueError, match=r"agentid\.services"):
+    with pytest.raises(ValueError, match=r"gptmarketplus\.com"):
         build_utm_url("https://example.com", "social", "agent", "test")
 
 

@@ -1,5 +1,6 @@
 const SECURITY_HEADERS = {
   "strict-transport-security": "max-age=31536000; includeSubDomains; preload",
+  "content-security-policy": "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self' https://www.paypal.com https://www.sandbox.paypal.com; script-src 'self' 'unsafe-inline' https://pagead2.googlesyndication.com https://*.google.com https://*.googleapis.com https://*.gstatic.com https://challenges.cloudflare.com https://static.cloudflareinsights.com https://*.adtrafficquality.google; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://analytics.google.com https://*.google-analytics.com https://stats.g.doubleclick.net https://*.adtrafficquality.google https://*.cloudflareinsights.com https://*.paypal.com; frame-src https://challenges.cloudflare.com https://*.adtrafficquality.google https://*.google.com https://*.googlesyndication.com https://*.doubleclick.net https://*.paypal.com; upgrade-insecure-requests",
   "permissions-policy": "camera=(), microphone=(), geolocation=()",
   "referrer-policy": "strict-origin-when-cross-origin",
   "x-content-type-options": "nosniff",
@@ -17,6 +18,13 @@ const HTML_HEADERS = {
   "content-type": "text/html; charset=utf-8",
   "cache-control": "public, max-age=120",
   "x-robots-tag": "index,follow,max-image-preview:large",
+};
+
+const PRIVATE_HTML_HEADERS = {
+  "cache-control": "private, no-store, max-age=0",
+  pragma: "no-cache",
+  "referrer-policy": "no-referrer",
+  "x-robots-tag": "noindex,nofollow,noarchive",
 };
 
 const CSS_HEADERS = {
@@ -476,7 +484,7 @@ const SPONSOR_SUBSCRIPTIONS = [
     id: "sponsor_starter_monthly",
     name: "Sponsor Starter",
     price: 4900,
-    summary: "Monthly sponsor visibility across the AgentID Services dashboard and sponsor directory.",
+    summary: "Monthly sponsor visibility across the GPTMarketPlus dashboard and sponsor directory.",
     placement: "Dashboard sponsor slot",
   },
   {
@@ -959,7 +967,7 @@ const AGENT_STAGE_LABELS = {
   optimization: "Optimization",
 };
 
-const CHAT_GREET = "Hi, I’m the AgentID Services assistant. I can help you figure out what kind of AI agent would save your business the most time or help you capture more leads. What type of business do you run?";
+const CHAT_GREET = "Hi, I’m the GPTMarketPlus assistant. I can help you figure out what kind of AI agent would save your business the most time or help you capture more leads. What type of business do you run?";
 
 const CHAT_OBJECTIONS = [
   {
@@ -990,7 +998,7 @@ const CHAT_OBJECTIONS = [
 ];
 
 function siteUrl(env) {
-  return (env.SITE_URL || "https://agentid.services").replace(/\/+$/, "");
+  return (env.SITE_URL || "https://gptmarketplus.com").replace(/\/+$/, "");
 }
 
 function campaignUrl(env, pathname, {
@@ -1082,7 +1090,7 @@ function campaignLinkCatalog(env) {
 }
 
 function brandName(env) {
-  return env.BRAND_NAME || "AgentID Services";
+  return env.BRAND_NAME || "GPTMarketPlus";
 }
 
 function supportEmail(env) {
@@ -1114,7 +1122,9 @@ function stripeReady(env) {
 }
 
 function fullCheckoutReady(env) {
-  return Boolean(String(env.STRIPE_SECRET_KEY || "").trim());
+  return String(env.STRIPE_CHECKOUT_ENABLED || "").trim().toLowerCase() === "true"
+    && Boolean(String(env.STRIPE_SECRET_KEY || "").trim())
+    && Boolean(String(env.STRIPE_WEBHOOK_SECRET || "").trim());
 }
 
 function paypalCheckoutReady(env) {
@@ -1282,15 +1292,19 @@ function shouldUseGroundedAgentIdAnswer(message) {
     || /\b(cost|price|pricing|package|service|agent|chatbot|automation|launch kit|deposit|support)\b/i.test(text);
 }
 
-function agentIdAnswerSources(answer) {
+function agentIdAnswerSources(env, answer) {
   const references = Array.isArray(answer?.references) ? answer.references : [];
   const sources = [];
   for (const reference of references) {
     const metadata = reference?.chunkInfo?.documentMetadata || reference?.unstructuredDocumentInfo?.documentMetadata || {};
     const uri = cleanUrl(metadata.uri || "");
     const title = cleanText(metadata.title || "", 140);
-    if (!uri || !["agentid.services", "www.agentid.services"].includes(new URL(uri).hostname) || sources.some((item) => item.uri === uri)) continue;
-    sources.push({ title: title || new URL(uri).pathname, uri });
+    if (!uri) continue;
+    const parsed = new URL(uri);
+    if (!["gptmarketplus.com", "www.gptmarketplus.com", "agentid.services", "www.agentid.services"].includes(parsed.hostname)) continue;
+    const canonicalUri = new URL(`${parsed.pathname}${parsed.search}`, `${siteUrl(env)}/`).toString();
+    if (sources.some((item) => item.uri === canonicalUri)) continue;
+    sources.push({ title: title || parsed.pathname, uri: canonicalUri });
     if (sources.length >= 3) break;
   }
   return sources;
@@ -1327,7 +1341,7 @@ async function answerFromAgentIdKnowledge(env, message) {
         answerLanguageCode: "en",
         modelSpec: { modelVersion: "stable" },
         promptSpec: {
-          preamble: "Answer only from AgentID Services public content. Be concise, accurate, practical, and transparent about starting prices. Never promise revenue or performance. If the indexed content does not support an answer, say that and direct the visitor to the contact page.",
+          preamble: "Answer only from GPTMarketPlus public content. Be concise, accurate, practical, and transparent about starting prices. Never promise revenue or performance. If the indexed content does not support an answer, say that and direct the visitor to the contact page.",
         },
       },
       groundingSpec: {
@@ -1341,7 +1355,7 @@ async function answerFromAgentIdKnowledge(env, message) {
   const answer = result?.answer;
   const answerText = cleanText(answer?.answerText || "", 2200);
   if (!response.ok || answer?.state !== "SUCCEEDED" || !answerText) return null;
-  const sources = agentIdAnswerSources(answer);
+  const sources = agentIdAnswerSources(env, answer);
   if (!sources.length) return null;
   return {
     answer: answerText,
@@ -1354,18 +1368,19 @@ async function answerFromAgentIdKnowledge(env, message) {
   };
 }
 
-function cloudflareAnswerSources(result) {
+function cloudflareAnswerSources(env, result) {
   const chunks = Array.isArray(result?.chunks) ? result.chunks : [];
   const sources = [];
   for (const chunk of chunks) {
     const uri = cleanUrl(chunk?.item?.key || "");
     if (!uri) continue;
     const parsed = new URL(uri);
-    if (!["agentid.services", "www.agentid.services"].includes(parsed.hostname)) continue;
-    if (sources.some((item) => item.uri === uri)) continue;
+    if (!["gptmarketplus.com", "www.gptmarketplus.com", "agentid.services", "www.agentid.services"].includes(parsed.hostname)) continue;
+    const canonicalUri = new URL(`${parsed.pathname}${parsed.search}`, `${siteUrl(env)}/`).toString();
+    if (sources.some((item) => item.uri === canonicalUri)) continue;
     sources.push({
-      title: cleanText(chunk?.item?.metadata?.title || parsed.pathname || "AgentID Services", 140),
-      uri,
+      title: cleanText(chunk?.item?.metadata?.title || parsed.pathname || "GPTMarketPlus", 140),
+      uri: canonicalUri,
     });
     if (sources.length >= 3) break;
   }
@@ -1378,7 +1393,7 @@ async function answerFromCloudflareKnowledge(env, message) {
     messages: [
       {
         role: "system",
-        content: "Answer only from the retrieved AgentID Services public pages. Be concise, accurate, and practical. Never promise revenue or performance. If the sources do not support an answer, say so and direct the visitor to the contact page.",
+        content: "Answer only from the retrieved GPTMarketPlus public pages. Be concise, accurate, and practical. Never promise revenue or performance. If the sources do not support an answer, say so and direct the visitor to the contact page.",
       },
       { role: "user", content: cleanText(message, 700) },
     ],
@@ -1402,7 +1417,7 @@ async function answerFromCloudflareKnowledge(env, message) {
     },
   });
   const answerText = cleanText(result?.choices?.[0]?.message?.content || "", 2200);
-  const sources = cloudflareAnswerSources(result);
+  const sources = cloudflareAnswerSources(env, result);
   if (!answerText || !sources.length) return null;
   const scores = (Array.isArray(result?.chunks) ? result.chunks : [])
     .map((chunk) => Number(chunk?.score || 0))
@@ -1653,7 +1668,7 @@ function generateFollowUpSequence(lead, env = null) {
     {
       step: 1,
       subject: "We received your AI agent request",
-      body: `Thanks for checking out AgentID Services. Based on what you told us, your business may benefit from ${packageName}. Review plans and pricing: ${emailLink("/pricing", "step_1_pricing")}`,
+      body: `Thanks for checking out GPTMarketPlus. Based on what you told us, your business may benefit from ${packageName}. Review plans and pricing: ${emailLink("/pricing", "step_1_pricing")}`,
     },
     {
       step: 2,
@@ -2396,7 +2411,7 @@ async function maybeSendCustomerEmail(env, to, subject, text, html) {
 async function sendResendEmail(env, recipients, subject, text, html, replyTo = "") {
   const apiKey = String(env.RESEND_API_KEY || "").trim();
   if (!apiKey || !recipients || !recipients.length) return;
-  const from = String(env.EMAIL_FROM || `AgentID Services <${supportEmail(env)}>`).trim();
+  const from = String(env.EMAIL_FROM || `GPTMarketPlus <${supportEmail(env)}>`).trim();
   const payload = {
     from,
     to: recipients,
@@ -2420,7 +2435,7 @@ async function sendResendEmail(env, recipients, subject, text, html, replyTo = "
 }
 
 function buildOwnerLeadEmail(lead) {
-  const subject = `HOT AI Services Lead from AgentID.Services`;
+  const subject = `HOT AI Services Lead from GPTMarketPlus`;
   const text = [
     `Name: ${lead.name || ""}`,
     `Business: ${lead.business_name || ""}`,
@@ -2436,7 +2451,7 @@ function buildOwnerLeadEmail(lead) {
   ].join("\n");
   const html = `
     <div style="font-family:ui-sans-serif,system-ui,sans-serif;color:#e5eef8;background:#06111d;padding:24px;border-radius:16px">
-      <h2 style="margin-top:0;color:#8fd3ff">HOT AI Services Lead from AgentID.Services</h2>
+      <h2 style="margin-top:0;color:#8fd3ff">HOT AI Services Lead from GPTMarketPlus</h2>
       <p><strong>Name:</strong> ${escapeHtml(lead.name || "")}</p>
       <p><strong>Business:</strong> ${escapeHtml(lead.business_name || "")}</p>
       <p><strong>Phone:</strong> ${escapeHtml(lead.phone || "")}</p>
@@ -2455,7 +2470,7 @@ function buildOwnerLeadEmail(lead) {
 function buildPostPurchaseEmail(env, purchase) {
   const isDigital = purchase?.checkout_type === "digital_product";
   const destination = `${siteUrl(env)}${purchase?.onboarding_url || "/onboarding"}`;
-  const subject = isDigital ? "Your AI Agent Launch Kit Is Ready" : "Your AgentID Services Build Has Started";
+  const subject = isDigital ? "Your AI Agent Launch Kit Is Ready" : "Your GPTMarketPlus Build Has Started";
   const text = isDigital
     ? `Thank you for your purchase. Your AI Agent Launch Kit is ready to download: ${destination}`
     : [
@@ -2479,7 +2494,7 @@ function buildCustomerFollowUpEmail(env, lead) {
   const sequence = generateFollowUpSequence(lead, env);
   const first = sequence[0] || {
     subject: "We received your AI agent request",
-    body: "Thanks for checking out AgentID Services. The next step is a quick strategy call so we can map the best workflow.",
+    body: "Thanks for checking out GPTMarketPlus. The next step is a quick strategy call so we can map the best workflow.",
   };
   const html = `
     <div style="font-family:ui-sans-serif,system-ui,sans-serif;color:#e5eef8;background:#06111d;padding:24px;border-radius:16px">
@@ -2676,7 +2691,7 @@ async function handleChat(request, env, ctx) {
   if (groundedAnswer) {
     state.fullTranscript = [
       state.fullTranscript,
-      `AgentID grounded answer: ${groundedAnswer.answer}`,
+      `GPTMarketPlus grounded answer: ${groundedAnswer.answer}`,
     ].filter(Boolean).join("\n");
     const eventPromise = dbInsertEvent(env, {
       event_name: "genai_grounded_answer",
@@ -2704,7 +2719,7 @@ async function handleChat(request, env, ctx) {
         value: question,
       })),
       cta: {
-        label: "View AgentID Pricing",
+        label: "View GPTMarketPlus Pricing",
         href: "/pricing",
       },
     });
@@ -2970,11 +2985,10 @@ async function handleChat(request, env, ctx) {
 }
 
 function renderHomePage(env, state) {
-  const stats = state?.stats || {};
   const body = `
     <section class="hero">
       <div class="hero-copy">
-        <p class="eyebrow">AgentID Services</p>
+        <p class="eyebrow">GPTMarketPlus</p>
         <h1>Custom AI Agents Built to Help Your Business Sell, Respond, and Operate Faster</h1>
         <p class="hero-lede">Turn missed leads, slow follow-up, repetitive customer questions, and manual admin into one AI workflow your business can use every day.</p>
         <div class="cta-row">
@@ -2994,10 +3008,6 @@ function renderHomePage(env, state) {
       ${renderHeroVisual()}
     </section>
 
-    <section class="section stats-section">
-      ${renderStatCards(stats)}
-    </section>
-
     <section class="section split-section">
       <div>
         ${renderSectionTitle("The problem", "Your business is losing time and leads to manual work", "Most businesses do not need more apps. They need systems that respond, organize, follow up, and move work forward automatically.")}
@@ -3009,7 +3019,7 @@ function renderHomePage(env, state) {
 
     <section class="section split-section">
       <div>
-        ${renderSectionTitle("The solution", "AgentID Services builds AI agents that work inside your business", "AI agents can answer common questions, qualify leads, collect customer details, send summaries to staff, create tasks, draft replies, follow up automatically, and connect with your existing tools.")}
+        ${renderSectionTitle("The solution", "GPTMarketPlus builds AI agents that work inside your business", "AI agents can answer common questions, qualify leads, collect customer details, send summaries to staff, create tasks, draft replies, follow up automatically, and connect with your existing tools.")}
       </div>
       <div class="feature-rack">
         <article class="feature-card"><strong>Answer</strong><span>Common customer questions quickly.</span></article>
@@ -3047,7 +3057,7 @@ function renderHomePage(env, state) {
     </section>
 
     <section class="section">
-      ${renderSectionTitle("Why businesses choose AgentID Services", "Practical implementation. Clear pricing. Custom workflows.", "")}
+      ${renderSectionTitle("Why businesses choose GPTMarketPlus", "Practical implementation. Clear pricing. Custom workflows.", "")}
       ${renderCardGrid([
         { title: "Practical implementation", description: "We build for the real workflow, not a demo.", kicker: "" },
         { title: "Clear pricing", description: "Starting prices are visible and easy to understand.", kicker: "" },
@@ -3081,7 +3091,7 @@ function renderHomePage(env, state) {
   return renderShell(env, {
     path: "/",
     title: "Custom AI Agents Built to Help Your Business Sell, Respond, and Operate Faster",
-    description: "AgentID Services builds AI-powered assistants, automation systems, and lead-capture tools that handle repetitive work, improve response time, and help businesses turn more visitors into customers.",
+    description: "GPTMarketPlus builds AI-powered assistants, automation systems, and lead-capture tools that handle repetitive work, improve response time, and help businesses turn more visitors into customers.",
     body,
     schema: [
       organizationSchema(env),
@@ -3167,9 +3177,9 @@ function renderAgentsPage(env) {
   return renderShell(env, {
     path: "/ai-agents",
     title: "AI Agents",
-    description: "The agent types AgentID Services can build for your business.",
+    description: "The agent types GPTMarketPlus can build for your business.",
     body,
-    schema: [organizationSchema(env), serviceSchema(env, "AI agent builds", "The agent types AgentID Services can build for your business.", "/ai-agents")],
+    schema: [organizationSchema(env), serviceSchema(env, "AI agent builds", "The agent types GPTMarketPlus can build for your business.", "/ai-agents")],
     bodyClass: "page-agents",
   });
 }
@@ -3216,9 +3226,7 @@ function renderPricingPage(env) {
           <p>${escapeHtml(tier.summary)}</p>
           <ul>${tier.includes.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
           <div class="checkout-stack">
-            ${paypalReady ? makePayPalOrderForm(tier, "Pay with PayPal") : ""}
-            ${checkoutReady ? makeCheckoutForm({ ...tier, cta: "Pay by card" }) : ""}
-            ${!paypalReady && !checkoutReady ? `<a class="button-secondary" href="/contact">Request a quote</a>` : ""}
+            <a class="button-secondary" href="/contact?package=${encodeURIComponent(tier.id)}">Request a scoped quote</a>
           </div>
         </article>
       `).join("")}
@@ -3230,15 +3238,15 @@ function renderPricingPage(env) {
           <strong>Starting at ${moneyWithCents(plan.price)}</strong>
           <p>${escapeHtml(plan.name)}</p>
           <span>${escapeHtml(plan.summary)}</span>
-          ${checkoutReady ? makeCheckoutForm({ id: plan.id, cta: `Start ${plan.name}` }) : `<a class="button-secondary" href="/contact">Discuss support</a>`}
+          <a class="button-secondary" href="/contact">Discuss support</a>
         </article>
       `).join("")}
     </section>
     <section class="section">
       ${renderSectionTitle(
-        "Advertise with AgentID",
+        "Advertise with GPTMarketPlus",
         "Reserve recurring sponsor inventory",
-        "Reach visitors researching AI agents, automation, business software, and implementation services. Cancel through PayPal or Stripe at any time."
+        "Reach visitors researching AI agents, automation, business software, and implementation services. Sponsor applications are reviewed before billing or placement."
       )}
       <div class="support-grid sponsor-pricing-grid">
         ${SPONSOR_SUBSCRIPTIONS.map((plan) => `
@@ -3248,8 +3256,7 @@ function renderPricingPage(env) {
             <p>${escapeHtml(plan.name)}</p>
             <span>${escapeHtml(plan.summary)}</span>
             <div class="checkout-stack">
-              ${makePayPalForm(plan)}
-              ${checkoutReady ? makeCheckoutForm({ id: plan.id, cta: "Subscribe with card" }) : ""}
+              <a class="button-secondary" href="/advertise?package=${encodeURIComponent(plan.id)}">Apply for placement</a>
             </div>
           </article>
         `).join("")}
@@ -3266,9 +3273,7 @@ function renderPricingPage(env) {
           <strong>${moneyWithCents(deposit.price)}</strong>
           <span>Secure your build slot with a deposit. Final scope and pricing will be confirmed after your strategy call.</span>
           <div class="checkout-stack">
-            ${paypalReady ? makePayPalOrderForm(deposit, "Pay deposit with PayPal") : ""}
-            ${checkoutReady ? makeCheckoutForm({ id: deposit.id, cta: "Pay deposit by card" }) : ""}
-            ${!paypalReady && !checkoutReady ? `<a class="button-secondary" href="/book-a-consultation">Request deposit link</a>` : ""}
+            <a class="button-secondary" href="/book-a-consultation">Confirm scope before paying</a>
           </div>
         </article>
       `).join("")}
@@ -3636,12 +3641,12 @@ function renderLaunchKitPage(env) {
     </section>
     <section class="section split-section">
       <div>
-        ${renderSectionTitle("Who it is for", "Owners and operators planning a first workflow", "Use it yourself, with your team, or as the preparation package before a custom AgentID build.")}
+        ${renderSectionTitle("Who it is for", "Owners and operators planning a first workflow", "Use it yourself, with your team, or as the preparation package before a custom GPTMarketPlus build.")}
       </div>
       <div class="cta-box">
         <strong>Ready to plan it?</strong>
         ${checkout}
-        <a class="button-secondary" href="/book-a-consultation">Have AgentID build it with you</a>
+        <a class="button-secondary" href="/book-a-consultation">Have GPTMarketPlus build it with you</a>
       </div>
     </section>`;
 
@@ -3716,7 +3721,7 @@ async function renderLaunchKitDownloadPage(env, sessionId) {
 export function renderLaunchKitMarkdown() {
   return `# AI Agent Launch Kit
 
-Copyright ${new Date().getFullYear()} AgentID Services. Licensed to the purchaser for use within one business. Do not resell or redistribute this file.
+Copyright ${new Date().getFullYear()} GPTMarketPlus. Licensed to the purchaser for use within one business. Do not resell or redistribute this file.
 
 ## 1. Workflow opportunity scorecard
 
@@ -3840,11 +3845,11 @@ At day 30, decide to keep, adjust, expand, or stop. Expansion is earned by relia
 
 ## Implementation help
 
-AgentID Services can turn this plan into a custom workflow:
+GPTMarketPlus can turn this plan into a custom workflow:
 
-- https://agentid.services/book-a-consultation
-- https://agentid.services/pricing
-- https://agentid.services/resources
+- https://gptmarketplus.com/book-a-consultation
+- https://gptmarketplus.com/pricing
+- https://gptmarketplus.com/resources
 `;
 }
 
@@ -3853,7 +3858,7 @@ function renderAboutPage(env) {
     <section class="page-hero split-section">
       <div>
         ${renderPageTitle("About", "Practical AI implementation for real businesses", "We build AI systems that make businesses faster, more organized, and easier to operate.")}
-        <p>AgentID Services was created to help businesses use AI in a practical way - with systems that answer, organize, follow up, and support daily operations.</p>
+        <p>GPTMarketPlus was created to help businesses use AI in a practical way - with systems that answer, organize, follow up, and support daily operations.</p>
       </div>
       <div class="about-panel">
         <p class="card-kicker">Founder-led trust</p>
@@ -3937,9 +3942,35 @@ function renderTermsPage(env) {
   return renderShell(env, {
     path: "/terms",
     title: "Terms of Service",
-    description: "Terms and use conditions for AgentID Services.",
+    description: `Terms and use conditions for ${brandName(env)}.`,
     body,
     schema: [organizationSchema(env)],
+    bodyClass: "page-legal",
+  });
+}
+
+function renderRefundPolicyPage(env) {
+  const support = contactEmail(env);
+  const body = `
+    <section class="page-hero">
+      ${renderPageTitle("Refund Policy", "Clear rules for digital products and project work", "Review these terms before purchasing or approving a proposal.")}
+    </section>
+    <section class="section legal-copy">
+      <h2>AI Agent Launch Kit</h2>
+      <p>The Launch Kit is delivered as a digital download after payment. If you cannot access the files or the files are materially incomplete, contact <a href="mailto:${escapeHtml(support)}">${escapeHtml(support)}</a> within 14 days so we can restore access, replace the files, or issue an appropriate refund.</p>
+      <p>Because downloadable materials can be copied immediately, change-of-mind refunds are not guaranteed after successful access. This does not limit rights that cannot legally be waived.</p>
+      <h2>Custom services and sponsorships</h2>
+      <p>Custom implementation and sponsorship placements are not sold automatically on this site. Scope, deliverables, timing, payment terms, cancellation rights, and any refund terms must be stated in a written proposal or order before payment is requested.</p>
+      <h2>Payment questions</h2>
+      <p>Include the purchaser email and PayPal order ID when contacting support. Do not email payment-card details or passwords.</p>
+    </section>
+  `;
+  return renderShell(env, {
+    path: "/refund-policy",
+    title: "Refund Policy",
+    description: "Refund, replacement, and cancellation terms for GPTMarketPlus products and services.",
+    body,
+    schema: [organizationSchema(env), contactPointSchema(env)],
     bodyClass: "page-legal",
   });
 }
@@ -3990,7 +4021,7 @@ function renderContactPage(env) {
       <div>${form}</div>
       <div class="side-note">
         <p class="card-kicker">Internal notification</p>
-        <strong>New AgentID Services lead received.</strong>
+        <strong>New GPTMarketPlus lead received.</strong>
         <p>Review business type, automation request, budget, and timeline. Respond within 15 minutes if possible.</p>
       </div>
     </section>
@@ -4282,7 +4313,7 @@ function getCheckoutProduct(productId) {
 async function createStripeCheckout(env, request, productId, opts = {}) {
   const product = getCheckoutProduct(productId);
   if (!product) return { ok: false, status: 400, error: "Unknown checkout product." };
-  if (!stripeReady(env)) return { ok: false, status: 503, error: "Stripe is not configured." };
+  if (!fullCheckoutReady(env)) return { ok: false, status: 503, error: "Card checkout is temporarily unavailable." };
 
   const body = opts.body || {};
   const successPath = product.checkoutType === "digital_product"
@@ -4350,16 +4381,19 @@ async function retrieveStripeSession(env, sessionId) {
 
 async function storePurchaseFromSession(env, session, fallbackProduct = null) {
   if (!session) return null;
+  if (session.payment_status !== "paid") return null;
   const productId = cleanText(session.metadata?.product_id || fallbackProduct?.id || "", 120);
   const product = fallbackProduct || getCheckoutProduct(productId);
+  const existingPurchase = session.id ? await dbGetPurchaseBySession(env, session.id) : null;
   const lead = session.customer_details?.email
     ? await queryD1First(env, "SELECT * FROM agentid_leads WHERE email = ? ORDER BY datetime(created_at) DESC LIMIT 1", [cleanEmail(session.customer_details.email)])
     : null;
-  const dashboardToken = lead?.dashboard_token || crypto.randomUUID().replace(/-/g, "");
+  const dashboardToken = existingPurchase?.dashboard_token || lead?.dashboard_token || crypto.randomUUID().replace(/-/g, "");
   const deliveryUrl = product?.checkoutType === "digital_product"
     ? `/downloads/ai-agent-launch-kit?checkout=success&product=${encodeURIComponent(product?.id || productId)}&session_id=${encodeURIComponent(session.id)}`
     : `/onboarding?checkout=success&product=${encodeURIComponent(product?.id || productId)}&session_id=${encodeURIComponent(session.id)}`;
   const purchase = await dbUpsertPurchase(env, {
+    id: existingPurchase?.id,
     stripe_session_id: session.id,
     stripe_payment_intent_id: session.payment_intent || "",
     package_id: product?.packageTier || productId,
@@ -4371,7 +4405,7 @@ async function storePurchaseFromSession(env, session, fallbackProduct = null) {
     customer_email: session.customer_details?.email || session.customer_email || "",
     source_page: session.metadata?.source_page || "/pricing",
     lead_id: lead?.id || "",
-    status: session.payment_status === "paid" || session.status === "complete" ? "paid" : "pending",
+    status: "paid",
     dashboard_token: dashboardToken,
     onboarding_url: deliveryUrl,
     metadata_json: session.metadata || {},
@@ -4496,8 +4530,9 @@ function onboardingFieldDefinitions() {
 
 function renderOnboardingPage(env, context = {}) {
   const checkoutSessionId = cleanText(context.sessionId || "", 160);
-  const purchaseToken = cleanText(context.token || "", 160);
-  const leadToken = cleanText(context.lead || "", 160);
+  const dashboardToken = cleanText(context.dashboardToken || "", 180);
+  const paypalOrderId = cleanText(context.paypalOrderId || "", 80);
+  const paypalAccessToken = cleanText(context.paypalAccessToken || "", 180);
   const packageName = cleanText(context.packageName || "", 120) || "Starter Agent";
 
   const form = renderLeadForm({
@@ -4510,9 +4545,11 @@ function renderOnboardingPage(env, context = {}) {
     dataAttrs: 'data-preview-target="#blueprint-preview"',
     fields: [
       ...onboardingFieldDefinitions(),
-      { name: "packageTier", label: "Purchased package", type: "select", options: ["Starter Agent", "Growth Agent System", "Business Automation Suite"], required: true },
-      { name: "leadId", label: "Lead ID", placeholder: "If you have one, paste it here", required: false },
-      { name: "purchaseId", label: "Purchase ID", placeholder: "If you have one, paste it here", required: false },
+      { name: "packageTier", type: "hidden", value: packageName },
+      { name: "sessionId", type: "hidden", value: checkoutSessionId },
+      { name: "dashboardToken", type: "hidden", value: dashboardToken },
+      { name: "paypalOrderId", type: "hidden", value: paypalOrderId },
+      { name: "paypalAccessToken", type: "hidden", value: paypalAccessToken },
     ],
   });
 
@@ -4521,8 +4558,7 @@ function renderOnboardingPage(env, context = {}) {
       ${renderSectionTitle("Client Onboarding", "Let’s Build Your AI Agent", "Answer a few questions so we can design the exact AI agent your business needs.")}
       <p class="confirmation">Your AI agent setup has started. The next step is to complete your onboarding form so we can design the exact AI agent your business needs. Once submitted, we will generate your AI Agent Build Plan and begin preparing your agent workflow.</p>
       ${checkoutSessionId ? `<p class="status-pill">Checkout session: ${escapeHtml(checkoutSessionId)}</p>` : ""}
-      ${purchaseToken ? `<p class="status-pill">Purchase token: ${escapeHtml(purchaseToken)}</p>` : ""}
-      ${leadToken ? `<p class="status-pill">Lead token: ${escapeHtml(leadToken)}</p>` : ""}
+      <p class="status-pill">Verified purchase: ${escapeHtml(packageName)}</p>
     </section>
   `;
 
@@ -4554,6 +4590,29 @@ function renderOnboardingPage(env, context = {}) {
     body,
     robots: "noindex,nofollow",
     bodyClass: "page-onboarding",
+    privatePage: true,
+  });
+}
+
+function renderOnboardingAccessRequiredPage(env) {
+  const body = `
+    <section class="page-hero split-section">
+      <div>
+        ${renderPageTitle("Customer access", "A verified purchase is required", "Open the secure onboarding link returned after payment, or purchase an eligible package first.")}
+        <div class="button-row">
+          <a class="button-primary" href="/pricing">View verified offers</a>
+          <a class="button-secondary" href="/contact">Contact support</a>
+        </div>
+      </div>
+    </section>`;
+  return renderShell(env, {
+    path: "/onboarding",
+    title: "Verified Purchase Required",
+    description: "Secure customer onboarding requires a verified purchase.",
+    body,
+    robots: "noindex,nofollow,noarchive",
+    bodyClass: "page-onboarding",
+    privatePage: true,
   });
 }
 
@@ -4567,6 +4626,11 @@ async function handleOnboarding(request, env, ctx) {
   const rate = await rateLimit(env, request, "onboarding");
   if (!rate.ok) {
     return jsonResponse({ ok: false, error: "Rate limited.", retryAfter: rate.retryAfter }, 429);
+  }
+
+  const access = await verifyOnboardingAccess(env, body);
+  if (!access.ok) {
+    return jsonResponse({ ok: false, error: "A verified paid purchase is required for onboarding." }, 403);
   }
 
   if (!(await verifyTurnstile(body, request, env))) {
@@ -4604,7 +4668,7 @@ async function handleOnboarding(request, env, ctx) {
     return jsonResponse({ ok: false, error: `Missing required fields: ${missing.join(", ")}` }, 400);
   }
 
-  const packageName = cleanText(body.packageTier || "Starter Agent", 120);
+  const packageName = cleanText(access.packageName || "Starter Agent", 120);
   const businessType = cleanText(body.businessType || "", 120);
   const agentRecommendation = recommendedAgentForBusinessType(businessType);
   const artifacts = buildBlueprintArtifacts({
@@ -4635,9 +4699,9 @@ async function handleOnboarding(request, env, ctx) {
     nextAction: "Review the build plan, confirm any missing integrations, and move into implementation.",
   });
 
-  const leadId = cleanText(body.leadId || "", 120);
-  const purchaseId = cleanText(body.purchaseId || "", 120);
-  const dashboardToken = cleanText(body.dashboardToken || "", 120) || crypto.randomUUID().replace(/-/g, "");
+  const leadId = cleanText(access.purchase?.lead_id || "", 120);
+  const purchaseId = cleanText(access.purchaseId || "", 120);
+  const dashboardToken = cleanText(access.dashboardToken || "", 180);
   const buildStatusStage = "blueprint_generated";
   const buildStatusIndex = BUILD_STAGES.indexOf(buildStatusStage);
 
@@ -4701,13 +4765,11 @@ async function handleOnboarding(request, env, ctx) {
   }
 
   if (purchaseId) {
-    await dbUpsertPurchase(env, {
-      id: purchaseId,
-      status: "paid",
-      fulfillment_status: buildStatusStage,
-      dashboard_token: dashboardToken,
-      onboarding_url: `/customer-dashboard?token=${encodeURIComponent(dashboardToken)}`,
-    });
+    await env.GMP_DB.prepare(`UPDATE agentid_purchases
+      SET fulfillment_status = ?, dashboard_token = ?, onboarding_url = ?, updated_at = datetime('now')
+      WHERE id = ? AND status = 'paid'`)
+      .bind(buildStatusStage, dashboardToken, `/customer-dashboard?token=${encodeURIComponent(dashboardToken)}`, purchaseId)
+      .run();
   }
 
   await dbInsertEvent(env, {
@@ -4765,8 +4827,7 @@ async function hasAdminAccess(request, env) {
   if (!expected) return false;
   const header = request.headers.get("authorization") || "";
   const bearer = header.toLowerCase().startsWith("bearer ") ? header.slice(7).trim() : "";
-  const queryToken = new URL(request.url).searchParams.get("token") || "";
-  return timingSafeStringEqual(bearer || queryToken, expected);
+  return timingSafeStringEqual(bearer, expected);
 }
 
 function renderLookupPanel({ action, name = "token", placeholder = "Enter your access token", button = "Open Dashboard", note = "" }) {
@@ -5415,7 +5476,7 @@ async function publicAgentState(env) {
 const AGENTID_PUBLIC_PAGES = [
   { path: "/", title: "Home", description: "Custom AI agents built to help your business sell, respond, and operate faster." },
   { path: "/services", title: "Services", description: "Custom AI agent services, workflow automation, and AI website buildout." },
-  { path: "/ai-agents", title: "AI Agents", description: "The agent types AgentID Services can build for your business." },
+  { path: "/ai-agents", title: "AI Agents", description: "The agent types GPTMarketPlus can build for your business." },
   { path: "/pricing", title: "Pricing", description: "Starter, Growth, and Business Automation pricing tiers with deposit options." },
   { path: "/use-cases", title: "Use Cases", description: "Realistic use cases for contractors, real estate, facilities, medical offices, and agencies." },
   { path: "/resources", title: "AI Agent Resources", description: "Practical guides, templates, comparisons, and tools for planning useful business AI agents." },
@@ -5430,7 +5491,8 @@ const AGENTID_PUBLIC_PAGES = [
   { path: "/customer-dashboard", title: "Customer Dashboard", description: "Track onboarding, blueprint generation, and build progress." },
   { path: "/admin-dashboard", title: "Admin Dashboard", description: "Monitor leads, bookings, purchases, onboarding, and build status." },
   { path: "/privacy", title: "Privacy Policy", description: "Privacy, data usage, and consent terms." },
-  { path: "/terms", title: "Terms of Service", description: "Terms and use conditions for AgentID Services." },
+  { path: "/terms", title: "Terms of Service", description: "Terms and use conditions for GPTMarketPlus." },
+  { path: "/refund-policy", title: "Refund Policy", description: "Refund, replacement, and cancellation terms for GPTMarketPlus products and services." },
   { path: "/free-ai-automation-audit-checklist", title: "Free AI Automation Audit Checklist", description: "A form-gated checklist that helps businesses find 10 automation opportunities this month." },
 ];
 
@@ -5473,6 +5535,7 @@ function renderFooter(env) {
         <strong>Company</strong>
         <p><a href="/privacy">Privacy Policy</a></p>
         <p><a href="/terms">Terms of Service</a></p>
+        <p><a href="/refund-policy">Refund Policy</a></p>
       </div>
       <small>© ${currentYear} ${escapeHtml(brandName(env))}. All rights reserved.</small>
     </footer>`;
@@ -5496,13 +5559,13 @@ function renderSponsorHouseAd(path) {
       <div>
         <p class="card-kicker">Sponsor placement available</p>
         <strong>Put your AI or business software in front of automation buyers.</strong>
-        <span>Monthly placements start at $49 with PayPal or card subscription billing.</span>
+        <span>Apply for a reviewed placement. Billing begins only after relevance, inventory, and fulfillment are confirmed.</span>
       </div>
-      <a class="button-secondary" href="/advertise" data-track-event="advertiser_interest" data-track-label="Reserve Sponsor Placement">Reserve this placement</a>
+      <a class="button-secondary" href="/advertise" data-track-event="advertiser_interest" data-track-label="Apply for Sponsor Placement">Apply for review</a>
     </aside>`;
 }
 
-function renderShell(env, { path, title, description, body, schema = [], extraHead = "", bodyClass = "", robots = "index,follow,max-image-preview:large" }) {
+function renderShell(env, { path, title, description, body, schema = [], extraHead = "", bodyClass = "", robots = "index,follow,max-image-preview:large", privatePage = false }) {
   const canonical = `${siteUrl(env)}${path}`;
   const ogTitle = `${title} | ${brandName(env)}`;
   const ogDescription = description;
@@ -5512,8 +5575,8 @@ function renderShell(env, { path, title, description, body, schema = [], extraHe
   return `<!doctype html>
 <html lang="en">
 <head>
-  ${renderMeasurementHead(env)}
-  ${renderAdSenseHead(env, path)}
+  ${privatePage ? "" : renderMeasurementHead(env)}
+  ${privatePage ? "" : renderAdSenseHead(env, path)}
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${escapeHtml(title)} | ${escapeHtml(brandName(env))}</title>
@@ -5539,16 +5602,16 @@ function renderShell(env, { path, title, description, body, schema = [], extraHe
   ${extraHead}
 </head>
 <body class="${escapeHtml(bodyClass)}">
-  ${renderMeasurementBody(env)}
+  ${privatePage ? "" : renderMeasurementBody(env)}
   ${renderNav(path)}
   <main>
     ${body}
     ${renderSponsorHouseAd(path)}
   </main>
   ${renderFooter(env)}
-  ${renderAnalyticsBootstrap(env)}
+  ${privatePage ? "" : renderAnalyticsBootstrap(env)}
   ${renderFormsBootstrap(env)}
-  ${renderChatBootstrap(env)}
+  ${privatePage ? "" : renderChatBootstrap(env)}
 </body>
 </html>`;
 }
@@ -5663,6 +5726,9 @@ function renderTurnstileWidget(env) {
 
 function renderLeadForm({ action, formId, fields, cta, note, turnstileHtml = "", successId = "form-status", dataAttrs = "" }) {
   const fieldMarkup = fields.map((field) => {
+    if (field.type === "hidden") {
+      return `<input type="hidden" name="${escapeHtml(field.name)}" value="${escapeHtml(field.value || "")}">`;
+    }
     if (field.type === "select") {
       return `
         <label class="field">
@@ -6143,10 +6209,10 @@ function renderChatBootstrap(env) {
             '<div class="agentid-chat" aria-live="polite">',
             '  <button class="agentid-chat-nudge" type="button">How can I help you choose the right plan?</button>',
             '  <button class="agentid-chat-fab" type="button">' + (isPricingPage ? 'Ask about pricing' : 'Ask AI Agent') + '</button>',
-            '  <section class="agentid-chat-panel" aria-label="AgentID Services assistant">',
+            '  <section class="agentid-chat-panel" aria-label="GPTMarketPlus assistant">',
             '    <header>',
             '      <div>',
-            '        <strong>AgentID Services assistant</strong>',
+            '        <strong>GPTMarketPlus assistant</strong>',
             '        <span class="lead-badge">AI assistant</span>',
             '      </div>',
             '      <button type="button" class="chat-close" aria-label="Close chat">×</button>',
@@ -6389,7 +6455,24 @@ function formatMoney(value) {
 }
 
 function pageEntriesForSitemap() {
-  return AGENTID_PUBLIC_PAGES.filter((page) => !isAgentIdPrivatePath(page.path));
+  const pages = [
+    ...AGENTID_PUBLIC_PAGES,
+    { path: "/agents/", title: "Autonomous Agent Operations", description: "Operational status and capabilities for GPTMarketPlus automation agents." },
+    { path: "/social", title: "GPTMarketPlus Social Hub", description: "Share-ready links for legitimate GPTMarketPlus discovery and customer acquisition." },
+    { path: "/playbook", title: "Growth Playbook", description: "Current public growth priorities and transparent agent operating status." },
+    { path: "/software-builds", title: "AI Software Builds", description: "Fixed-scope AI software opportunities and implementation options." },
+    { path: "/sponsor", title: "Sponsor GPTMarketPlus", description: "Apply for reviewed sponsor visibility across GPTMarketPlus buyer-intent pages." },
+    { path: "/advertise", title: "Advertise with GPTMarketPlus", description: "Review sponsor inventory and apply for an approved placement." },
+    { path: "/ad-network", title: "GPTMarketPlus Ad Network", description: "Reviewed advertising inventory for relevant AI and business software." },
+    { path: "/software-builds/ai-software-opportunity-report", title: "AI Software Opportunity Report", description: "A fixed-scope report for evaluating an AI software opportunity." },
+    { path: "/software-builds/lead-response-and-follow-up-automation", title: "Lead Response Automation", description: "A fixed-scope lead response and follow-up automation build." },
+    { path: "/software-builds/paid-reporting-dashboard-builder", title: "Paid Reporting Dashboard Builder", description: "A fixed-scope paid reporting dashboard implementation package." },
+    { path: "/software-builds/ai-content-operations-planner", title: "AI Content Operations Planner", description: "A fixed-scope AI content operations planning package." },
+    { path: "/software-builds/internal-workflow-automation-console", title: "Internal Workflow Automation Console", description: "A fixed-scope internal workflow automation package." },
+    { path: "/software-builds/public-data-monitor-and-alert-service", title: "Public Data Monitor and Alert Service", description: "A fixed-scope public data monitoring and alerting package." },
+  ];
+  const seen = new Set();
+  return pages.filter((page) => !isAgentIdPrivatePath(page.path) && !seen.has(page.path) && seen.add(page.path));
 }
 
 export function agentIdIndexablePaths() {
@@ -6399,18 +6482,82 @@ export function agentIdIndexablePaths() {
 async function maybeHydratePurchaseFromSession(env, sessionId) {
   if (!sessionId) return null;
   const existing = await dbGetPurchaseBySession(env, sessionId);
-  if (existing) return existing;
+  if (existing?.status === "paid") return existing;
   const session = await retrieveStripeSession(env, sessionId);
   if (!session) return null;
   return storePurchaseFromSession(env, session);
 }
 
+function scopedKvKey(env, key) {
+  const scope = String(env.STORAGE_SCOPE || "agentid.services").trim().toLowerCase();
+  return scope ? `${scope}:${key}` : key;
+}
+
+async function verifiedPaypalOrder(env, orderId, accessToken) {
+  const normalizedOrderId = cleanText(orderId || "", 80);
+  const normalizedAccessToken = cleanText(accessToken || "", 180);
+  if (!env.GMP_KV || !normalizedOrderId || !normalizedAccessToken) return null;
+  const order = await env.GMP_KV.get(scopedKvKey(env, `paypal:order:${normalizedOrderId}`), "json");
+  if (!order || order.status !== "COMPLETED" || !(await timingSafeStringEqual(normalizedAccessToken, order.accessToken))) {
+    return null;
+  }
+  return order;
+}
+
+async function verifyOnboardingAccess(env, context = {}) {
+  const sessionId = cleanText(context.sessionId || "", 160);
+  const dashboardToken = cleanText(context.dashboardToken || context.token || "", 180);
+  const paypalOrderId = cleanText(context.paypalOrderId || context.orderId || "", 80);
+  const paypalAccessToken = cleanText(context.paypalAccessToken || context.accessToken || "", 180);
+
+  if (sessionId) {
+    const purchase = await maybeHydratePurchaseFromSession(env, sessionId);
+    if (purchase?.status === "paid") {
+      return {
+        ok: true,
+        provider: "stripe",
+        purchase,
+        purchaseId: purchase.id,
+        packageName: purchase.package_name,
+        dashboardToken: purchase.dashboard_token,
+        sessionId,
+      };
+    }
+  }
+
+  if (dashboardToken) {
+    const purchase = await dbGetPurchaseByToken(env, dashboardToken);
+    if (purchase?.status === "paid") {
+      return {
+        ok: true,
+        provider: "customer_token",
+        purchase,
+        purchaseId: purchase.id,
+        packageName: purchase.package_name,
+        dashboardToken: purchase.dashboard_token,
+      };
+    }
+  }
+
+  const paypalOrder = await verifiedPaypalOrder(env, paypalOrderId, paypalAccessToken);
+  if (paypalOrder) {
+    return {
+      ok: true,
+      provider: "paypal",
+      paypalOrder,
+      purchaseId: "",
+      packageName: paypalOrder.productName || paypalOrder.packageTier,
+      dashboardToken: paypalOrder.accessToken,
+      paypalOrderId,
+      paypalAccessToken,
+    };
+  }
+
+  return { ok: false };
+}
+
 async function resolveCustomerWorkspace(env, context = {}) {
   const token = cleanText(context.token || "", 120);
-  const leadId = cleanText(context.lead || "", 120);
-  const purchaseId = cleanText(context.purchase || "", 120);
-  const sessionId = cleanText(context.sessionId || "", 160);
-  const email = cleanEmail(context.email || "");
 
   let lead = null;
   let purchase = null;
@@ -6420,18 +6567,6 @@ async function resolveCustomerWorkspace(env, context = {}) {
     lead = await dbGetLeadByToken(env, token);
     purchase = await dbGetPurchaseByToken(env, token);
     onboarding = await dbGetOnboardingByToken(env, token);
-  }
-
-  if (!lead && leadId) {
-    lead = await dbGetLeadById(env, leadId) || await dbGetLeadByToken(env, leadId);
-  }
-
-  if (!purchase && purchaseId) {
-    purchase = await dbGetPurchaseById(env, purchaseId) || await dbGetPurchaseByToken(env, purchaseId);
-  }
-
-  if (!purchase && sessionId) {
-    purchase = await maybeHydratePurchaseFromSession(env, sessionId);
   }
 
   if (!lead && purchase?.lead_id) {
@@ -6448,14 +6583,6 @@ async function resolveCustomerWorkspace(env, context = {}) {
 
   if (!onboarding && purchase?.id) {
     onboarding = await dbGetOnboardingByPurchase(env, purchase.id);
-  }
-
-  if (!lead && email) {
-    lead = await queryD1First(env, "SELECT * FROM agentid_leads WHERE email = ? ORDER BY datetime(created_at) DESC LIMIT 1", [email]);
-  }
-
-  if (!purchase && email) {
-    purchase = await queryD1First(env, "SELECT * FROM agentid_purchases WHERE customer_email = ? ORDER BY datetime(created_at) DESC LIMIT 1", [email]);
   }
 
   const workspaceToken = token || lead?.dashboard_token || purchase?.dashboard_token || onboarding?.dashboard_token || "";
@@ -8409,7 +8536,7 @@ function renderLlmsFullTxt(env) {
   return [
     `# ${brandName(env)} - Full Site Reference`,
     "",
-    "AgentID Services builds practical AI agents for businesses. The site is sales-first, lead-capture ready, and built for post-purchase onboarding.",
+    "GPTMarketPlus builds practical AI agents for businesses. The site is sales-first, lead-capture ready, and built for post-purchase onboarding.",
     "",
     pages,
     "",
@@ -8522,7 +8649,7 @@ function renderOgImage(env, title = brandName(env), subtitle = "Custom AI agents
 
 function renderFavicon() {
   return `<?xml version="1.0" encoding="UTF-8"?>
-  <svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="AgentID Services">
+  <svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="GPTMarketPlus">
     <defs>
       <linearGradient id="iconBg" x1="0" x2="1" y1="0" y2="1">
         <stop offset="0%" stop-color="#71d6ff"/>
@@ -8549,7 +8676,7 @@ function renderSecurityTxt(env) {
 function renderAdsTxt(env) {
   const publisherId = adSensePublisherId(env);
   return [
-    `# AgentID Services ads.txt`,
+    `# GPTMarketPlus ads.txt`,
     publisherId
       ? `google.com, ${publisherId}, DIRECT, f08c47fec0942fa0`
       : `# Google AdSense publisher authorization pending.`,
@@ -8603,12 +8730,26 @@ function indexNowKeyValue(env) {
   return String(env.INDEXNOW_KEY || "").trim();
 }
 
+function applyPublicBrand(env, html) {
+  const canonical = siteUrl(env);
+  return String(html || "")
+    .replaceAll("https://www.agentid.services", canonical)
+    .replaceAll("https://agentid.services", canonical)
+    .replaceAll("GPTMarketPlus", brandName(env))
+    .replaceAll("GPTMarketPlus", brandName(env))
+    .replaceAll("GPTMarketPlus", brandName(env));
+}
+
 export async function handleAgentIdSiteRequest(request, env, ctx) {
   const url = new URL(request.url);
   const path = normalizePath(url.pathname);
   const method = request.method.toUpperCase();
 
-  const respondHtml = (html, privatePage = false) => htmlResponse(html, 200, privatePage ? { "x-robots-tag": "noindex,nofollow" } : {});
+  const respondHtml = (html, privatePage = false, status = 200) => htmlResponse(
+    applyPublicBrand(env, html),
+    status,
+    privatePage ? PRIVATE_HTML_HEADERS : {},
+  );
 
   if (path === "/styles.css") {
     return new Response(STYLES, { headers: CSS_HEADERS });
@@ -8716,7 +8857,7 @@ export async function handleAgentIdSiteRequest(request, env, ctx) {
       projectId: config.projectId,
       location: config.location,
       engineId: config.engineId,
-      corpus: "Public AgentID Services pages only",
+      corpus: "Public GPTMarketPlus pages only",
     }, 200, {
       "cache-control": "public, max-age=60",
     });
@@ -8834,31 +8975,36 @@ export async function handleAgentIdSiteRequest(request, env, ctx) {
     return respondHtml(renderTermsPage(env));
   }
 
+  if (path === "/refund-policy") {
+    return respondHtml(renderRefundPolicyPage(env));
+  }
+
   if (path === "/free-ai-automation-audit-checklist" || path === "/lead-magnet") {
     return respondHtml(renderLeadMagnetPage(env));
   }
 
   if (path === "/onboarding" || path === "/client-onboarding") {
-    const sessionId = url.searchParams.get("session_id") || url.searchParams.get("sessionId") || "";
-    const productId = url.searchParams.get("product") || "";
-    const purchase = sessionId ? await maybeHydratePurchaseFromSession(env, sessionId) : null;
-    const packageName = purchase?.package_name || toTitle(productId) || url.searchParams.get("package") || "Starter Agent";
+    const access = await verifyOnboardingAccess(env, {
+      sessionId: url.searchParams.get("session_id") || url.searchParams.get("sessionId") || "",
+      dashboardToken: url.searchParams.get("token") || "",
+      paypalOrderId: url.searchParams.get("order_id") || "",
+      paypalAccessToken: url.searchParams.get("access_token") || "",
+    });
+    if (!access.ok) {
+      return respondHtml(renderOnboardingAccessRequiredPage(env), true, 403);
+    }
     return respondHtml(renderOnboardingPage(env, {
-      sessionId,
-      token: url.searchParams.get("token") || "",
-      lead: url.searchParams.get("lead") || "",
-      packageName,
-      purchaseId: purchase?.id || "",
+      sessionId: access.sessionId || "",
+      dashboardToken: access.dashboardToken,
+      paypalOrderId: access.paypalOrderId || "",
+      paypalAccessToken: access.paypalAccessToken || "",
+      packageName: access.packageName,
     }), true);
   }
 
   if (path === "/customer-dashboard") {
     return respondHtml(await renderCustomerDashboardPage(env, {
       token: url.searchParams.get("token") || "",
-      lead: url.searchParams.get("lead") || "",
-      purchase: url.searchParams.get("purchase") || "",
-      sessionId: url.searchParams.get("session_id") || "",
-      email: url.searchParams.get("email") || "",
     }), true);
   }
 
@@ -8898,6 +9044,7 @@ async function renderCustomerDashboardPage(env, context = {}) {
       body,
       robots: "noindex,nofollow",
       bodyClass: "page-dashboard page-customer-dashboard",
+      privatePage: true,
     });
   }
 
@@ -9084,6 +9231,7 @@ async function renderCustomerDashboardPage(env, context = {}) {
     body,
     robots: "noindex,nofollow",
     bodyClass: "page-dashboard page-customer-dashboard",
+    privatePage: true,
   });
 }
 
@@ -9093,17 +9241,11 @@ async function renderAdminDashboardPage(env, request) {
     const body = `
       <section class="page-hero split-section">
         <div>
-          ${renderSectionTitle("Admin Dashboard", "Private owner dashboard", "Enter the admin token to view leads, bookings, purchases, onboarding, and build status.")}
-          <p>This area is intentionally private. Use your admin token or bearer token to open the live lead and fulfillment view.</p>
+          ${renderSectionTitle("Admin Dashboard", "Private owner dashboard", "Administrative data is available only through authenticated requests.")}
+          <p>This browser page never accepts credentials in its URL. Use an Authorization bearer header through the protected operator workflow.</p>
         </div>
         <div class="admin-login">
-          ${renderLookupPanel({
-            action: "/admin-dashboard",
-            name: "token",
-            placeholder: "Enter admin token",
-            button: "Open Admin Dashboard",
-            note: "Keep this token private. It exposes lead and fulfillment data.",
-          })}
+          <p class="form-note">Example: <code>curl -H 'Authorization: Bearer &lt;admin-token&gt;' https://gptmarketplus.com/admin-dashboard</code></p>
         </div>
       </section>`;
 
@@ -9114,6 +9256,7 @@ async function renderAdminDashboardPage(env, request) {
       body,
       robots: "noindex,nofollow",
       bodyClass: "page-dashboard page-admin-dashboard",
+      privatePage: true,
     });
   }
 
@@ -9313,6 +9456,7 @@ async function renderAdminDashboardPage(env, request) {
     body,
     robots: "noindex,nofollow",
     bodyClass: "page-dashboard page-admin-dashboard",
+    privatePage: true,
   });
 }
 
@@ -9447,16 +9591,6 @@ async function handleAnalyticsEventSubmission(request, env, ctx) {
     properties_json: properties,
     user_agent: request.headers.get("user-agent") || "",
   });
-
-  if (body.webhook === true) {
-    ctx && ctx.waitUntil && ctx.waitUntil(sendWebhook(env, eventName, {
-      sourcePage,
-      leadId,
-      conversationId,
-      sessionId,
-      properties,
-    }));
-  }
 
   return jsonResponse({ ok: true, recorded: true, eventName });
 }

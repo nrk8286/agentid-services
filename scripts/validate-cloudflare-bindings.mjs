@@ -59,9 +59,11 @@ if (!/"name"\s*:\s*"EVENT_RATE_LIMITER"[\s\S]{0,180}?"limit"\s*:\s*60[\s\S]{0,80
 }
 
 const routePatterns = [...raw.matchAll(/"pattern"\s*:\s*"([^"]+)"/g)].map((match) => match[1]);
-if (routePatterns.length !== 2 || !routePatterns.includes("agentid.services/*") || !routePatterns.includes("www.agentid.services/*")) {
-  failures.push("AgentID routes must use only the apex and www catch-all patterns");
+for (const requiredPattern of ["gptmarketplus.com", "www.gptmarketplus.com", "agentid.services/*", "www.agentid.services/*"]) {
+  if (!routePatterns.includes(requiredPattern)) failures.push(`missing production route: ${requiredPattern}`);
 }
+if (!/"SITE_URL"\s*:\s*"https:\/\/gptmarketplus\.com"/.test(raw)) failures.push("SITE_URL must use the .com canonical origin");
+if (!/"STORAGE_SCOPE"\s*:\s*"agentid\.services"/.test(raw)) failures.push("STORAGE_SCOPE must preserve the existing production data namespace during migration");
 
 if (!runtimeMigration.includes("CREATE TABLE IF NOT EXISTS agent_state") || !runtimeMigration.includes("CREATE TABLE IF NOT EXISTS agent_tasks")) {
   failures.push("0004_agent_runtime.sql must provision agent_state and agent_tasks");
@@ -76,15 +78,15 @@ if (!siteSource.includes('} else if (analyticsId.startsWith("G-")) {')) {
 }
 
 const securityResponse = await handleAgentIdSiteRequest(
-  new Request("https://agentid.services/.well-known/security.txt"),
-  { SITE_URL: "https://agentid.services", SUPPORT_EMAIL: "admin@agentid.services" },
+  new Request("https://gptmarketplus.com/.well-known/security.txt"),
+  { SITE_URL: "https://gptmarketplus.com", SUPPORT_EMAIL: "admin@gptmarketplus.com", BRAND_NAME: "GPTMarketPlus" },
   { waitUntil() {} },
 );
 const securityBody = await securityResponse.text();
 for (const header of ["strict-transport-security", "permissions-policy", "x-content-type-options", "x-frame-options", "referrer-policy"]) {
   if (!securityResponse.headers.get(header)) failures.push(`AgentID response is missing ${header}`);
 }
-if (!securityBody.includes("Canonical: https://agentid.services/.well-known/security.txt")) {
+if (!securityBody.includes("Canonical: https://gptmarketplus.com/.well-known/security.txt")) {
   failures.push("security.txt must use its well-known URL as Canonical");
 }
 

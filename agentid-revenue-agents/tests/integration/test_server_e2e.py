@@ -267,7 +267,7 @@ def test_scheduled_revenue_pubsub_trigger(
     event = {
         "event_type": "scheduled_revenue_cycle",
         "source": "integration_test",
-        "site": "https://agentid.services",
+        "site": "https://gptmarketplus.com",
         "goal": "Stage the highest-value eligible zero-cost action.",
         "constraints": {
             "dry_run": True,

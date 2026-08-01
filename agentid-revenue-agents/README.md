@@ -1,9 +1,9 @@
 # AgentID Revenue Agents
 
-An ADK multi-agent system for `agentid.services`, generated with
+An ADK multi-agent system for `gptmarketplus.com`, generated with
 `google-agents-cli` 1.2.1.
 
-[AgentID Services](https://agentid.services) · [Repository](https://github.com/nrk8286/agentid-services) · [Runtime support](../SUPPORT.md) · [Security policy](../SECURITY.md)
+[GPTMarketPlus](https://gptmarketplus.com) · [Repository](https://github.com/nrk8286/agentid-services) · [Runtime support](../SUPPORT.md) · [Security policy](../SECURITY.md)
 
 The system contains:
 
