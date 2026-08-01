@@ -50,11 +50,25 @@ const MAX_STRIPE_WEBHOOK_BODY_BYTES = 1024 * 1024;
 const BODY_TOO_LARGE = Symbol("body-too-large");
 const CANONICAL_HOST = "gptmarketplus.com";
 const LEGACY_TLS_VERSIONS = new Set(["TLSv1", "TLSv1.0", "TLSv1.1"]);
-const LEGACY_PUBLIC_HOSTS = new Set([
+const DOMAIN_CAMPAIGN_REDIRECTS = new Map([
+  ["agentid.life", "/use-cases"],
+  ["www.agentid.life", "/use-cases"],
+  ["agentid.solutions", "/services"],
+  ["www.agentid.solutions", "/services"],
+  ["agentid.website", "/ai-agents"],
+  ["www.agentid.website", "/ai-agents"],
+  ["agentid.world", "/resources"],
+  ["www.agentid.world", "/resources"],
+]);
+const LEGACY_WEBHOOK_HOSTS = new Set([
   "agentid.services",
   "www.agentid.services",
   "gptmarketplus.org",
   "www.gptmarketplus.org",
+]);
+const LEGACY_PUBLIC_HOSTS = new Set([
+  ...LEGACY_WEBHOOK_HOSTS,
+  ...DOMAIN_CAMPAIGN_REDIRECTS.keys(),
 ]);
 const LEGACY_WEBHOOK_PATHS = new Set([
   "/api/paypal/webhook",
@@ -564,12 +578,21 @@ export default {
     const requestHost = url.hostname.toLowerCase();
     const isCanonicalWww = requestHost === `www.${CANONICAL_HOST}`;
     const isLegacyHost = LEGACY_PUBLIC_HOSTS.has(requestHost);
-    const preserveLegacyWebhook = isLegacyHost && LEGACY_WEBHOOK_PATHS.has(url.pathname);
+    const campaignTargetPath = DOMAIN_CAMPAIGN_REDIRECTS.get(requestHost);
+    const preserveLegacyWebhook = LEGACY_WEBHOOK_HOSTS.has(requestHost) && LEGACY_WEBHOOK_PATHS.has(url.pathname);
     if (isCloudflareContext && !isLocalhost && !preserveLegacyWebhook
         && (url.protocol === "http:" || isCanonicalWww || isLegacyHost)) {
       url.protocol = "https:";
       url.hostname = CANONICAL_HOST;
       url.port = "";
+      if (campaignTargetPath) {
+        if (url.pathname === "/" || !url.pathname) url.pathname = campaignTargetPath;
+        if (!url.searchParams.has("utm_source")) {
+          url.searchParams.set("utm_source", requestHost.replace(/^www\./, ""));
+        }
+        if (!url.searchParams.has("utm_medium")) url.searchParams.set("utm_medium", "domain_redirect");
+        if (!url.searchParams.has("utm_campaign")) url.searchParams.set("utm_campaign", "agentid_brand_domains");
+      }
       return new Response(null, {
         status: 301,
         headers: withSecurityHeaders({

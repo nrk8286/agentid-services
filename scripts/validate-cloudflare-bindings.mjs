@@ -82,8 +82,37 @@ if (!/"name"\s*:\s*"EVENT_RATE_LIMITER"[\s\S]{0,180}?"limit"\s*:\s*60[\s\S]{0,80
 }
 
 const routePatterns = [...raw.matchAll(/"pattern"\s*:\s*"([^"]+)"/g)].map((match) => match[1]);
-for (const requiredPattern of ["gptmarketplus.com", "www.gptmarketplus.com", "agentid.services/*", "www.agentid.services/*"]) {
+for (const requiredPattern of [
+  "gptmarketplus.com",
+  "www.gptmarketplus.com",
+  "agentid.life",
+  "www.agentid.life",
+  "agentid.solutions",
+  "www.agentid.solutions",
+  "agentid.website",
+  "www.agentid.website",
+  "agentid.world",
+  "www.agentid.world",
+  "agentid.services/*",
+  "www.agentid.services/*",
+]) {
   if (!routePatterns.includes(requiredPattern)) failures.push(`missing production route: ${requiredPattern}`);
+}
+for (const [hostname, targetPath] of [
+  ["agentid.life", "/use-cases"],
+  ["agentid.solutions", "/services"],
+  ["agentid.website", "/ai-agents"],
+  ["agentid.world", "/resources"],
+]) {
+  if (!workerSource.includes(`["${hostname}", "${targetPath}"]`)) {
+    failures.push(`${hostname} must retain its campaign redirect to ${targetPath}`);
+  }
+}
+if (!workerSource.includes('url.searchParams.set("utm_medium", "domain_redirect")')) {
+  failures.push("campaign domains must retain first-party redirect attribution");
+}
+if (!workerSource.includes("LEGACY_WEBHOOK_HOSTS.has(requestHost) && LEGACY_WEBHOOK_PATHS.has(url.pathname)")) {
+  failures.push("campaign domains must not inherit legacy payment-webhook routing");
 }
 if (!/"SITE_URL"\s*:\s*"https:\/\/gptmarketplus\.com"/.test(raw)) failures.push("SITE_URL must use the .com canonical origin");
 if (!/"STORAGE_SCOPE"\s*:\s*"agentid\.services"/.test(raw)) failures.push("STORAGE_SCOPE must preserve the existing production data namespace during migration");

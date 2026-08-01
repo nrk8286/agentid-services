@@ -47,6 +47,38 @@
       "custom_domain": true
     },
     {
+      "pattern": "agentid.life",
+      "custom_domain": true
+    },
+    {
+      "pattern": "www.agentid.life",
+      "custom_domain": true
+    },
+    {
+      "pattern": "agentid.solutions",
+      "custom_domain": true
+    },
+    {
+      "pattern": "www.agentid.solutions",
+      "custom_domain": true
+    },
+    {
+      "pattern": "agentid.website",
+      "custom_domain": true
+    },
+    {
+      "pattern": "www.agentid.website",
+      "custom_domain": true
+    },
+    {
+      "pattern": "agentid.world",
+      "custom_domain": true
+    },
+    {
+      "pattern": "www.agentid.world",
+      "custom_domain": true
+    },
+    {
       "pattern": "agentid.services/*",
       "zone_name": "agentid.services"
     },

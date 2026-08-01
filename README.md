@@ -48,6 +48,30 @@ The AgentID Worker uses a SQLite-backed Durable Object alarm to run its guarded 
 
 Cloudflare routes are configured to send the full `gptmarketplus.com/*` site surface through this Worker, so the Worker owns the live site instead of only selected subpaths.
 
+### Campaign domains
+
+`gptmarketplus.com` remains the only canonical, indexable production origin. The
+following GoDaddy-registered brand domains use Cloudflare custom-domain routes
+and permanent Worker redirects. Each root redirect lands on a distinct buyer
+journey and adds first-party UTM attribution; non-root paths are preserved.
+
+| Domain | Canonical destination |
+| --- | --- |
+| `agentid.solutions` | `https://gptmarketplus.com/services` |
+| `agentid.website` | `https://gptmarketplus.com/ai-agents` |
+| `agentid.life` | `https://gptmarketplus.com/use-cases` |
+| `agentid.world` | `https://gptmarketplus.com/resources` |
+
+Both apex and `www` hostnames are attached. Verify the public redirect contract
+after DNS delegation changes finish propagating:
+
+```bash
+for domain in agentid.life agentid.solutions agentid.website agentid.world; do
+  curl -fsSI "https://${domain}/" | sed -n '1p;/^location:/Ip'
+  curl -fsSI "https://www.${domain}/" | sed -n '1p;/^location:/Ip'
+done
+```
+
 ## Live endpoints
 
 ```bash
