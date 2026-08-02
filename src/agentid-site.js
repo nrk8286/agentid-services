@@ -5852,6 +5852,7 @@ function renderShell(env, { path, title, description, body, schema = [], extraHe
   ${renderNav(path)}
   <main>
     ${body}
+    ${privatePage ? "" : renderAdSenseUnit(env, path)}
     ${renderSponsorHouseAd(path)}
   </main>
   ${renderFooter(env)}
@@ -6156,6 +6157,11 @@ function adSensePublisherId(env) {
   return adSenseClientId(env).replace(/^ca-/, "");
 }
 
+function adSenseAdSlot(env) {
+  const raw = String(env.ADSENSE_AD_SLOT || "").trim();
+  return /^\d{10}$/.test(raw) ? raw : "";
+}
+
 function adSenseEnabled(env) {
   return String(env.ADSENSE_ENABLED || "true").trim().toLowerCase() !== "false";
 }
@@ -6179,6 +6185,7 @@ function adSenseAllowedPath(path) {
 
 function adSenseStatus(env) {
   const clientId = adSenseClientId(env);
+  const adSlot = adSenseAdSlot(env);
   return {
     ok: true,
     provider: "google-adsense",
@@ -6186,6 +6193,8 @@ function adSenseStatus(env) {
     publisherConfigured: Boolean(clientId),
     publisherId: clientId || null,
     codeInstalled: Boolean(clientId) && adSenseEnabled(env),
+    adUnitConfigured: Boolean(clientId) && Boolean(adSlot) && adSenseEnabled(env),
+    adSlotId: adSlot || null,
     adsTxtConfigured: Boolean(clientId),
     adsTxtUrl: `${siteUrl(env)}/ads.txt`,
     site: new URL(siteUrl(env)).hostname,
@@ -6205,6 +6214,22 @@ function renderAdSenseHead(env, path) {
   if (!clientId || !adSenseEnabled(env) || !adSenseAllowedPath(path)) return "";
   return `<meta name="google-adsense-account" content="${escapeHtml(clientId)}">
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${encodeURIComponent(clientId)}" crossorigin="anonymous"></script>`;
+}
+
+function renderAdSenseUnit(env, path) {
+  const clientId = adSenseClientId(env);
+  const adSlot = adSenseAdSlot(env);
+  if (!clientId || !adSlot || !adSenseEnabled(env) || !adSenseAllowedPath(path)) return "";
+  return `<!-- unit 1 -->
+<ins class="adsbygoogle"
+     style="display:block"
+     data-ad-client="${escapeHtml(clientId)}"
+     data-ad-slot="${escapeHtml(adSlot)}"
+     data-ad-format="auto"
+     data-full-width-responsive="true"></ins>
+<script>
+     (adsbygoogle = window.adsbygoogle || []).push({});
+</script>`;
 }
 
 function renderAnalyticsBootstrap(env) {

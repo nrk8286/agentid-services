@@ -144,12 +144,42 @@ if (!securityBody.includes("Canonical: https://gptmarketplus.com/.well-known/sec
 
 const homeResponse = await handleAgentIdSiteRequest(
   new Request("https://gptmarketplus.com/"),
-  { SITE_URL: "https://gptmarketplus.com", SUPPORT_EMAIL: "admin@gptmarketplus.com", BRAND_NAME: "GPTMarketPlus" },
+  {
+    SITE_URL: "https://gptmarketplus.com",
+    SUPPORT_EMAIL: "admin@gptmarketplus.com",
+    BRAND_NAME: "GPTMarketPlus",
+    ADSENSE_CLIENT_ID: "ca-pub-7354323580032872",
+    ADSENSE_AD_SLOT: "3045151068",
+    ADSENSE_ENABLED: "true",
+  },
   { waitUntil() {} },
 );
 const homeBody = await homeResponse.text();
 if (!homeBody.includes('<meta name="google-site-verification" content="hxvcDl32V0BA5LSTQx-OfIUE6DAIR6TrRp2pUbE5XZo">')) {
   failures.push("homepage must expose the exact Google Search Console verification tag");
+}
+if ((homeBody.match(/pagead2\.googlesyndication\.com\/pagead\/js\/adsbygoogle\.js/g) || []).length !== 1) {
+  failures.push("eligible public pages must load the Google AdSense script exactly once");
+}
+if (!homeBody.includes('data-ad-client="ca-pub-7354323580032872"') || !homeBody.includes('data-ad-slot="3045151068"')) {
+  failures.push("homepage must expose the configured Google AdSense responsive ad unit");
+}
+
+const pricingResponse = await handleAgentIdSiteRequest(
+  new Request("https://gptmarketplus.com/pricing"),
+  {
+    SITE_URL: "https://gptmarketplus.com",
+    SUPPORT_EMAIL: "admin@gptmarketplus.com",
+    BRAND_NAME: "GPTMarketPlus",
+    ADSENSE_CLIENT_ID: "ca-pub-7354323580032872",
+    ADSENSE_AD_SLOT: "3045151068",
+    ADSENSE_ENABLED: "true",
+  },
+  { waitUntil() {} },
+);
+const pricingBody = await pricingResponse.text();
+if (pricingBody.includes("adsbygoogle") || pricingBody.includes('data-ad-slot="3045151068"')) {
+  failures.push("high-conversion pricing page must remain free of publisher ads");
 }
 
 const ownerMessages = [];

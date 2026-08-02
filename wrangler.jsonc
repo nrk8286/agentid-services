@@ -111,6 +111,7 @@
     "GOOGLE_CLOUD_LOCATION": "global",
     "GOOGLE_DISCOVERY_ENGINE_ID": "agentid-answer-engine",
     "ADSENSE_CLIENT_ID": "ca-pub-7354323580032872",
+    "ADSENSE_AD_SLOT": "3045151068",
     "ADSENSE_ENABLED": "true",
     "META_PIXEL_ID": "",
     "LINKEDIN_INSIGHT_ID": "",

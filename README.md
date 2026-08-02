@@ -212,13 +212,14 @@ wrangler secret put PAYPAL_CLIENT_SECRET
 
 ### Google AdSense publisher ads
 
-The public AgentID pages support Google AdSense Auto ads. Set `ADSENSE_CLIENT_ID`
-to the public `ca-pub-0000000000000000` value from the approved AdSense account
-and leave `ADSENSE_ENABLED` set to `true`. The Worker then adds Google's
-unmodified asynchronous loader to eligible public pages, publishes the matching
-Google seller record at `/ads.txt`, and reports readiness at
-`/api/ads/status`. Private dashboards, onboarding, privacy, terms, pricing,
-contact, booking, paid-product, and download pages do not load publisher ads.
+The public AgentID pages support Google AdSense Auto ads and a responsive manual
+ad unit. Set `ADSENSE_CLIENT_ID` to the public `ca-pub-0000000000000000` value
+from the approved AdSense account, set `ADSENSE_AD_SLOT` to the 10-digit ad unit
+slot, and leave `ADSENSE_ENABLED` set to `true`. The Worker then adds Google's
+unmodified asynchronous loader and the configured responsive unit to eligible
+public pages, publishes the matching Google seller record at `/ads.txt`, and
+reports readiness at `/api/ads/status`. Private dashboards, onboarding, privacy,
+terms, pricing, contact, booking, paid-product, and download pages do not load publisher ads.
 Informational resource pages remain eligible so ads do not compete with the
 highest-value consultation and checkout actions.
 
