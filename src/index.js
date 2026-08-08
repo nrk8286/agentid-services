@@ -1349,6 +1349,9 @@ async function paypalPublicStatus(env) {
       : Boolean(catalog.planIds[item.id]),
   }));
   const subscriptionPackages = packages.filter((item) => item.billingMode === "subscription");
+  const cpcCampaignsReady = credentialsConfigured && Boolean(env.GMP_DB) && cpcWebhook.ready;
+  const digitalProductReady = credentialsConfigured && storageConfigured && Boolean(catalog.webhookId);
+  const servicePaymentsReady = serviceCheckoutEnabled && credentialsConfigured && storageConfigured && Boolean(catalog.webhookId);
   return {
     ok: true,
     provider: "paypal",
@@ -1359,10 +1362,15 @@ async function paypalPublicStatus(env) {
     sponsorCheckoutEnabled,
     serviceCheckoutEnabled,
     subscriptionsReady: sponsorCheckoutEnabled && credentialsConfigured && subscriptionPackages.every((item) => item.available),
-    cpcCampaignsReady: credentialsConfigured && Boolean(env.GMP_DB) && cpcWebhook.ready,
+    publicCommerceReady: cpcCampaignsReady && digitalProductReady,
+    cpcCampaignsReady,
     oneTimePaymentsReady: credentialsConfigured && storageConfigured,
-    digitalProductReady: credentialsConfigured && storageConfigured && Boolean(catalog.webhookId),
-    servicePaymentsReady: serviceCheckoutEnabled && credentialsConfigured && storageConfigured && Boolean(catalog.webhookId),
+    digitalProductReady,
+    servicePaymentsReady,
+    reviewGates: {
+      customServices: serviceCheckoutEnabled ? "checkout_enabled" : "written_scope_required",
+      recurringSponsors: sponsorCheckoutEnabled ? "checkout_enabled" : "written_placement_terms_required",
+    },
     oneTimeProducts: agentIdOneTimeProducts().map((product) => ({
       id: product.id,
       name: product.name,
@@ -6110,28 +6118,28 @@ ${googleTagGatewayBody(env)}
 function renderTrafficSpecialSection(env, page) {
   if (page.path === "/sponsor" || page.path === "/advertise") {
     return `<section class="section">
-      <p class="eyebrow">Founding sponsor delivery terms</p>
-      <h2>Know exactly what the 30-day placement includes</h2>
+      <p class="eyebrow">Sponsor delivery terms</p>
+      <h2>Know exactly what each reviewed sponsorship includes</h2>
       <div class="page-list">
         <article>
-          <strong>Visible placement</strong>
-          <p>A clearly labeled Sponsored placement using the approved name, copy, and HTTPS destination on the agreed GPTMarketPlus inventory.</p>
-          <span>Exact pages, creative, destination, and dates are confirmed before invoicing.</span>
+          <strong>PayPal CPC pilot</strong>
+          <p>$2.00 is earned only for each server-validated outbound click, capped at 25 clicks and $50.00 of prepaid funding during the initial 30-day flight.</p>
+          <span>Impressions, known bots, off-site or missing-referrer requests, and repeat visitors within 24 hours do not consume credit.</span>
         </article>
         <article>
-          <strong>Bounded delivery</strong>
-          <p>The placement runs for 30 consecutive days inside the written start and end window. It is not activated until PayPal payment is verified.</p>
-          <span>No automatic renewal or recurring charge is enabled for founding placements.</span>
+          <strong>Clearly labeled placement</strong>
+          <p>The approved sponsor name, copy, and HTTPS destination appear in a clearly labeled Sponsored placement on the agreed GPTMarketPlus inventory.</p>
+          <span>Creative, destination, inventory, dates, rate, cap, and reporting terms are confirmed before invoicing.</span>
         </article>
         <article>
-          <strong>Privacy-safe report</strong>
-          <p>The sponsor receives aggregate viewable impressions and genuine outbound clicks within five business days after the placement ends.</p>
-          <span>No visitor identity, email address, or customer-level data is included.</span>
+          <strong>Verified payment and reporting</strong>
+          <p>No campaign activates until PayPal confirms the exact invoice payment. The sponsor ledger separates funded, earned, and unearned amounts.</p>
+          <span>Reporting is aggregate and does not include visitor identities, email addresses, raw IP addresses, or customer-level data.</span>
         </article>
         <article>
-          <strong>No performance promise</strong>
-          <p>GPTMarketPlus does not guarantee traffic, clicks, leads, sales, rankings, or exclusivity. The purchased deliverable is the disclosed placement and report.</p>
-          <span>Results depend on audience demand, offer fit, creative, and destination experience.</span>
+          <strong>Bounded commitment</strong>
+          <p>The CPC pilot does not automatically renew. Separate flat-rate or recurring placements require their own written deliverables and approval before any PayPal checkout is issued.</p>
+          <span>No traffic, lead, sale, ranking, or exclusivity guarantee is made.</span>
         </article>
       </div>
       <div class="panel">
@@ -6139,8 +6147,9 @@ function renderTrafficSpecialSection(env, page) {
         <ul>
           <li>There is no charge to apply or review the fit.</li>
           <li>The sponsor may decline before paying the PayPal invoice at no cost.</li>
-          <li>If GPTMarketPlus cannot start the agreed placement, the sponsor receives a full refund.</li>
-          <li>If GPTMarketPlus causes an interruption, the sponsor receives replacement days or a proportional refund for undelivered days.</li>
+          <li>Unused CPC funding remains unearned and is eligible for a written extension or refund of the undelivered balance.</li>
+          <li>A PayPal refund event immediately stops CPC delivery while the funded, earned, and refunded amounts are reconciled.</li>
+          <li>If GPTMarketPlus cannot start a flat placement, the sponsor receives a full refund; an interruption receives replacement days or a proportional refund.</li>
           <li>The final written placement terms control and must be accepted before the invoice is sent.</li>
         </ul>
       </div>

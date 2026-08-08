@@ -189,10 +189,11 @@ if (!workerSource.includes('showSponsorRail || activeSponsorPlacement(env) ? ren
   failures.push("Active sponsor inventory must render on buyer-intent pages with its measurement script");
 }
 for (const requiredSponsorTerm of [
-  "The placement runs for 30 consecutive days",
-  "does not guarantee traffic, clicks, leads, sales, rankings, or exclusivity",
-  "within five business days after the placement ends",
-  "replacement days or a proportional refund for undelivered days",
+  "$2.00 is earned only for each server-validated outbound click",
+  "Impressions, known bots, off-site or missing-referrer requests, and repeat visitors within 24 hours do not consume credit",
+  "Unused CPC funding remains unearned and is eligible for a written extension or refund of the undelivered balance",
+  "A PayPal refund event immediately stops CPC delivery",
+  "No traffic, lead, sale, ranking, or exclusivity guarantee is made",
 ]) {
   if (!workerSource.includes(requiredSponsorTerm)) failures.push(`Sponsor terms are missing: ${requiredSponsorTerm}`);
 }
@@ -287,6 +288,20 @@ const pricingResponse = await handleAgentIdSiteRequest(
 const pricingBody = await pricingResponse.text();
 if (pricingBody.includes("adsbygoogle") || pricingBody.includes('data-ad-slot="3045151068"')) {
   failures.push("high-conversion pricing page must remain free of publisher ads");
+}
+
+const cancelledCheckoutResponse = await handleAgentIdSiteRequest(
+  new Request("https://gptmarketplus.com/ai-agent-launch-kit?paypal=cancel&product=ai_agent_launch_kit"),
+  {
+    SITE_URL: "https://gptmarketplus.com",
+    SUPPORT_EMAIL: "admin@gptmarketplus.com",
+    BRAND_NAME: "GPTMarketPlus",
+  },
+  { waitUntil() {} },
+);
+const cancelledCheckoutBody = await cancelledCheckoutResponse.text();
+if (!cancelledCheckoutBody.includes("PayPal checkout was canceled. No payment was captured")) {
+  failures.push("canceled PayPal checkout must clearly confirm that no payment was captured");
 }
 
 const agentIdEnv = {

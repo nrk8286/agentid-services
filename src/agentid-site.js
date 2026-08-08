@@ -3892,9 +3892,13 @@ function renderRoiCalculatorPage(env) {
   });
 }
 
-function renderLaunchKitPage(env) {
+function renderLaunchKitPage(env, requestUrl = null) {
   const product = DIGITAL_PRODUCTS[0];
   const paypalReady = paypalCheckoutReady(env);
+  const paypalCancelled = requestUrl?.searchParams.get("paypal") === "cancel";
+  const paymentNotice = paypalCancelled
+    ? `<p class="form-status" role="status">PayPal checkout was canceled. No payment was captured and you can restart whenever you are ready.</p>`
+    : "";
   const checkout = `
     <div class="checkout-stack">
       ${paypalReady ? `
@@ -3910,6 +3914,7 @@ function renderLaunchKitPage(env) {
     <section class="page-hero split-section">
       <div>
         ${renderPageTitle("Downloadable toolkit", "Plan an AI agent your business can actually launch", product.summary)}
+        ${paymentNotice}
         <div class="cta-row">${checkout}<a class="button-secondary" href="/resources">Read the free guides first</a></div>
         <p class="trust-line">One-time PayPal payment. The secure download appears only after PayPal confirms the completed capture. No revenue or performance guarantees.</p>
       </div>
@@ -9468,7 +9473,7 @@ export async function handleAgentIdSiteRequest(request, env, ctx) {
   }
 
   if (path === "/ai-agent-launch-kit") {
-    return respondHtml(renderLaunchKitPage(env));
+    return respondHtml(renderLaunchKitPage(env, url));
   }
 
   if (path === "/about") {
