@@ -9,6 +9,19 @@ import {
 } from "./agentid-site.js";
 import { googleSearchConsoleStatus } from "./google-search-console.js";
 import { normalizePaypalInvoiceId, summarizePaypalInvoice } from "./paypal-invoice.js";
+import {
+  CPC_DEFAULT_CLICK_CAP,
+  CPC_DEFAULT_DURATION_DAYS,
+  CPC_DEFAULT_RATE_CENTS,
+  CPC_TERMS_VERSION,
+  buildCpcInvoicePayload,
+  cpcInvoiceFullyFunded,
+  cpcRefundDisposition,
+  cpcVisitorHash,
+  likelyAutomatedClick,
+  normalizeCpcCampaignInput,
+  publicCpcCampaign,
+} from "./cpc-campaign.js";
 
 const JSON_HEADERS = {
   "content-type": "application/json; charset=utf-8",
@@ -637,6 +650,32 @@ export default {
     if ((url.pathname === "/api/paypal/status" || url.pathname === "/api/agents/paypal/status") && request.method === "GET") {
       return jsonResponse(await paypalPublicStatus(env));
     }
+    if (url.pathname === "/api/paypal/cpc/status" && request.method === "GET") {
+      return jsonResponse(await paypalCpcPublicStatus(env));
+    }
+    if (url.pathname === "/api/paypal/cpc/campaigns" && request.method === "GET") {
+      if (!(await hasAdminAccess(request, env))) {
+        return jsonResponse({ ok: false, error: "Admin access required." }, 403);
+      }
+      return jsonResponse(await listPaypalCpcCampaigns(env));
+    }
+    if (url.pathname === "/api/paypal/cpc/campaigns" && request.method === "POST") {
+      if (!(await hasAdminAccess(request, env))) {
+        return jsonResponse({ ok: false, error: "Admin access required." }, 403);
+      }
+      return createAndSendPaypalCpcInvoice(request, env);
+    }
+    const cpcStatusMatch = url.pathname.match(/^\/api\/paypal\/cpc\/campaigns\/([a-z0-9-]{8,80})\/status$/i);
+    if (cpcStatusMatch && request.method === "POST") {
+      if (!(await hasAdminAccess(request, env))) {
+        return jsonResponse({ ok: false, error: "Admin access required." }, 403);
+      }
+      return updatePaypalCpcCampaignStatus(request, env, cpcStatusMatch[1]);
+    }
+    const cpcClickMatch = url.pathname.match(/^\/sponsor\/click\/([a-z0-9-]{8,80})$/i);
+    if (cpcClickMatch && ["GET", "HEAD"].includes(request.method)) {
+      return handlePaypalCpcClick(request, env, ctx, cpcClickMatch[1]);
+    }
     if ((url.pathname === "/api/adsense/status" || url.pathname === "/api/agents/adsense") && request.method === "GET") {
       return jsonResponse(adsensePublicStatus(env));
     }
@@ -693,6 +732,10 @@ export default {
     }
     if (url.pathname === "/google-callback" && request.method === "GET") {
       return handleGoogleOAuthCallback(url, env);
+    }
+    if (["GET", "HEAD"].includes(request.method) && !url.pathname.startsWith("/api/")
+        && !url.pathname.startsWith("/sponsor/click/")) {
+      env = await cpcSponsorRequestEnv(env);
     }
     const agentIdResponse = await handleAgentIdSiteRequest(request, env, ctx);
     if (agentIdResponse) return agentIdResponse;
@@ -1049,6 +1092,8 @@ export class AgentScheduler extends DurableObject {
 
   async ensureSchedule() {
     const initializedAt = await this.ctx.storage.get("initializedAt");
+    const paypalCpcWebhookVersion = await this.ctx.storage.get("paypalCpcWebhookVersion");
+    const paypalCpcWebhookPending = await this.ctx.storage.get("paypalCpcWebhookPending");
     let nextAlarmAt = await this.ctx.storage.getAlarm();
 
     if (!initializedAt) {
@@ -1062,6 +1107,15 @@ export class AgentScheduler extends DurableObject {
     } else if (nextAlarmAt === null) {
       nextAlarmAt = Date.now() + AGENT_ALARM_RETRY_MS;
       await this.ctx.storage.setAlarm(nextAlarmAt);
+    }
+
+    if (paypalCpcWebhookVersion !== CPC_TERMS_VERSION && !paypalCpcWebhookPending) {
+      const setupAlarmAt = Date.now() + AGENT_ALARM_BOOTSTRAP_DELAY_MS;
+      await this.ctx.storage.put("paypalCpcWebhookPending", true);
+      if (nextAlarmAt === null || nextAlarmAt > setupAlarmAt) {
+        nextAlarmAt = setupAlarmAt;
+        await this.ctx.storage.setAlarm(nextAlarmAt);
+      }
     }
 
     return this.status();
@@ -1114,6 +1168,18 @@ export class AgentScheduler extends DurableObject {
 
     try {
       const scopedEnv = requestScopedEnv(this.env, new URL("https://gptmarketplus.com/agents/"));
+      const paypalCpcWebhookPending = Boolean(await this.ctx.storage.get("paypalCpcWebhookPending"));
+      if (paypalCpcWebhookPending) {
+        const webhook = await ensurePaypalCpcWebhook(scopedEnv);
+        await this.ctx.storage.put({
+          paypalCpcWebhookLastCheckedAt: new Date().toISOString(),
+          paypalCpcWebhookLastOutcome: webhook,
+        });
+        if (webhook.ready) {
+          await this.ctx.storage.put("paypalCpcWebhookVersion", CPC_TERMS_VERSION);
+        }
+        await this.ctx.storage.delete("paypalCpcWebhookPending");
+      }
       const plan = await runAgentLoop(scopedEnv, "durable_object_alarm", bootstrapPending);
       await Promise.allSettled([
         sendWebhook(scopedEnv, "agent_plan", plan),
@@ -1266,6 +1332,7 @@ async function paypalCatalog(env) {
 
 async function paypalPublicStatus(env) {
   const catalog = await paypalCatalog(env);
+  const cpcWebhook = await paypalCpcWebhookStatus(env, catalog);
   const sponsorCheckoutEnabled = String(env.SPONSOR_CHECKOUT_ENABLED || "").trim().toLowerCase() === "true";
   const serviceCheckoutEnabled = String(env.SERVICE_CHECKOUT_ENABLED || "").trim().toLowerCase() === "true";
   const credentialsConfigured = paypalCredentialsReady(env);
@@ -1276,8 +1343,12 @@ async function paypalPublicStatus(env) {
     amount: item.amount,
     priceLabel: item.priceLabel,
     interval: item.billing.interval,
-    available: Boolean(catalog.planIds[item.id]),
+    billingMode: item.billing.mode,
+    available: item.billing.mode === "invoice"
+      ? credentialsConfigured && Boolean(env.GMP_DB) && Boolean(catalog.webhookId)
+      : Boolean(catalog.planIds[item.id]),
   }));
+  const subscriptionPackages = packages.filter((item) => item.billingMode === "subscription");
   return {
     ok: true,
     provider: "paypal",
@@ -1287,7 +1358,8 @@ async function paypalPublicStatus(env) {
     webhookConfigured: Boolean(catalog.webhookId),
     sponsorCheckoutEnabled,
     serviceCheckoutEnabled,
-    subscriptionsReady: sponsorCheckoutEnabled && credentialsConfigured && packages.every((item) => item.available),
+    subscriptionsReady: sponsorCheckoutEnabled && credentialsConfigured && subscriptionPackages.every((item) => item.available),
+    cpcCampaignsReady: credentialsConfigured && Boolean(env.GMP_DB) && cpcWebhook.ready,
     oneTimePaymentsReady: credentialsConfigured && storageConfigured,
     digitalProductReady: credentialsConfigured && storageConfigured && Boolean(catalog.webhookId),
     servicePaymentsReady: serviceCheckoutEnabled && credentialsConfigured && storageConfigured && Boolean(catalog.webhookId),
@@ -1369,12 +1441,386 @@ async function paypalInvoiceStatus(env, rawInvoiceId) {
   return [summarizePaypalInvoice(response.result, { mode: paypalMode(env) }), 200];
 }
 
+function paypalCpcConfigured(env) {
+  return paypalCredentialsReady(env) && Boolean(env.GMP_DB);
+}
+
+async function paypalCpcWebhookStatus(env, catalog = null) {
+  const currentCatalog = catalog || await paypalCatalog(env);
+  const webhookId = String(currentCatalog.webhookId || "").trim();
+  const requiredEvents = ["INVOICING.INVOICE.PAID", "INVOICING.INVOICE.REFUNDED"];
+  if (!webhookId || !paypalCredentialsReady(env)) {
+    return { configured: false, ready: false, requiredEvents, subscribedEvents: [] };
+  }
+  const response = await paypalApiRequest(env, `/v1/notifications/webhooks/${encodeURIComponent(webhookId)}`);
+  if (!response.ok) {
+    return { configured: true, ready: false, requiredEvents, subscribedEvents: [], providerStatus: response.status || null };
+  }
+  const subscribedEvents = Array.isArray(response.result?.event_types)
+    ? response.result.event_types.map((item) => cleanText(item?.name || "", 120)).filter(Boolean)
+    : [];
+  return {
+    configured: true,
+    ready: requiredEvents.every((name) => subscribedEvents.includes(name)),
+    requiredEvents,
+    subscribedEvents,
+  };
+}
+
+async function ensurePaypalCpcWebhook(env, catalog = null) {
+  const currentCatalog = catalog || await paypalCatalog(env);
+  const current = await paypalCpcWebhookStatus(env, currentCatalog);
+  if (current.ready || !current.configured) return current;
+
+  const webhookId = String(currentCatalog.webhookId || "").trim();
+  const mergedEvents = [...new Set([...current.subscribedEvents, ...current.requiredEvents])];
+  const response = await paypalApiRequest(env, `/v1/notifications/webhooks/${encodeURIComponent(webhookId)}`, {
+    method: "PATCH",
+    body: [{
+      op: "replace",
+      path: "/event_types",
+      value: mergedEvents.map((name) => ({ name })),
+    }],
+  });
+  if (!response.ok) {
+    return {
+      ...current,
+      error: response.error,
+      providerStatus: response.status || null,
+    };
+  }
+  return paypalCpcWebhookStatus(env, currentCatalog);
+}
+
+function cpcCampaignId() {
+  return `cpc-${new Date().toISOString().slice(0, 10).replaceAll("-", "")}-${crypto.randomUUID().slice(0, 8)}`;
+}
+
+async function activePaypalCpcCampaign(env) {
+  if (!env.GMP_DB) return null;
+  const now = new Date().toISOString();
+  return env.GMP_DB.prepare(`SELECT * FROM sponsor_cpc_campaigns
+    WHERE status = 'active'
+      AND starts_at <= ?
+      AND ends_at > ?
+      AND validated_clicks < click_cap
+    ORDER BY (validated_clicks * 1.0 / click_cap) ASC, starts_at ASC
+    LIMIT 1`).bind(now, now).first();
+}
+
+async function paypalCpcPublicStatus(env) {
+  const campaign = await activePaypalCpcCampaign(env).catch(() => null);
+  const catalog = await paypalCatalog(env);
+  const webhook = await paypalCpcWebhookStatus(env, catalog);
+  return {
+    ok: true,
+    provider: "paypal",
+    model: "reviewed_prepaid_cpc",
+    configured: paypalCpcConfigured(env) && webhook.ready,
+    invoiceWebhookConfigured: webhook.configured,
+    invoiceWebhookReady: webhook.ready,
+    invoiceWebhookEvents: webhook.subscribedEvents,
+    defaultOffer: {
+      cpcCents: CPC_DEFAULT_RATE_CENTS,
+      clickCap: CPC_DEFAULT_CLICK_CAP,
+      budgetCents: CPC_DEFAULT_RATE_CENTS * CPC_DEFAULT_CLICK_CAP,
+      durationDays: CPC_DEFAULT_DURATION_DAYS,
+      currency: "USD",
+    },
+    validation: {
+      impressionsBilled: false,
+      knownBotsBilled: false,
+      duplicateVisitorWindowHours: 24,
+      sameSiteNavigationRequired: true,
+    },
+    activeCampaign: publicCpcCampaign(campaign),
+    termsVersion: CPC_TERMS_VERSION,
+    applicationUrl: `${siteUrl(env)}/contact?intent=sponsor&package=cpc_sponsor_pilot`,
+  };
+}
+
+async function listPaypalCpcCampaigns(env) {
+  if (!env.GMP_DB) return { ok: false, error: "CPC campaign storage is unavailable." };
+  const result = await env.GMP_DB.prepare(`SELECT * FROM sponsor_cpc_campaigns
+    ORDER BY datetime(created_at) DESC LIMIT 100`).all();
+  const campaigns = Array.isArray(result?.results) ? result.results : [];
+  return {
+    ok: true,
+    campaigns: campaigns.map((campaign) => ({
+      ...campaign,
+      public: publicCpcCampaign(campaign),
+      unearned_cents: Math.max(Number(campaign.budget_cents || 0) - (Number(campaign.validated_clicks || 0) * Number(campaign.cpc_cents || 0)), 0),
+    })),
+  };
+}
+
+async function createAndSendPaypalCpcInvoice(request, env) {
+  if (!paypalCpcConfigured(env)) {
+    return jsonResponse({ ok: false, error: "PayPal credentials and D1 campaign storage are required." }, 503);
+  }
+  const catalog = await paypalCatalog(env);
+  const webhook = await ensurePaypalCpcWebhook(env, catalog);
+  if (!webhook.ready) {
+    return jsonResponse({
+      ok: false,
+      error: "Configure the verified PayPal paid and refunded invoice webhooks before invoicing a CPC campaign.",
+      requiredEvents: webhook.requiredEvents,
+    }, 503);
+  }
+  const body = await readJson(request);
+  if (body === BODY_TOO_LARGE) return payloadTooLargeResponse();
+  if (!body || typeof body !== "object") return jsonResponse({ ok: false, error: "Invalid JSON." }, 400);
+  const normalized = normalizeCpcCampaignInput(body);
+  if (!normalized.ok) return jsonResponse({ ok: false, error: normalized.error }, 400);
+
+  const now = new Date().toISOString();
+  const campaign = {
+    id: cpcCampaignId(),
+    ...normalized.value,
+    createdAt: now,
+    updatedAt: now,
+    status: "approved_pending_invoice",
+    paypalMode: paypalMode(env),
+  };
+  await env.GMP_DB.prepare(`INSERT INTO sponsor_cpc_campaigns
+    (id, created_at, updated_at, advertiser_email, sponsor_name, sponsor_copy, destination_url, status,
+     cpc_cents, click_cap, validated_clicks, budget_cents, duration_days, paypal_mode, terms_version)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)`).bind(
+    campaign.id,
+    campaign.createdAt,
+    campaign.updatedAt,
+    campaign.advertiserEmail,
+    campaign.sponsorName,
+    campaign.sponsorCopy,
+    campaign.destinationUrl,
+    campaign.status,
+    campaign.cpcCents,
+    campaign.clickCap,
+    campaign.budgetCents,
+    campaign.durationDays,
+    campaign.paypalMode,
+    campaign.termsVersion,
+  ).run();
+
+  const invoiceResponse = await paypalApiRequest(env, "/v2/invoicing/invoices", {
+    method: "POST",
+    headers: { "paypal-request-id": `cpc-invoice-${campaign.id}` },
+    body: buildCpcInvoicePayload(campaign, { brandName: brandName(env) }),
+  });
+  if (!invoiceResponse.ok) {
+    await env.GMP_DB.prepare("UPDATE sponsor_cpc_campaigns SET status = 'invoice_failed', updated_at = ? WHERE id = ?")
+      .bind(new Date().toISOString(), campaign.id).run();
+    return jsonResponse({ ok: false, error: invoiceResponse.error, campaignId: campaign.id }, invoiceResponse.status || 502);
+  }
+
+  const invoiceId = normalizePaypalInvoiceId(invoiceResponse.result?.id);
+  if (!invoiceId) {
+    await env.GMP_DB.prepare("UPDATE sponsor_cpc_campaigns SET status = 'invoice_failed', updated_at = ? WHERE id = ?")
+      .bind(new Date().toISOString(), campaign.id).run();
+    return jsonResponse({ ok: false, error: "PayPal created an invoice without a valid invoice ID.", campaignId: campaign.id }, 502);
+  }
+  await env.GMP_DB.prepare(`UPDATE sponsor_cpc_campaigns
+    SET status = 'invoice_created', invoice_id = ?, invoice_status = 'DRAFT', updated_at = ? WHERE id = ?`)
+    .bind(invoiceId, new Date().toISOString(), campaign.id).run();
+
+  const sendResponse = await paypalApiRequest(env, `/v2/invoicing/invoices/${encodeURIComponent(invoiceId)}/send`, {
+    method: "POST",
+    headers: { "paypal-request-id": `cpc-send-${campaign.id}` },
+    body: { send_to_recipient: true, send_to_invoicer: false },
+  });
+  if (!sendResponse.ok) {
+    return jsonResponse({
+      ok: false,
+      error: sendResponse.error,
+      campaignId: campaign.id,
+      invoiceId,
+      invoiceCreated: true,
+      invoiceSent: false,
+    }, sendResponse.status || 502);
+  }
+
+  await env.GMP_DB.prepare(`UPDATE sponsor_cpc_campaigns
+    SET status = 'invoice_sent', invoice_status = 'SENT', updated_at = ? WHERE id = ?`)
+    .bind(new Date().toISOString(), campaign.id).run();
+  return jsonResponse({
+    ok: true,
+    campaignId: campaign.id,
+    invoiceId,
+    invoiceSent: true,
+    amountCents: campaign.budgetCents,
+    cpcCents: campaign.cpcCents,
+    clickCap: campaign.clickCap,
+    note: "The campaign activates only after a verified PayPal invoice-paid webhook and exact funding check.",
+  }, 201);
+}
+
+async function updatePaypalCpcCampaignStatus(request, env, campaignId) {
+  if (!env.GMP_DB) return jsonResponse({ ok: false, error: "CPC campaign storage is unavailable." }, 503);
+  const body = await readJson(request);
+  if (body === BODY_TOO_LARGE) return payloadTooLargeResponse();
+  const action = cleanText(body?.action || "", 20).toLowerCase();
+  const campaign = await env.GMP_DB.prepare("SELECT * FROM sponsor_cpc_campaigns WHERE id = ?").bind(campaignId).first();
+  if (!campaign) return jsonResponse({ ok: false, error: "CPC campaign not found." }, 404);
+  const now = new Date().toISOString();
+  if (action === "pause" && campaign.status === "active") {
+    await env.GMP_DB.prepare("UPDATE sponsor_cpc_campaigns SET status = 'paused', updated_at = ? WHERE id = ?")
+      .bind(now, campaignId).run();
+  } else if (action === "resume" && campaign.status === "paused" && campaign.paid_at && Number(campaign.validated_clicks) < Number(campaign.click_cap)) {
+    const end = new Date(Date.now() + Number(campaign.duration_days || CPC_DEFAULT_DURATION_DAYS) * 86400000).toISOString();
+    await env.GMP_DB.prepare("UPDATE sponsor_cpc_campaigns SET status = 'active', starts_at = COALESCE(starts_at, ?), ends_at = ?, updated_at = ? WHERE id = ?")
+      .bind(now, end, now, campaignId).run();
+  } else if (action === "cancel" && !["refunded", "exhausted"].includes(campaign.status)) {
+    await env.GMP_DB.prepare("UPDATE sponsor_cpc_campaigns SET status = 'cancelled', updated_at = ? WHERE id = ?")
+      .bind(now, campaignId).run();
+  } else {
+    return jsonResponse({ ok: false, error: "That status transition is not allowed." }, 409);
+  }
+  const updated = await env.GMP_DB.prepare("SELECT * FROM sponsor_cpc_campaigns WHERE id = ?").bind(campaignId).first();
+  return jsonResponse({ ok: true, campaign: { ...updated, public: publicCpcCampaign(updated) } });
+}
+
+async function cpcSponsorRequestEnv(env) {
+  const campaign = await activePaypalCpcCampaign(env).catch(() => null);
+  if (!campaign) return env;
+  return {
+    ...env,
+    ACTIVE_SPONSOR_ID: campaign.id,
+    ACTIVE_SPONSOR_NAME: campaign.sponsor_name,
+    ACTIVE_SPONSOR_COPY: campaign.sponsor_copy,
+    ACTIVE_SPONSOR_URL: `${siteUrl(env)}/sponsor/click/${encodeURIComponent(campaign.id)}`,
+    ACTIVE_SPONSOR_START_AT: campaign.starts_at,
+    ACTIVE_SPONSOR_END_AT: campaign.ends_at,
+  };
+}
+
+function cpcClickRedirect(destinationUrl) {
+  return new Response(null, {
+    status: 302,
+    headers: withSecurityHeaders({
+      location: destinationUrl,
+      "cache-control": "private, no-store",
+      "referrer-policy": "no-referrer",
+      "x-robots-tag": "noindex,nofollow,noarchive",
+    }),
+  });
+}
+
+async function handlePaypalCpcClick(request, env, ctx, campaignId) {
+  if (!env.GMP_DB) return jsonResponse({ ok: false, error: "Sponsor campaign storage is unavailable." }, 503);
+  const campaign = await env.GMP_DB.prepare("SELECT * FROM sponsor_cpc_campaigns WHERE id = ?").bind(campaignId).first();
+  if (!campaign?.destination_url) return jsonResponse({ ok: false, error: "Sponsor campaign not found." }, 404);
+  if (request.method === "HEAD") return cpcClickRedirect(campaign.destination_url);
+
+  const now = new Date();
+  const nowIso = now.toISOString();
+  const userAgent = cleanText(request.headers.get("user-agent") || "", 300);
+  const ip = request.headers.get("cf-connecting-ip") || "";
+  const secret = String(env.CPC_CLICK_HASH_SECRET || env.ADMIN_TOKEN || "").trim();
+  let sourcePage = "";
+  let sameSiteNavigation = false;
+  try {
+    const referrer = new URL(request.headers.get("referer") || "");
+    const requestUrl = new URL(request.url);
+    sameSiteNavigation = referrer.origin === requestUrl.origin;
+    if (sameSiteNavigation) sourcePage = cleanText(`${referrer.pathname}${referrer.search}`, 240);
+  } catch {
+    sameSiteNavigation = false;
+  }
+  const automated = likelyAutomatedClick({ userAgent, cf: request.cf || {} });
+  const eligibleCampaign = campaign.status === "active"
+    && Date.parse(campaign.starts_at || "") <= now.getTime()
+    && Date.parse(campaign.ends_at || "") > now.getTime()
+    && Number(campaign.validated_clicks || 0) < Number(campaign.click_cap || 0);
+  const eligibleRequest = Boolean(secret && ip && sameSiteNavigation && !automated && eligibleCampaign);
+  const visitorHash = await cpcVisitorHash({
+    secret: secret || "unconfigured",
+    campaignId,
+    ip: ip || "unknown",
+    userAgent,
+  });
+  const dayBucket = nowIso.slice(0, 10);
+  const clickId = `cpc-click-${crypto.randomUUID()}`;
+  let reason = !secret ? "validation_secret_unavailable"
+    : !ip ? "ip_unavailable"
+      : !sameSiteNavigation ? "offsite_or_missing_referrer"
+        : automated ? "known_or_likely_bot"
+          : !eligibleCampaign ? "campaign_inactive_or_capped"
+            : "pending_validation";
+
+  if (eligibleRequest) {
+    const recent = await env.GMP_DB.prepare(`SELECT id FROM sponsor_cpc_clicks
+      WHERE campaign_id = ? AND visitor_hash = ? AND clicked_at >= ? LIMIT 1`)
+      .bind(campaignId, visitorHash, new Date(now.getTime() - 86400000).toISOString()).first();
+    if (recent) reason = "duplicate_visitor_24h";
+  }
+
+  const insert = await env.GMP_DB.prepare(`INSERT OR IGNORE INTO sponsor_cpc_clicks
+    (id, campaign_id, clicked_at, day_bucket, visitor_hash, source_page, country, user_agent, billable, reason)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`).bind(
+    clickId,
+    campaignId,
+    nowIso,
+    dayBucket,
+    visitorHash,
+    sourcePage,
+    cleanText(request.cf?.country || "", 8),
+    userAgent,
+    reason,
+  ).run();
+  const inserted = Number(insert?.meta?.changes || 0) === 1;
+
+  if (eligibleRequest && reason === "pending_validation" && inserted) {
+    const updated = await env.GMP_DB.prepare(`UPDATE sponsor_cpc_campaigns
+      SET validated_clicks = validated_clicks + 1, updated_at = ?
+      WHERE id = ? AND status = 'active' AND validated_clicks < click_cap
+        AND starts_at <= ? AND ends_at > ?
+      RETURNING validated_clicks, click_cap, cpc_cents`).bind(nowIso, campaignId, nowIso, nowIso).first();
+    if (updated) {
+      reason = "validated_unique_click";
+      await env.GMP_DB.prepare("UPDATE sponsor_cpc_clicks SET billable = 1, reason = ? WHERE id = ?")
+        .bind(reason, clickId).run();
+      if (Number(updated.validated_clicks) >= Number(updated.click_cap)) {
+        await env.GMP_DB.prepare("UPDATE sponsor_cpc_campaigns SET status = 'exhausted', updated_at = ? WHERE id = ? AND status = 'active'")
+          .bind(nowIso, campaignId).run();
+      }
+      await recordRevenueEvent(env, {
+        id: `paypal:cpc:${clickId}`,
+        type: "SPONSOR.CPC.CLICK.VALIDATED",
+        sessionId: campaignId,
+        createdAt: nowIso,
+        amountCents: Number(updated.cpc_cents || campaign.cpc_cents || 0),
+        currency: "usd",
+        customerEmail: "",
+        paymentStatus: "earned_from_prepaid_funds",
+        source: "paypal_cpc",
+        buildId: "",
+        packageId: campaignId,
+        delivery: "validated_sponsor_click",
+        mode: "cpc",
+        countCheckout: false,
+      });
+      if (env.GMP_QUEUE && typeof env.GMP_QUEUE.send === "function") {
+        ctx.waitUntil(env.GMP_QUEUE.send({
+          type: "sponsor_cpc_click",
+          payload: { campaignId, clickId, validatedClicks: Number(updated.validated_clicks) },
+          queuedAt: nowIso,
+        }));
+      }
+    } else {
+      reason = "campaign_inactive_or_capped";
+      await env.GMP_DB.prepare("UPDATE sponsor_cpc_clicks SET reason = ? WHERE id = ?").bind(reason, clickId).run();
+    }
+  }
+
+  return cpcClickRedirect(campaign.destination_url);
+}
+
 async function bootstrapPaypalSponsorCatalog(env) {
   if (!paypalCredentialsReady(env)) {
     return { ok: false, error: "Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET before creating live plans." };
   }
 
-  const packages = adPackages(env);
+  const packages = adPackages(env).filter((item) => item.billing.mode === "subscription");
   const current = await paypalCatalog(env);
   let productId = current.productId;
   const planIds = { ...current.planIds };
@@ -1483,6 +1929,14 @@ async function bootstrapPaypalSponsorCatalog(env) {
     updatedAt: now,
   };
   await putJson(env, "paypal:catalog:v1", catalog, 60 * 60 * 24 * 365 * 5);
+  const cpcWebhook = await ensurePaypalCpcWebhook(env, catalog);
+  if (!cpcWebhook.ready) {
+    return {
+      ok: false,
+      error: cpcWebhook.error || "PayPal CPC invoice webhook events could not be verified.",
+      requiredEvents: cpcWebhook.requiredEvents,
+    };
+  }
   return {
     ok: true,
     mode: paypalMode(env),
@@ -1524,6 +1978,13 @@ async function handlePaypalSubscriptionCheckout(request, env) {
   const packageId = cleanText(body.packageId || body.productId || "", 80);
   const adPackage = adPackages(env).find((item) => item.id === packageId);
   if (!adPackage) return jsonResponse({ ok: false, error: "Unknown sponsor package." }, 400);
+  if (adPackage.billing.mode !== "subscription") {
+    return jsonResponse({
+      ok: false,
+      error: "CPC campaigns are reviewed first and funded through a PayPal invoice after written approval.",
+      applicationUrl: `${siteUrl(env)}/contact?intent=sponsor&package=${encodeURIComponent(packageId)}`,
+    }, 409);
+  }
 
   const catalog = await paypalCatalog(env);
   const planId = catalog.planIds[packageId];
@@ -2117,6 +2578,65 @@ function packageIdForPaypalPlan(catalog, planId) {
   return Object.entries(catalog.planIds || {}).find(([, value]) => value === planId)?.[0] || "";
 }
 
+async function handlePaypalCpcInvoiceWebhookEvent(env, eventType, resource) {
+  if (!env.GMP_DB || !eventType.startsWith("INVOICING.INVOICE.")) return { handled: false };
+  const invoiceId = normalizePaypalInvoiceId(resource?.id);
+  if (!invoiceId) return { handled: false };
+  const campaign = await env.GMP_DB.prepare("SELECT * FROM sponsor_cpc_campaigns WHERE invoice_id = ?")
+    .bind(invoiceId).first();
+  if (!campaign) return { handled: false };
+  const now = new Date().toISOString();
+
+  if (eventType === "INVOICING.INVOICE.REFUNDED") {
+    await env.GMP_DB.prepare(`UPDATE sponsor_cpc_campaigns
+      SET status = 'refund_review', invoice_status = ?, updated_at = ?
+      WHERE id = ? AND status NOT IN ('refunded', 'cancelled')`)
+      .bind(cleanText(resource?.status || "REFUND_REVIEW", 40), now, campaign.id).run();
+    const invoiceResponse = await paypalApiRequest(env, `/v2/invoicing/invoices/${encodeURIComponent(invoiceId)}`);
+    if (!invoiceResponse.ok) {
+      return { handled: true, activated: false, status: "refund_review", campaignId: campaign.id };
+    }
+    const summary = summarizePaypalInvoice(invoiceResponse.result, { mode: paypalMode(env) });
+    const disposition = cpcRefundDisposition(summary);
+    await env.GMP_DB.prepare(`UPDATE sponsor_cpc_campaigns
+      SET status = ?, invoice_status = ?, refunded_at = ?, updated_at = ? WHERE id = ?`)
+      .bind(disposition, summary.status, now, now, campaign.id).run();
+    return { handled: true, activated: false, status: disposition, campaignId: campaign.id };
+  }
+  if (eventType !== "INVOICING.INVOICE.PAID") {
+    await env.GMP_DB.prepare("UPDATE sponsor_cpc_campaigns SET invoice_status = ?, updated_at = ? WHERE id = ?")
+      .bind(cleanText(resource?.status || eventType.replace("INVOICING.INVOICE.", ""), 40), now, campaign.id).run();
+    return { handled: true, activated: false, status: "recorded", campaignId: campaign.id };
+  }
+
+  const invoiceResponse = await paypalApiRequest(env, `/v2/invoicing/invoices/${encodeURIComponent(invoiceId)}`);
+  if (!invoiceResponse.ok) {
+    return { handled: true, activated: false, status: "provider_check_failed", campaignId: campaign.id };
+  }
+  const summary = summarizePaypalInvoice(invoiceResponse.result, { mode: paypalMode(env) });
+  const exactFunding = cpcInvoiceFullyFunded(summary, campaign);
+  if (!exactFunding) {
+    await env.GMP_DB.prepare(`UPDATE sponsor_cpc_campaigns
+      SET status = 'payment_review', invoice_status = ?, updated_at = ? WHERE id = ?`)
+      .bind(summary.status, now, campaign.id).run();
+    return { handled: true, activated: false, status: "payment_review", campaignId: campaign.id };
+  }
+
+  const endsAt = new Date(Date.now() + Number(campaign.duration_days || CPC_DEFAULT_DURATION_DAYS) * 86400000).toISOString();
+  const activated = await env.GMP_DB.prepare(`UPDATE sponsor_cpc_campaigns
+    SET status = 'active', invoice_status = 'PAID', paid_at = ?, starts_at = ?, ends_at = ?, updated_at = ?
+    WHERE id = ? AND status IN ('approved_pending_invoice', 'invoice_created', 'invoice_sent', 'payment_review')`)
+    .bind(now, now, endsAt, now, campaign.id).run();
+  const changed = Number(activated?.meta?.changes || 0) === 1;
+  return {
+    handled: true,
+    activated: changed,
+    status: changed ? "active" : "already_processed",
+    campaignId: campaign.id,
+    endsAt: changed ? endsAt : campaign.ends_at || null,
+  };
+}
+
 async function handlePaypalWebhook(request, env, ctx) {
   if (!paypalCredentialsReady(env)) {
     return jsonResponse({ ok: false, error: "PayPal API credentials are not configured." }, 503);
@@ -2150,6 +2670,11 @@ async function handlePaypalWebhook(request, env, ctx) {
     status: cleanText(subscription?.status || resource.status || "", 40),
     receivedAt: new Date().toISOString(),
   }, 60 * 60 * 24 * 365 * 2);
+
+  const cpcInvoiceEvent = await handlePaypalCpcInvoiceWebhookEvent(env, eventType, resource);
+  if (cpcInvoiceEvent.handled) {
+    return jsonResponse({ ok: true, verified: true, recorded: true, type: eventType, cpc: cpcInvoiceEvent });
+  }
 
   if (eventType !== "PAYMENT.SALE.COMPLETED") {
     return jsonResponse({ ok: true, verified: true, recorded: false, type: eventType });
@@ -2211,8 +2736,10 @@ async function recordRevenueEvent(env, event) {
 
   await updateMetrics(env, (metrics) => {
     metrics.revenue_cents_total = Number(metrics.revenue_cents_total || 0) + Number(event.amountCents || 0);
-    metrics.paid_checkouts_total = Number(metrics.paid_checkouts_total || 0) + 1;
-    metrics.latest_paid_checkout_at = event.createdAt;
+    if (event.countCheckout !== false) {
+      metrics.paid_checkouts_total = Number(metrics.paid_checkouts_total || 0) + 1;
+      metrics.latest_paid_checkout_at = event.createdAt;
+    }
   });
   return { recorded: true };
 }
@@ -3055,6 +3582,19 @@ function priorityFor(agentId, health, pendingCount, leadCount) {
 
 function adPackages(env) {
   return [
+    {
+      id: "cpc_sponsor_pilot",
+      name: "PayPal CPC Sponsor Pilot",
+      amount: CPC_DEFAULT_RATE_CENTS * CPC_DEFAULT_CLICK_CAP,
+      priceLabel: `$${(CPC_DEFAULT_RATE_CENTS / 100).toFixed(2)} / validated click · ${CPC_DEFAULT_CLICK_CAP}-click cap`,
+      billing: { mode: "invoice", interval: "campaign" },
+      description: `A reviewed ${CPC_DEFAULT_DURATION_DAYS}-day sponsor campaign. Only server-validated unique outbound clicks consume the prepaid PayPal campaign credit; impressions, known bots, and same-visitor duplicates within 24 hours do not.`,
+      placement: `${siteUrl(env)}/`,
+      cpcCents: CPC_DEFAULT_RATE_CENTS,
+      clickCap: CPC_DEFAULT_CLICK_CAP,
+      durationDays: CPC_DEFAULT_DURATION_DAYS,
+      termsVersion: CPC_TERMS_VERSION,
+    },
     {
       id: "sponsor_starter_monthly",
       name: "Sponsor Starter",

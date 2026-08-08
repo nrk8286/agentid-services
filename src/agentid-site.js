@@ -487,6 +487,17 @@ const MONTHLY_SUPPORT = [
 
 const SPONSOR_SUBSCRIPTIONS = [
   {
+    id: "cpc_sponsor_pilot",
+    name: "PayPal CPC Sponsor Pilot",
+    price: 5000,
+    cpcCents: 200,
+    clickCap: 25,
+    durationDays: 30,
+    mode: "invoice",
+    summary: "A reviewed campaign at $2 per server-validated unique outbound click, capped at 25 clicks. Impressions, known bots, and same-visitor duplicates within 24 hours do not consume credit.",
+    placement: "Validated CPC sponsor placement",
+  },
+  {
     id: "sponsor_starter_monthly",
     name: "Sponsor Starter",
     price: 4900,
@@ -508,6 +519,13 @@ const SPONSOR_SUBSCRIPTIONS = [
     placement: "Priority partner placement",
   },
 ];
+
+function sponsorPlanPriceLabel(plan) {
+  if (plan.mode === "invoice" && plan.cpcCents && plan.clickCap) {
+    return `$${(Number(plan.cpcCents) / 100).toFixed(2)} / validated click · $${(Number(plan.price) / 100).toFixed(2)} campaign cap`;
+  }
+  return `${moneyWithCents(plan.price)} / 30 days`;
+}
 
 const DIGITAL_PRODUCTS = [
   {
@@ -583,8 +601,8 @@ const CHECKOUT_PRODUCTS = [
     id: plan.id,
     name: plan.name,
     price: plan.price,
-    mode: "subscription",
-    interval: "month",
+    mode: plan.mode || "subscription",
+    interval: plan.mode === "invoice" ? "campaign" : "month",
     packageTier: plan.id,
     checkoutType: "sponsor",
     description: plan.summary,
@@ -3461,7 +3479,7 @@ function renderPricingPage(env) {
         ${SPONSOR_SUBSCRIPTIONS.map((plan) => `
           <article class="support-card sponsor-price-card">
             <p class="card-kicker">${escapeHtml(plan.placement)}</p>
-            <strong>${moneyWithCents(plan.price)} / 30 days</strong>
+            <strong>${escapeHtml(sponsorPlanPriceLabel(plan))}</strong>
             <p>${escapeHtml(plan.name)}</p>
             <span>${escapeHtml(plan.summary)}</span>
             <div class="checkout-stack">
@@ -4138,6 +4156,7 @@ function renderPrivacyPage(env) {
       <p>We do not promise HIPAA, legal, financial, or regulatory compliance unless the system is actually implemented for that purpose.</p>
       <p>You should not submit protected health information, sensitive legal information, or regulated data unless the final system is designed for that purpose and the compliance setup is in place.</p>
       <p>We may use analytics, server logs, and form events to measure performance and improve the website. We do not sell your data.</p>
+      <p>For clearly labeled CPC sponsor placements, we use a one-way visitor fingerprint derived from limited request signals to reject known bots and repeat clicks within a 24-hour validation window. Raw IP addresses are not stored in the CPC click ledger.</p>
       <p>When advertising is enabled, third-party vendors including Google may use cookies or similar technologies to serve and measure ads based on visits to this and other websites. Google provides controls for <a href="https://myadcenter.google.com/" rel="noopener">personalized advertising</a>.</p>
       <p>Advertising links are not endorsements. Do not click advertisements to support this site; use them only when they are genuinely relevant to you.</p>
     </section>
@@ -4187,6 +4206,7 @@ function renderRefundPolicyPage(env) {
       <p>Because downloadable materials can be copied immediately, change-of-mind refunds are not guaranteed after successful access. This does not limit rights that cannot legally be waived.</p>
       <h2>Custom services and sponsorships</h2>
       <p>Custom implementation and sponsorship placements are not sold automatically on this site. Scope, deliverables, timing, payment terms, cancellation rights, and any refund terms must be stated in a written proposal or order before payment is requested.</p>
+      <p>For prepaid CPC sponsorships, GPTMarketPlus earns the stated per-click amount only when a server-validated click is delivered. Impressions, known automated traffic, off-site or missing-referrer requests, and repeat clicks from the same visitor within 24 hours do not consume campaign credit. At the end of the agreed flight, undelivered funding remains unearned and is eligible for a written extension or a refund of the undelivered balance.</p>
       <h2>Payment questions</h2>
       <p>Include the purchaser email and PayPal order ID when contacting support. Do not email payment-card details or passwords.</p>
     </section>
@@ -4209,7 +4229,7 @@ function renderContactPage(env, requestUrl = null) {
     : null;
   const isSponsorApplication = Boolean(requestedSponsorPlan);
   const requestDescription = isSponsorApplication
-    ? `Sponsor application for ${requestedSponsorPlan.name} (${moneyWithCents(requestedSponsorPlan.price)} / 30 days). Product or service to review: `
+    ? `Sponsor application for ${requestedSponsorPlan.name} (${sponsorPlanPriceLabel(requestedSponsorPlan)}). Product or service to review: `
     : "";
   const fields = isSponsorApplication
     ? [
@@ -4268,14 +4288,14 @@ function renderContactPage(env, requestUrl = null) {
           ? renderPageTitle("Sponsor application", `Apply for ${requestedSponsorPlan.name}`, "A reviewed application with no charge until relevance, inventory, placement, and fulfillment terms are confirmed.")
           : renderPageTitle("Contact", "Request your AI Agent Plan", "Validated lead capture, CRM-ready structure, and a conversion-focused next step.")}
         <p>${isSponsorApplication
-          ? `The requested placement is ${escapeHtml(requestedSponsorPlan.placement)} at ${moneyWithCents(requestedSponsorPlan.price)} / 30 days. Describe the product and audience fit so we can review it.`
+          ? `The requested placement is ${escapeHtml(requestedSponsorPlan.placement)} at ${escapeHtml(sponsorPlanPriceLabel(requestedSponsorPlan))}. Describe the product and audience fit so we can review it.`
           : "Tell us what you want to automate. We’ll validate the request, generate a lead summary, and prepare the next step."}</p>
       </div>
       <div class="hero-side">
         <article class="info-card">
           <p class="card-kicker">What happens on submit</p>
           <ul>${isSponsorApplication
-          ? "<li>Review product and audience relevance</li><li>Confirm available placement and dates</li><li>Agree on creative, labeling, and destination URL</li><li>Confirm reporting and fulfillment terms</li><li>Send a PayPal invoice only after written approval</li>"
+          ? "<li>Review product and audience relevance</li><li>Confirm available placement and dates</li><li>Agree on creative, labeling, and destination URL</li><li>Confirm the CPC rate, click cap, validation, reporting, and refund terms</li><li>Send a PayPal invoice only after written approval</li>"
             : "<li>Validate required fields</li><li>Save or route the lead</li><li>Trigger analytics events</li><li>Prepare for CRM integration</li><li>Generate a lead summary when enough detail is provided</li>"}</ul>
         </article>
       </div>
@@ -4286,7 +4306,7 @@ function renderContactPage(env, requestUrl = null) {
           <p class="card-kicker">${isSponsorApplication ? "Sponsor review" : "Internal notification"}</p>
           <strong>${isSponsorApplication ? "Applications are reviewed before billing." : "New GPTMarketPlus lead received."}</strong>
           <p>${isSponsorApplication
-            ? "No performance guarantee is made. Approved placements remain clearly labeled and separate from editorial content."
+            ? "No traffic volume is guaranteed. CPC campaign funds are earned only as server-validated clicks are delivered; approved placements remain clearly labeled and separate from editorial content."
             : "Review business type, automation request, budget, and timeline. Respond within 15 minutes if possible."}</p>
       </div>
     </section>
