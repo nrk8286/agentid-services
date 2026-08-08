@@ -1,6 +1,6 @@
 const SECURITY_HEADERS = {
   "strict-transport-security": "max-age=31536000; includeSubDomains; preload",
-  "content-security-policy": "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self' https://www.paypal.com https://www.sandbox.paypal.com; script-src 'self' 'unsafe-inline' https://pagead2.googlesyndication.com https://*.google.com https://*.googleapis.com https://*.gstatic.com https://challenges.cloudflare.com https://static.cloudflareinsights.com https://*.adtrafficquality.google; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://analytics.google.com https://*.google-analytics.com https://stats.g.doubleclick.net https://*.adtrafficquality.google https://*.cloudflareinsights.com https://*.paypal.com; frame-src https://challenges.cloudflare.com https://*.adtrafficquality.google https://*.google.com https://*.googlesyndication.com https://*.doubleclick.net https://*.paypal.com; upgrade-insecure-requests",
+  "content-security-policy": "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self' https://www.paypal.com https://www.sandbox.paypal.com; script-src 'self' 'unsafe-inline' https://pagead2.googlesyndication.com https://*.google.com https://*.googleapis.com https://*.gstatic.com https://challenges.cloudflare.com https://static.cloudflareinsights.com https://*.adtrafficquality.google; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://analytics.google.com https://*.google-analytics.com https://stats.g.doubleclick.net https://*.adtrafficquality.google https://*.cloudflareinsights.com https://track.hubspot.com https://*.paypal.com; frame-src https://challenges.cloudflare.com https://*.adtrafficquality.google https://*.google.com https://*.googlesyndication.com https://*.doubleclick.net https://*.paypal.com; upgrade-insecure-requests",
   "cross-origin-opener-policy": "same-origin-allow-popups",
   "cross-origin-resource-policy": "same-site",
   "origin-agent-cluster": "?1",
@@ -2503,7 +2503,12 @@ async function verifyTurnstile(body, request, env) {
     body: form,
   });
   const result = await verification.json().catch(() => null);
-  return Boolean(result && result.success);
+  const expectedHostname = new URL(siteUrl(env)).hostname.toLowerCase();
+  return Boolean(
+    result
+    && result.success
+    && String(result.hostname || "").toLowerCase() === expectedHostname
+  );
 }
 
 async function sendWebhook(env, type, payload) {
@@ -6324,6 +6329,15 @@ function renderTurnstileWidget(env) {
 
 function renderLeadForm({ action, formId, fields, cta, note, turnstileHtml = "", successId = "form-status", dataAttrs = "" }) {
   const fieldMarkup = fields.map((field) => {
+    const inferredAutocomplete = {
+      name: "name",
+      email: "email",
+      business: "organization",
+      businessName: "organization",
+      phone: "tel",
+    }[field.name] || "";
+    const autocomplete = field.autocomplete || inferredAutocomplete;
+    const autocompleteAttr = autocomplete ? ` autocomplete="${escapeHtml(autocomplete)}"` : "";
     if (field.type === "hidden") {
       return `<input type="hidden" name="${escapeHtml(field.name)}" value="${escapeHtml(field.value || "")}">`;
     }
@@ -6331,7 +6345,7 @@ function renderLeadForm({ action, formId, fields, cta, note, turnstileHtml = "",
       return `
         <label class="field">
           <span>${escapeHtml(field.label)}</span>
-          <select name="${escapeHtml(field.name)}" ${field.required ? "required" : ""}>
+          <select name="${escapeHtml(field.name)}"${autocompleteAttr} ${field.required ? "required" : ""}>
             ${field.options.map((option) => `<option value="${escapeHtml(option)}" ${option === field.value ? "selected" : ""}>${escapeHtml(option)}</option>`).join("")}
           </select>
         </label>`;
@@ -6340,7 +6354,7 @@ function renderLeadForm({ action, formId, fields, cta, note, turnstileHtml = "",
       return `
         <label class="field full">
           <span>${escapeHtml(field.label)}</span>
-          <textarea name="${escapeHtml(field.name)}" rows="${field.rows || 4}" placeholder="${escapeHtml(field.placeholder || "")}" ${field.required ? "required" : ""}>${escapeHtml(field.value || "")}</textarea>
+          <textarea name="${escapeHtml(field.name)}"${autocompleteAttr} rows="${field.rows || 4}" placeholder="${escapeHtml(field.placeholder || "")}" ${field.required ? "required" : ""}>${escapeHtml(field.value || "")}</textarea>
         </label>`;
     }
     if (field.type === "checkbox") {
@@ -6353,7 +6367,7 @@ function renderLeadForm({ action, formId, fields, cta, note, turnstileHtml = "",
     return `
       <label class="field">
         <span>${escapeHtml(field.label)}</span>
-        <input type="${escapeHtml(field.type || "text")}" name="${escapeHtml(field.name)}" value="${escapeHtml(field.value || "")}" placeholder="${escapeHtml(field.placeholder || "")}" ${field.required ? "required" : ""}>
+        <input type="${escapeHtml(field.type || "text")}" name="${escapeHtml(field.name)}"${autocompleteAttr} value="${escapeHtml(field.value || "")}" placeholder="${escapeHtml(field.placeholder || "")}" ${field.required ? "required" : ""}>
       </label>`;
   }).join("");
 

@@ -40,6 +40,21 @@ if (!/"binding"\s*:\s*"GMP_QUEUE"[\s\S]{0,160}?"queue"\s*:\s*"agentid-services-e
   failures.push("GMP_QUEUE producer binding is missing or targets the wrong queue");
 }
 
+if (!workerSource.includes("https://track.hubspot.com") || !siteSource.includes("https://track.hubspot.com")) {
+  failures.push("Worker CSP must permit the configured HubSpot Zaraz tracking endpoint");
+}
+
+if (
+  !workerSource.includes('String(result.hostname || "").toLowerCase() === expectedHostname')
+  || !siteSource.includes('String(result.hostname || "").toLowerCase() === expectedHostname')
+) {
+  failures.push("Every Turnstile verifier must bind successful tokens to the request-scoped production hostname");
+}
+
+if (!siteSource.includes('businessName: "organization"') || !siteSource.includes('email: "email"')) {
+  failures.push("Lead forms must provide autocomplete metadata for identity and organization fields");
+}
+
 if (!/"consumers"[\s\S]{0,220}?"queue"\s*:\s*"agentid-services-events"/.test(raw)) {
   failures.push("agentid-services-events consumer binding is missing");
 }
