@@ -68,7 +68,6 @@ const EVENT_RATE_LIMIT = {
 };
 
 const MAX_JSON_BODY_BYTES = 128 * 1024;
-const MAX_STRIPE_WEBHOOK_BODY_BYTES = 1024 * 1024;
 const BODY_TOO_LARGE = Symbol("body-too-large");
 const GOOGLE_SITE_VERIFICATION = "hxvcDl32V0BA5LSTQx-OfIUE6DAIR6TrRp2pUbE5XZo";
 const GOOGLE_SITE_VERIFICATION_FILE = "google9b1a14a98542c3e1.html";
@@ -1220,16 +1219,6 @@ function adminTokenRequired(env) {
   return Boolean(String(env.ADMIN_TOKEN || "").trim());
 }
 
-function stripeReady(env) {
-  return Boolean(String(env.STRIPE_SECRET_KEY || "").trim());
-}
-
-function fullCheckoutReady(env) {
-  return String(env.STRIPE_CHECKOUT_ENABLED || "").trim().toLowerCase() === "true"
-    && Boolean(String(env.STRIPE_SECRET_KEY || "").trim())
-    && Boolean(String(env.STRIPE_WEBHOOK_SECRET || "").trim());
-}
-
 function paypalCheckoutReady(env) {
   return Boolean(
     String(env.PAYPAL_CLIENT_ID || "").trim()
@@ -2049,87 +2038,6 @@ async function dbUpsertLead(env, lead) {
   return { ...lead, ...payload };
 }
 
-async function dbUpsertPurchase(env, purchase) {
-  if (!env.GMP_DB) return purchase;
-  await ensureAgentIdSchema(env);
-  const now = new Date().toISOString();
-  const payload = {
-    id: purchase.id || crypto.randomUUID(),
-    created_at: purchase.created_at || now,
-    updated_at: now,
-    stripe_session_id: cleanText(purchase.stripe_session_id || "", 160),
-    stripe_payment_intent_id: cleanText(purchase.stripe_payment_intent_id || "", 160),
-    package_id: cleanText(purchase.package_id || "", 120),
-    package_name: cleanText(purchase.package_name || "", 160),
-    package_tier: cleanText(purchase.package_tier || "", 120),
-    checkout_type: cleanText(purchase.checkout_type || "setup", 80),
-    amount_cents: Number(purchase.amount_cents || 0),
-    currency: cleanText(purchase.currency || "usd", 12),
-    customer_email: cleanEmail(purchase.customer_email || ""),
-    source_page: cleanText(purchase.source_page || "/", 200),
-    lead_id: cleanText(purchase.lead_id || "", 120),
-    status: cleanText(purchase.status || "pending", 40),
-    dashboard_token: cleanText(purchase.dashboard_token || "", 120),
-    onboarding_url: cleanText(purchase.onboarding_url || "", 300),
-    metadata_json: JSON.stringify(purchase.metadata_json || {}),
-    consent_marketing: purchase.consent_marketing ? 1 : 0,
-    fulfillment_status: cleanText(purchase.fulfillment_status || "purchase_received", 80),
-    notes: cleanText(purchase.notes || "", 1200),
-  };
-
-  await env.GMP_DB.prepare(
-    `INSERT INTO agentid_purchases (
-      id, created_at, updated_at, stripe_session_id, stripe_payment_intent_id, package_id, package_name,
-      package_tier, checkout_type, amount_cents, currency, customer_email, source_page, lead_id, status,
-      dashboard_token, onboarding_url, metadata_json, consent_marketing, fulfillment_status, notes
-    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-    ON CONFLICT(id) DO UPDATE SET
-      updated_at=excluded.updated_at,
-      stripe_session_id=excluded.stripe_session_id,
-      stripe_payment_intent_id=excluded.stripe_payment_intent_id,
-      package_id=excluded.package_id,
-      package_name=excluded.package_name,
-      package_tier=excluded.package_tier,
-      checkout_type=excluded.checkout_type,
-      amount_cents=excluded.amount_cents,
-      currency=excluded.currency,
-      customer_email=excluded.customer_email,
-      source_page=excluded.source_page,
-      lead_id=excluded.lead_id,
-      status=excluded.status,
-      dashboard_token=excluded.dashboard_token,
-      onboarding_url=excluded.onboarding_url,
-      metadata_json=excluded.metadata_json,
-      consent_marketing=excluded.consent_marketing,
-      fulfillment_status=excluded.fulfillment_status,
-      notes=excluded.notes`
-  ).bind(
-    payload.id,
-    payload.created_at,
-    payload.updated_at,
-    payload.stripe_session_id || null,
-    payload.stripe_payment_intent_id || null,
-    payload.package_id || null,
-    payload.package_name || null,
-    payload.package_tier || null,
-    payload.checkout_type,
-    payload.amount_cents,
-    payload.currency,
-    payload.customer_email || null,
-    payload.source_page,
-    payload.lead_id || null,
-    payload.status,
-    payload.dashboard_token || null,
-    payload.onboarding_url || null,
-    payload.metadata_json,
-    payload.consent_marketing,
-    payload.fulfillment_status,
-    payload.notes || null,
-  ).run();
-
-  return { ...purchase, ...payload };
-}
-
 async function dbUpsertOnboarding(env, record) {
   if (!env.GMP_DB) return record;
   await ensureAgentIdSchema(env);
@@ -2401,22 +2309,6 @@ async function queryD1All(env, sql, bindings = []) {
   const bound = bindings.length ? statement.bind(...bindings) : statement;
   const result = await bound.all();
   return result.results || [];
-}
-
-async function dbGetPurchaseBySession(env, sessionId) {
-  if (!env.GMP_DB || !sessionId) return null;
-  await ensureAgentIdSchema(env);
-  return env.GMP_DB.prepare("SELECT * FROM agentid_purchases WHERE stripe_session_id = ? LIMIT 1")
-    .bind(sessionId)
-    .first();
-}
-
-async function dbGetPurchaseById(env, id) {
-  if (!env.GMP_DB || !id) return null;
-  await ensureAgentIdSchema(env);
-  return env.GMP_DB.prepare("SELECT * FROM agentid_purchases WHERE id = ? LIMIT 1")
-    .bind(id)
-    .first();
 }
 
 async function dbGetPurchaseByToken(env, token) {
@@ -2803,29 +2695,6 @@ function buildOwnerLeadEmail(lead) {
       <p><strong>Conversation summary:</strong> ${escapeHtml(lead.transcript_summary || "")}</p>
       <p><strong>Suggested follow-up message:</strong> ${escapeHtml(lead.next_action || "")}</p>
     </div>`;
-  return { subject, text, html };
-}
-
-function buildPostPurchaseEmail(env, purchase) {
-  const isDigital = purchase?.checkout_type === "digital_product";
-  const destination = `${siteUrl(env)}${purchase?.onboarding_url || "/onboarding"}`;
-  const subject = isDigital ? "Your AI Agent Launch Kit Is Ready" : "Your GPTMarketPlus Build Has Started";
-  const text = isDigital
-    ? `Thank you for your purchase. Your AI Agent Launch Kit is ready to download: ${destination}`
-    : [
-      "Thank you for your purchase.",
-      "Your AI agent build has officially started.",
-      `Complete onboarding so we can design the right AI agent for your business: ${destination}`,
-      "Once we receive your answers, we will create your AI Agent Build Plan, map the workflow, and prepare the agent instructions.",
-    ].join(" ");
-  const html = `
-    <div style="font-family:ui-sans-serif,system-ui,sans-serif;color:#e5eef8;background:#06111d;padding:24px;border-radius:16px">
-      <h2 style="margin-top:0;color:#8fd3ff">${escapeHtml(subject)}</h2>
-      <p>Thank you for your purchase.</p>
-      ${isDigital
-        ? `<p>Your AI Agent Launch Kit is ready.</p><p><a style="color:#8fd3ff" href="${escapeHtml(destination)}">Open your secure download</a></p>`
-        : `<p>Your AI agent build has officially started.</p><p><a style="color:#8fd3ff" href="${escapeHtml(destination)}">Complete your onboarding form</a> so we can design the right AI agent for your business.</p><p>Once we receive your answers, we will create your AI Agent Build Plan, map the workflow, and prepare the agent instructions.</p>`}
-  </div>`;
   return { subject, text, html };
 }
 
@@ -3533,15 +3402,7 @@ function renderAgentsPage(env) {
 }
 
 function renderPricingPage(env) {
-  const checkoutReady = fullCheckoutReady(env);
   const paypalReady = paypalCheckoutReady(env);
-  const makeCheckoutForm = (product) => `
-    <form class="checkout-form" data-agentid-form="1" data-endpoint="/api/checkout">
-      <input type="hidden" name="productId" value="${escapeHtml(product.id)}">
-      <input type="hidden" name="sourcePage" value="/pricing">
-      <button class="button-primary" type="submit">${escapeHtml(product.cta || "Start now")}</button>
-      <p class="form-status"></p>
-    </form>`;
   const makePayPalOrderForm = (product, cta = "Pay with PayPal") => `
     <form class="checkout-form paypal-checkout-form" data-agentid-form="1" data-endpoint="/api/paypal/orders/create">
       <input type="hidden" name="productId" value="${escapeHtml(product.id)}">
@@ -3638,8 +3499,7 @@ function renderPricingPage(env) {
         <p>Secure download after payment confirmation.</p>
         <div class="checkout-stack">
           ${paypalReady ? makePayPalOrderForm(DIGITAL_PRODUCTS[0], "Buy with PayPal") : ""}
-          ${checkoutReady ? makeCheckoutForm({ id: DIGITAL_PRODUCTS[0].id, cta: "Buy with card" }) : ""}
-          ${!paypalReady && !checkoutReady ? `<a class="button-primary" href="/contact">Request the launch kit</a>` : ""}
+          ${!paypalReady ? `<a class="button-primary" href="/contact">Request the launch kit</a>` : ""}
         </div>
         <a class="button-secondary" href="/ai-agent-launch-kit">See everything included</a>
       </div>
@@ -4016,7 +3876,6 @@ function renderRoiCalculatorPage(env) {
 
 function renderLaunchKitPage(env) {
   const product = DIGITAL_PRODUCTS[0];
-  const checkoutReady = fullCheckoutReady(env);
   const paypalReady = paypalCheckoutReady(env);
   const checkout = `
     <div class="checkout-stack">
@@ -4027,21 +3886,14 @@ function renderLaunchKitPage(env) {
           <button class="button-primary" type="submit">Buy with PayPal for ${moneyWithCents(product.price)}</button>
           <p class="form-status"></p>
         </form>` : ""}
-      ${checkoutReady ? `
-        <form class="checkout-form product-checkout-form" data-agentid-form="1" data-endpoint="/api/checkout">
-          <input type="hidden" name="productId" value="${escapeHtml(product.id)}">
-          <input type="hidden" name="sourcePage" value="/ai-agent-launch-kit">
-          <button class="button-secondary" type="submit">Pay by card for ${moneyWithCents(product.price)}</button>
-          <p class="form-status"></p>
-        </form>` : ""}
-      ${!paypalReady && !checkoutReady ? `<a class="button-primary" href="/contact">Request the launch kit</a>` : ""}
+      ${!paypalReady ? `<a class="button-primary" href="/contact">Request the launch kit</a>` : ""}
     </div>`;
   const body = `
     <section class="page-hero split-section">
       <div>
         ${renderPageTitle("Downloadable toolkit", "Plan an AI agent your business can actually launch", product.summary)}
         <div class="cta-row">${checkout}<a class="button-secondary" href="/resources">Read the free guides first</a></div>
-        <p class="trust-line">One-time payment. Secure download appears only after PayPal or the card processor confirms payment. No revenue or performance guarantees.</p>
+        <p class="trust-line">One-time PayPal payment. The secure download appears only after PayPal confirms the completed capture. No revenue or performance guarantees.</p>
       </div>
       <div class="kit-preview">
         <p class="card-kicker">AI Agent Launch Kit</p>
@@ -4089,56 +3941,6 @@ function renderLaunchKitPage(env) {
       ]),
     ],
     bodyClass: "page-launch-kit",
-  });
-}
-
-async function verifyDigitalProductSession(env, sessionId, expectedProductId) {
-  const cleanSessionId = cleanText(sessionId || "", 180);
-  if (!cleanSessionId) return { ok: false, status: 400, error: "A Checkout session is required." };
-  const session = await retrieveStripeSession(env, cleanSessionId);
-  if (!session) return { ok: false, status: 404, error: "The Checkout session could not be verified." };
-  const paid = session.payment_status === "paid" && session.status === "complete";
-  if (!paid) return { ok: false, status: 402, error: "Payment has not been confirmed." };
-  if (cleanText(session.metadata?.product_id || "", 120) !== expectedProductId) {
-    return { ok: false, status: 403, error: "This purchase does not include the requested download." };
-  }
-  return { ok: true, status: 200, session };
-}
-
-async function renderLaunchKitDownloadPage(env, sessionId) {
-  const access = await verifyDigitalProductSession(env, sessionId, DIGITAL_PRODUCTS[0].id);
-  const body = access.ok ? `
-    <section class="page-hero split-section">
-      <div>
-        ${renderSectionTitle("Payment confirmed", "Your AI Agent Launch Kit is ready", "Download the editable Markdown workbook and save a copy with your project files.")}
-        <div class="cta-row">
-          <a class="button-primary" href="/api/digital-products/ai-agent-launch-kit?session_id=${encodeURIComponent(sessionId)}" data-track-event="digital_download" data-track-label="Download AI Agent Launch Kit">Download the launch kit</a>
-          <a class="button-secondary" href="/book-a-consultation">Book implementation help</a>
-        </div>
-      </div>
-      <div class="side-note">
-        <p class="card-kicker">Delivery</p>
-        <strong>AI-Agent-Launch-Kit.md</strong>
-        <p>The file includes the opportunity scorecard, workflow brief, source intake, guardrails, follow-up templates, launch QA, and 30-day scorecard.</p>
-      </div>
-    </section>` : `
-    <section class="page-hero split-section">
-      <div>
-        ${renderSectionTitle("Download access", "We could not verify this purchase", access.error)}
-        <div class="cta-row">
-          <a class="button-primary" href="/ai-agent-launch-kit">Return to the launch kit</a>
-          <a class="button-secondary" href="/contact">Contact support</a>
-        </div>
-      </div>
-    </section>`;
-
-  return renderShell(env, {
-    path: "/downloads/ai-agent-launch-kit",
-    title: access.ok ? "Download Your AI Agent Launch Kit" : "Launch Kit Download Access",
-    description: "Secure delivery for the AI Agent Launch Kit.",
-    body,
-    robots: "noindex,nofollow,noarchive",
-    bodyClass: "page-digital-download",
   });
 }
 
@@ -4769,199 +4571,6 @@ async function captureLead(env, ctx, body, options = {}) {
   return { ok: true, status: 200, response };
 }
 
-function getCheckoutProduct(productId) {
-  return CHECKOUT_PRODUCTS.find((item) => item.id === productId) || null;
-}
-
-async function createStripeCheckout(env, request, productId, opts = {}) {
-  const product = getCheckoutProduct(productId);
-  if (!product) return { ok: false, status: 400, error: "Unknown checkout product." };
-  if (!fullCheckoutReady(env)) return { ok: false, status: 503, error: "Card checkout is temporarily unavailable." };
-
-  const body = opts.body || {};
-  const successPath = product.checkoutType === "digital_product"
-    ? "/downloads/ai-agent-launch-kit"
-    : "/onboarding";
-  const successBase = `${siteUrl(env)}${successPath}`;
-  const params = new URLSearchParams();
-  params.set("mode", product.mode);
-  params.set("success_url", `${successBase}?checkout=success&product=${encodeURIComponent(product.id)}&session_id={CHECKOUT_SESSION_ID}`);
-  params.set("cancel_url", `${siteUrl(env)}${opts.cancelPath || "/pricing"}?checkout=cancel`);
-  params.set("line_items[0][quantity]", "1");
-  params.set("line_items[0][price_data][currency]", "usd");
-  params.set("line_items[0][price_data][unit_amount]", String(product.price));
-  params.set("line_items[0][price_data][product_data][name]", product.name);
-  params.set("line_items[0][price_data][product_data][description]", product.description || product.name);
-  params.set("metadata[product_id]", product.id);
-  params.set("metadata[package_tier]", product.packageTier || product.id);
-  params.set("metadata[checkout_type]", product.checkoutType || "setup");
-  params.set("metadata[source_page]", cleanText(body.sourcePage || request.url || "", 200));
-  if (body.email) {
-    params.set("customer_email", cleanEmail(body.email));
-  }
-  if (product.mode === "subscription") {
-    params.set("line_items[0][price_data][recurring][interval]", product.interval || "month");
-  }
-
-  const response = await fetch("https://api.stripe.com/v1/checkout/sessions", {
-    method: "POST",
-    headers: {
-      authorization: `Bearer ${env.STRIPE_SECRET_KEY}`,
-      "content-type": "application/x-www-form-urlencoded",
-    },
-    body: params,
-  });
-
-  const result = await response.json().catch(() => null);
-  if (!response.ok) {
-    return {
-      ok: false,
-      status: 502,
-      error: result?.error?.message || "Stripe Checkout failed.",
-    };
-  }
-
-  return {
-    ok: true,
-    status: 200,
-    checkoutUrl: result.url,
-    sessionId: result.id,
-    product,
-  };
-}
-
-async function retrieveStripeSession(env, sessionId) {
-  if (!stripeReady(env) || !sessionId) return null;
-  const response = await fetch(`https://api.stripe.com/v1/checkout/sessions/${encodeURIComponent(sessionId)}?expand[]=line_items`, {
-    headers: {
-      authorization: `Bearer ${env.STRIPE_SECRET_KEY}`,
-    },
-  });
-  const result = await response.json().catch(() => null);
-  if (!response.ok) return null;
-  return result;
-}
-
-async function storePurchaseFromSession(env, session, fallbackProduct = null) {
-  if (!session) return null;
-  if (session.payment_status !== "paid") return null;
-  const productId = cleanText(session.metadata?.product_id || fallbackProduct?.id || "", 120);
-  const product = fallbackProduct || getCheckoutProduct(productId);
-  const existingPurchase = session.id ? await dbGetPurchaseBySession(env, session.id) : null;
-  const lead = session.customer_details?.email
-    ? await queryD1First(env, "SELECT * FROM agentid_leads WHERE email = ? ORDER BY datetime(created_at) DESC LIMIT 1", [cleanEmail(session.customer_details.email)])
-    : null;
-  const dashboardToken = existingPurchase?.dashboard_token || lead?.dashboard_token || crypto.randomUUID().replace(/-/g, "");
-  const deliveryUrl = product?.checkoutType === "digital_product"
-    ? `/downloads/ai-agent-launch-kit?checkout=success&product=${encodeURIComponent(product?.id || productId)}&session_id=${encodeURIComponent(session.id)}`
-    : `/onboarding?checkout=success&product=${encodeURIComponent(product?.id || productId)}&session_id=${encodeURIComponent(session.id)}`;
-  const purchase = await dbUpsertPurchase(env, {
-    id: existingPurchase?.id,
-    stripe_session_id: session.id,
-    stripe_payment_intent_id: session.payment_intent || "",
-    package_id: product?.packageTier || productId,
-    package_name: product?.name || productId,
-    package_tier: product?.packageTier || productId,
-    checkout_type: product?.checkoutType || session.metadata?.checkout_type || "setup",
-    amount_cents: Number(session.amount_total || 0),
-    currency: cleanText(session.currency || "usd", 12),
-    customer_email: session.customer_details?.email || session.customer_email || "",
-    source_page: session.metadata?.source_page || "/pricing",
-    lead_id: lead?.id || "",
-    status: "paid",
-    dashboard_token: dashboardToken,
-    onboarding_url: deliveryUrl,
-    metadata_json: session.metadata || {},
-    consent_marketing: session.consent?.promotions || false,
-    fulfillment_status: "purchase_received",
-  });
-
-  if (lead) {
-    await dbUpsertLead(env, {
-      ...lead,
-      purchase_id: purchase.id,
-      dashboard_token: dashboardToken,
-      crm_stage: "purchase_received",
-      lead_status: lead.lead_status || "WARM",
-      follow_up_status: "queued",
-    });
-  }
-
-  const email = buildPostPurchaseEmail(env, purchase);
-  await maybeSendCustomerEmail(env, purchase.customer_email || "", email.subject, email.text, email.html);
-  await sendWebhook(env, "purchase", purchase);
-  return purchase;
-}
-
-async function handleCheckout(request, env) {
-  const body = await readJson(request);
-  if (body === BODY_TOO_LARGE) return payloadTooLargeResponse();
-  if (!body || typeof body !== "object") {
-    return jsonResponse({ ok: false, error: "Invalid JSON." }, 400);
-  }
-  const rate = await rateLimit(env, request, "checkout");
-  if (!rate.ok) {
-    return jsonResponse({ ok: false, error: "Rate limited.", retryAfter: rate.retryAfter }, 429);
-  }
-  const productId = cleanText(body.productId || body.packageId || "", 120);
-  const result = await createStripeCheckout(env, request, productId, { body });
-  if (!result.ok) {
-    return jsonResponse({ ok: false, error: result.error }, result.status || 500);
-  }
-  return jsonResponse({
-    ok: true,
-    checkoutUrl: result.checkoutUrl,
-    sessionId: result.sessionId,
-    product: result.product,
-  });
-}
-
-async function handleStripeWebhook(request, env, ctx) {
-  if (!stripeReady(env)) {
-    return jsonResponse({ ok: false, error: "Stripe is not configured." }, 503);
-  }
-  const signature = request.headers.get("stripe-signature") || "";
-  const rawBody = await readRequestText(request, MAX_STRIPE_WEBHOOK_BODY_BYTES);
-  if (rawBody === BODY_TOO_LARGE) return payloadTooLargeResponse(MAX_STRIPE_WEBHOOK_BODY_BYTES);
-  const secret = String(env.STRIPE_WEBHOOK_SECRET || "").trim();
-  if (!secret) {
-    return jsonResponse({ ok: false, error: "STRIPE_WEBHOOK_SECRET is not configured." }, 503);
-  }
-  const verified = await verifyStripeSignature(rawBody, signature, secret);
-  if (!verified.ok) {
-    return jsonResponse({ ok: false, error: verified.error }, 400);
-  }
-
-  let event;
-  try {
-    event = JSON.parse(rawBody);
-  } catch {
-    return jsonResponse({ ok: false, error: "Invalid JSON payload." }, 400);
-  }
-  if (event.type !== "checkout.session.completed") {
-    return jsonResponse({ ok: true, ignored: true, type: event.type });
-  }
-
-  const session = event.data?.object || {};
-  const purchase = await storePurchaseFromSession(env, session);
-  if (purchase) {
-    ctx && ctx.waitUntil && ctx.waitUntil(dbInsertEvent(env, {
-      event_name: "deposit_paid",
-      source_page: purchase.source_page || "/pricing",
-      lead_id: purchase.lead_id || "",
-      session_id: purchase.stripe_session_id || "",
-      properties_json: {
-        amount: purchase.amount_cents,
-        packageName: purchase.package_name,
-        checkoutType: purchase.checkout_type,
-      },
-      user_agent: request.headers.get("user-agent") || "",
-    }));
-  }
-
-  return jsonResponse({ ok: true, purchaseId: purchase?.id || null });
-}
-
 function onboardingFieldDefinitions() {
   return [
     { name: "businessName", label: "Business name", placeholder: "Your business name", required: true },
@@ -4992,7 +4601,6 @@ function onboardingFieldDefinitions() {
 }
 
 function renderOnboardingPage(env, context = {}) {
-  const checkoutSessionId = cleanText(context.sessionId || "", 160);
   const dashboardToken = cleanText(context.dashboardToken || "", 180);
   const paypalOrderId = cleanText(context.paypalOrderId || "", 80);
   const paypalAccessToken = cleanText(context.paypalAccessToken || "", 180);
@@ -5009,7 +4617,6 @@ function renderOnboardingPage(env, context = {}) {
     fields: [
       ...onboardingFieldDefinitions(),
       { name: "packageTier", type: "hidden", value: packageName },
-      { name: "sessionId", type: "hidden", value: checkoutSessionId },
       { name: "dashboardToken", type: "hidden", value: dashboardToken },
       { name: "paypalOrderId", type: "hidden", value: paypalOrderId },
       { name: "paypalAccessToken", type: "hidden", value: paypalAccessToken },
@@ -5020,7 +4627,6 @@ function renderOnboardingPage(env, context = {}) {
     <section class="hero compact">
       ${renderSectionTitle("Client Onboarding", "Let’s Build Your AI Agent", "Answer a few questions so we can design the exact AI agent your business needs.")}
       <p class="confirmation">Your AI agent setup has started. The next step is to complete your onboarding form so we can design the exact AI agent your business needs. Once submitted, we will generate your AI Agent Build Plan and begin preparing your agent workflow.</p>
-      ${checkoutSessionId ? `<p class="status-pill">Checkout session: ${escapeHtml(checkoutSessionId)}</p>` : ""}
       <p class="status-pill">Verified purchase: ${escapeHtml(packageName)}</p>
     </section>
   `;
@@ -5337,39 +4943,6 @@ function renderRows(rows, columns) {
       </table>
     </div>`;
 }
-
-
-
-async function verifyStripeSignature(rawBody, signature, webhookSecret) {
-  const parts = Object.fromEntries(signature.split(",").map((part) => {
-    const [key, value] = part.split("=", 2);
-    return [key, value];
-  }));
-  const timestamp = parts.t;
-  const expectedSignature = parts.v1;
-  if (!timestamp || !expectedSignature) {
-    return { ok: false, error: "Missing Stripe signature fields." };
-  }
-  const ageSeconds = Math.abs(Date.now() / 1000 - Number(timestamp));
-  if (!Number.isFinite(ageSeconds) || ageSeconds > 300) {
-    return { ok: false, error: "Stripe signature timestamp is outside tolerance." };
-  }
-
-  const encoder = new TextEncoder();
-  const key = await crypto.subtle.importKey(
-    "raw",
-    encoder.encode(webhookSecret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-  const digest = await crypto.subtle.sign("HMAC", key, encoder.encode(`${timestamp}.${rawBody}`));
-  const actualSignature = [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
-  return actualSignature === expectedSignature
-    ? { ok: true }
-    : { ok: false, error: "Invalid Stripe signature." };
-}
-
 
 
 
@@ -7216,15 +6789,6 @@ export function agentIdIndexablePaths(env = {}) {
   return pageEntriesForSitemap(env).map((page) => page.path);
 }
 
-async function maybeHydratePurchaseFromSession(env, sessionId) {
-  if (!sessionId) return null;
-  const existing = await dbGetPurchaseBySession(env, sessionId);
-  if (existing?.status === "paid") return existing;
-  const session = await retrieveStripeSession(env, sessionId);
-  if (!session) return null;
-  return storePurchaseFromSession(env, session);
-}
-
 function scopedKvKey(env, key) {
   const scope = String(env.STORAGE_SCOPE || "agentid.services").trim().toLowerCase();
   return scope ? `${scope}:${key}` : key;
@@ -7242,25 +6806,9 @@ async function verifiedPaypalOrder(env, orderId, accessToken) {
 }
 
 async function verifyOnboardingAccess(env, context = {}) {
-  const sessionId = cleanText(context.sessionId || "", 160);
   const dashboardToken = cleanText(context.dashboardToken || context.token || "", 180);
   const paypalOrderId = cleanText(context.paypalOrderId || context.orderId || "", 80);
   const paypalAccessToken = cleanText(context.paypalAccessToken || context.accessToken || "", 180);
-
-  if (sessionId) {
-    const purchase = await maybeHydratePurchaseFromSession(env, sessionId);
-    if (purchase?.status === "paid") {
-      return {
-        ok: true,
-        provider: "stripe",
-        purchase,
-        purchaseId: purchase.id,
-        packageName: purchase.package_name,
-        dashboardToken: purchase.dashboard_token,
-        sessionId,
-      };
-    }
-  }
 
   if (dashboardToken) {
     const purchase = await dbGetPurchaseByToken(env, dashboardToken);
@@ -9861,34 +9409,8 @@ export async function handleAgentIdSiteRequest(request, env, ctx) {
     return handleLeadMagnetSubmission(request, env, ctx);
   }
 
-  if (path === "/api/digital-products/ai-agent-launch-kit" && method === "GET") {
-    const access = await verifyDigitalProductSession(env, url.searchParams.get("session_id"), DIGITAL_PRODUCTS[0].id);
-    if (!access.ok) {
-      return jsonResponse({ ok: false, error: access.error }, access.status, {
-        "x-robots-tag": "noindex,nofollow,noarchive",
-      });
-    }
-    return textResponse(renderLaunchKitMarkdown(), 200, {
-      "content-type": "text/markdown; charset=utf-8",
-      "content-disposition": 'attachment; filename="AI-Agent-Launch-Kit.md"',
-      "cache-control": "private, no-store",
-      "x-robots-tag": "noindex,nofollow,noarchive",
-    });
-  }
-
   if (path === "/api/onboarding" && method === "POST") {
     return handleOnboarding(request, env, ctx);
-  }
-
-  if (path === "/api/checkout" && method === "POST") {
-    return handleCheckout(request, env);
-  }
-
-  if (path === "/api/stripe/webhook" || path === "/api/agents/stripe/webhook") {
-    if (method === "POST") {
-      return handleStripeWebhook(request, env, ctx);
-    }
-    return jsonResponse({ ok: false, error: "Method not allowed." }, 405);
   }
 
   if (path === "/") {
@@ -9929,10 +9451,6 @@ export async function handleAgentIdSiteRequest(request, env, ctx) {
     return respondHtml(renderLaunchKitPage(env));
   }
 
-  if (path === "/downloads/ai-agent-launch-kit") {
-    return respondHtml(await renderLaunchKitDownloadPage(env, url.searchParams.get("session_id") || ""), true);
-  }
-
   if (path === "/about") {
     return respondHtml(renderAboutPage(env));
   }
@@ -9967,7 +9485,6 @@ export async function handleAgentIdSiteRequest(request, env, ctx) {
 
   if (path === "/onboarding" || path === "/client-onboarding") {
     const access = await verifyOnboardingAccess(env, {
-      sessionId: url.searchParams.get("session_id") || url.searchParams.get("sessionId") || "",
       dashboardToken: url.searchParams.get("token") || "",
       paypalOrderId: url.searchParams.get("order_id") || "",
       paypalAccessToken: url.searchParams.get("access_token") || "",
@@ -9976,7 +9493,6 @@ export async function handleAgentIdSiteRequest(request, env, ctx) {
       return respondHtml(renderOnboardingAccessRequiredPage(env), true, 403);
     }
     return respondHtml(renderOnboardingPage(env, {
-      sessionId: access.sessionId || "",
       dashboardToken: access.dashboardToken,
       paypalOrderId: access.paypalOrderId || "",
       paypalAccessToken: access.paypalAccessToken || "",

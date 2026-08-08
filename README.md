@@ -119,7 +119,7 @@ curl https://gptmarketplus.com/agents/feed.json
 
 If Cloudflare Managed `robots.txt` is enabled for the zone, it can prepend `Disallow` rules for AI crawlers before the Worker response. Disable Cloudflare's managed AI crawler `robots.txt` setting when the goal is AI search, AI answer grounding, and AI crawler pickup.
 
-Stripe Checkout for sponsor placements is implemented at the public pricing surface and API. The pricing page also exposes invoice, ACH, bank transfer, PayPal, and crypto request paths for buyers who cannot use Stripe.
+PayPal is the sole payment provider. Eligible self-service products use PayPal Orders, while approved services and sponsor placements use PayPal checkout, subscriptions, or invoices only after scope and fulfillment terms are accepted.
 
 Google Analytics is wired through the Worker's first-party `/gtag` proxy path. `G-3BCSR51WHZ` loads directly, so measurement does not depend on a Tag Manager container. The verified GA4 stream identifies GPTMarketPlus at `https://gptmarketplus.com`; `generate_lead` and the default `purchase` are the only Key Events. Set a GTM or Ads identifier only when a real published container or conversion action exists:
 
@@ -136,7 +136,7 @@ wrangler vars put GOOGLE_ADS_CONVERSION_LABEL
 
 For paid acquisition, use separate destinations in `wrangler.jsonc`: `GOOGLE_ADS_LEAD_CONVERSION_ID` and `GOOGLE_ADS_LEAD_CONVERSION_LABEL` for accepted lead actions, plus `GOOGLE_ADS_PURCHASE_CONVERSION_ID` and `GOOGLE_ADS_PURCHASE_CONVERSION_LABEL` for provider-verified purchases. The older generic pair is retained only as a lead fallback; never reuse one conversion label for both goals.
 
-Stripe card checkout is enabled with a live `.com` webhook at `/api/stripe/webhook`; `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` are stored as Worker secrets. Webhook signatures are verified before paid entitlement is persisted, and the fulfillment path remains idempotent. The $29 AI Agent Launch Kit also supports the verified live PayPal order/capture flow and serves its download only after an exact completed capture. Completed captures send the secure delivery URL through the customer transactional-email adapter and store only sanitized provider results. For Google measurement, the site uses `GOOGLE_TAG_GATEWAY_PATH=/gtag` and serves that path from the Worker itself.
+The $29 AI Agent Launch Kit uses a verified live PayPal order/capture flow and serves its download only after an exact completed capture. Completed captures return the secure delivery URL immediately, send it through the customer transactional-email adapter, and queue failed email delivery for retry without duplicating successful delivery. For Google measurement, the site uses `GOOGLE_TAG_GATEWAY_PATH=/gtag` and serves that path from the Worker itself.
 
 ### Google Cloud Agent Search
 
@@ -192,16 +192,16 @@ The digital product endpoints are:
 # Public product page
 curl https://gptmarketplus.com/ai-agent-launch-kit
 
-# Secure post-purchase page (card checkout)
-curl "https://gptmarketplus.com/downloads/ai-agent-launch-kit?session_id=cs_..."
+# Secure post-purchase page (completed PayPal order and random access token required)
+curl "https://gptmarketplus.com/paypal/download/ai-agent-launch-kit?order_id=PAYPAL_ORDER_ID&access_token=PRIVATE_ACCESS_TOKEN"
 
-# File delivery (card checkout)
-curl -OJ "https://gptmarketplus.com/api/digital-products/ai-agent-launch-kit?session_id=cs_..."
+# File delivery (same completed PayPal entitlement required)
+curl -OJ "https://gptmarketplus.com/api/paypal/digital-products/ai-agent-launch-kit?order_id=PAYPAL_ORDER_ID&access_token=PRIVATE_ACCESS_TOKEN"
 ```
 
 ### PayPal one-time payments and sponsor subscriptions
 
-PayPal is a live alternative to Stripe across the $29 AI Agent Launch Kit, fixed-price builds, setup deposits, and recurring sponsor inventory. One-time purchases use PayPal Orders v2: the Worker creates the order from its server-owned product catalog, redirects the buyer to PayPal, captures the approved order on the server, checks the exact product/currency/amount, and only then records revenue or unlocks delivery. The sponsor inventory continues to support recurring PayPal subscriptions at $49, $99, and $149 per month.
+PayPal is the only payment provider across the $29 AI Agent Launch Kit, fixed-price builds, setup deposits, and recurring sponsor inventory. One-time purchases use PayPal Orders v2: the Worker creates the order from its server-owned product catalog, redirects the buyer to PayPal, captures the approved order on the server, checks the exact product/currency/amount, and only then records revenue or unlocks delivery. Sponsor inventory supports recurring PayPal subscriptions at $49, $99, and $149 per month, but remains approval-gated until placement fulfillment is ready.
 
 The PayPal client secret is never sent to the browser. The secure Launch Kit URL requires the completed order ID plus a separate random access token stored in KV; a PayPal redirect alone cannot unlock the file.
 
@@ -276,12 +276,10 @@ curl https://gptmarketplus.com/api/utm-links
 curl https://gptmarketplus.com/social
 ```
 
-Set these optional direct-payment vars if you want the pricing page to link straight to additional payment endpoints:
+Set the optional direct-payment variable only when the pricing page should link to an approved PayPal payment endpoint:
 
 ```bash
 wrangler vars put PAYPAL_PAYMENT_LINK
-wrangler vars put BANK_TRANSFER_URL
-wrangler vars put CRYPTO_PAYMENT_LINK
 ```
 
 ## Cloudflare features

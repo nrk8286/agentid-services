@@ -47,9 +47,7 @@ const RUN_INTERVAL_SECONDS = 60 * 30;
 const LEAD_SPIDER_INTERVAL_SECONDS = 60 * 60 * 6;
 const MAX_SPIDER_SOURCES = 8;
 const MAX_SOURCE_BYTES = 70000;
-const SPONSOR_STARTER_CHECKOUT_URL = "";
 const MAX_JSON_BODY_BYTES = 128 * 1024;
-const MAX_STRIPE_WEBHOOK_BODY_BYTES = 1024 * 1024;
 const BODY_TOO_LARGE = Symbol("body-too-large");
 const CANONICAL_HOST = "gptmarketplus.com";
 const LEGACY_TLS_VERSIONS = new Set(["TLSv1", "TLSv1.0", "TLSv1.1"]);
@@ -81,8 +79,6 @@ const LEGACY_PUBLIC_HOSTS = new Set([
 const LEGACY_WEBHOOK_PATHS = new Set([
   "/api/paypal/webhook",
   "/api/agents/paypal/webhook",
-  "/api/stripe/webhook",
-  "/api/agents/stripe/webhook",
 ]);
 const AGENTID_THIN_TRAFFIC_REDIRECTS = new Map([
   ["/ai-marketing-automation", "/services"],
@@ -580,8 +576,8 @@ const SYSTEM_TAGS = [
   "agent-foundry",
   "software-builds",
   "low-ticket-report",
-  "stripe-checkout",
-  "stripe-webhook",
+  "paypal-checkout",
+  "paypal-webhook",
   "revenue-tracking",
   "one-dollar-hour-target",
   "flagship-controlled",
@@ -976,22 +972,14 @@ export default {
       if (String(env.SPONSOR_CHECKOUT_ENABLED || "").trim().toLowerCase() !== "true") {
         return jsonResponse({ ok: false, error: "Sponsor billing is paused until placement fulfillment is verified." }, 503);
       }
-      const rate = await paypalCheckoutRateLimit(env, request);
-      if (!rate.ok) return jsonResponse({ ok: false, error: rate.error }, 429);
-      return handleAdCheckout(request, env);
+      return handlePaypalSubscriptionCheckout(request, env);
     }
 
     if (url.pathname === "/api/agents/software-builds/checkout" && request.method === "POST") {
       if (String(env.SERVICE_CHECKOUT_ENABLED || "").trim().toLowerCase() !== "true") {
         return jsonResponse({ ok: false, error: "Software-build checkout requires an approved scope." }, 503);
       }
-      const rate = await paypalCheckoutRateLimit(env, request);
-      if (!rate.ok) return jsonResponse({ ok: false, error: rate.error }, 429);
-      return handleSoftwareBuildCheckout(request, env);
-    }
-
-    if (url.pathname === "/api/agents/stripe/webhook" && request.method === "POST") {
-      return handleStripeWebhook(request, env, ctx);
+      return handlePaypalOrderCreate(request, env);
     }
 
     if (url.pathname === "/api/agents/leads" && request.method === "POST") {
@@ -1023,7 +1011,9 @@ export default {
     for (const message of batch.messages || []) {
       const payload = message.body || {};
       try {
-        if (payload.type) {
+        if (payload.type === "paypal_purchase_fulfillment") {
+          await fulfillPaypalPurchaseEmail(env, payload.payload?.orderId);
+        } else if (payload.type) {
           await sendWebhook(env, payload.type, payload.payload, true);
         }
         message.ack();
@@ -1590,7 +1580,20 @@ async function handlePaypalSubscriptionCheckout(request, env) {
 }
 
 function paypalOneTimeProduct(productId) {
-  return agentIdOneTimeProducts().find((product) => product.id === productId) || null;
+  const catalogProduct = agentIdOneTimeProducts().find((product) => product.id === productId);
+  if (catalogProduct) return catalogProduct;
+  const build = SOFTWARE_BUILDS.find((item) => item.id === productId);
+  if (!build) return null;
+  return {
+    id: build.id,
+    name: build.name,
+    price: build.price,
+    mode: "payment",
+    packageTier: build.id,
+    checkoutType: "software_build",
+    delivery: build.delivery || "fixed_scope_build",
+    description: build.summary,
+  };
 }
 
 function paypalAmountValue(amountCents) {
@@ -1658,8 +1661,8 @@ function paypalEmailRetryAllowed(order) {
   return !Number.isFinite(attemptedAt) || Date.now() - attemptedAt >= 15 * 60 * 1000;
 }
 
-async function deliverAndRecordPaypalCustomerEmail(env, order) {
-  if (!order.payerEmail || !paypalEmailRetryAllowed(order)) return order;
+async function deliverAndRecordPaypalCustomerEmail(env, order, force = false) {
+  if (!order.payerEmail || (!force && !paypalEmailRetryAllowed(order))) return order;
   try {
     const email = paypalCustomerEmail(env, order);
     const result = await sendCustomerTransactionalEmail(
@@ -1683,6 +1686,14 @@ async function deliverAndRecordPaypalCustomerEmail(env, order) {
   }
 }
 
+async function fulfillPaypalPurchaseEmail(env, orderId) {
+  const order = await getJson(env, `paypal:order:${cleanText(orderId || "", 80)}`);
+  if (!order || order.status !== "COMPLETED") throw new Error("Completed PayPal order was not found for fulfillment.");
+  const fulfilled = await deliverAndRecordPaypalCustomerEmail(env, order, true);
+  if (!fulfilled.emailDelivery?.delivered) throw new Error("PayPal customer delivery email was not delivered.");
+  return fulfilled;
+}
+
 async function handlePaypalOrderCreate(request, env) {
   const rate = await paypalCheckoutRateLimit(env, request);
   if (!rate.ok) return jsonResponse({ ok: false, error: rate.error }, 429);
@@ -1698,7 +1709,7 @@ async function handlePaypalOrderCreate(request, env) {
   if (!body || typeof body !== "object") {
     return jsonResponse({ ok: false, error: "Invalid JSON." }, 400);
   }
-  const productId = cleanText(body.productId || body.packageId || "", 120);
+  const productId = cleanText(body.productId || body.packageId || body.buildId || "", 120);
   const product = paypalOneTimeProduct(productId);
   if (!product) {
     return jsonResponse({ ok: false, error: "Unknown one-time PayPal product." }, 400);
@@ -1773,7 +1784,7 @@ async function handlePaypalOrderCreate(request, env) {
     status: cleanText(result.status || "PAYER_ACTION_REQUIRED", 40),
     createdAt: cleanText(result.create_time || new Date().toISOString(), 80),
   };
-  await putJson(env, `paypal:order:${orderId}`, pendingOrder, 60 * 60 * 24);
+  await putJson(env, `paypal:order:${orderId}`, pendingOrder, 60 * 60 * 24 * 7);
 
   return jsonResponse({
     ok: true,
@@ -1819,6 +1830,13 @@ async function handlePaypalOrderCapture(request, env, ctx) {
   }
   if (pending.status === "COMPLETED" && pending.accessToken) {
     const completedOrder = await deliverAndRecordPaypalCustomerEmail(env, pending);
+    if (!completedOrder.emailDelivery?.delivered && env.GMP_QUEUE && typeof env.GMP_QUEUE.send === "function") {
+      await env.GMP_QUEUE.send({
+        type: "paypal_purchase_fulfillment",
+        payload: { orderId },
+        queuedAt: new Date().toISOString(),
+      });
+    }
     return jsonResponse({
       ok: true,
       provider: "paypal",
@@ -1840,15 +1858,18 @@ async function handlePaypalOrderCapture(request, env, ctx) {
     headers: { "paypal-request-id": `agentid-capture-${orderId}` },
     body: {},
   });
+  let result = captureResponse.result || {};
   if (!captureResponse.ok) {
-    return jsonResponse({
-      ok: false,
-      error: captureResponse.error,
-      debugId: captureResponse.debugId || undefined,
-    }, captureResponse.status || 502);
+    const recovery = await paypalApiRequest(env, `/v2/checkout/orders/${encodeURIComponent(orderId)}`);
+    if (!recovery.ok) {
+      return jsonResponse({
+        ok: false,
+        error: captureResponse.error,
+        debugId: captureResponse.debugId || undefined,
+      }, captureResponse.status || 502);
+    }
+    result = recovery.result || {};
   }
-
-  const result = captureResponse.result || {};
   const { unit, capture } = paypalCaptureFromOrder(result);
   const capturedAmount = cleanText(capture?.amount?.value || "", 40);
   const capturedCurrency = cleanText(capture?.amount?.currency_code || "", 12).toUpperCase();
@@ -1899,6 +1920,13 @@ async function handlePaypalOrderCapture(request, env, ctx) {
     queueBackgroundWork(env, ctx, "paid_checkout", revenueEvent, appendTask(env, paidCustomerTask(revenueEvent)));
   }
   const fulfilledOrder = await deliverAndRecordPaypalCustomerEmail(env, paidOrder);
+  if (!fulfilledOrder.emailDelivery?.delivered && env.GMP_QUEUE && typeof env.GMP_QUEUE.send === "function") {
+    await env.GMP_QUEUE.send({
+      type: "paypal_purchase_fulfillment",
+      payload: { orderId },
+      queuedAt: new Date().toISOString(),
+    });
+  }
 
   return jsonResponse({
     ok: true,
@@ -2150,185 +2178,6 @@ async function handlePaypalWebhook(request, env, ctx) {
   return jsonResponse({ ok: true, verified: true, recorded: recorded.recorded });
 }
 
-async function handleAdCheckout(request, env) {
-  const body = await readJson(request);
-  if (body === BODY_TOO_LARGE) return payloadTooLargeResponse();
-  if (!body) return jsonResponse({ ok: false, error: "Invalid JSON." }, 400);
-
-  const adPackage = adPackages(env).find((item) => item.id === cleanText(body.packageId, 40));
-  if (!adPackage) return jsonResponse({ ok: false, error: "Unknown ad package." }, 400);
-
-  if (!env.STRIPE_SECRET_KEY) {
-    return jsonResponse({
-      ok: false,
-      error: "STRIPE_SECRET_KEY is not configured for Checkout.",
-      package: adPackage,
-    }, 503);
-  }
-
-  const params = new URLSearchParams();
-  params.set("mode", adPackage.billing.mode);
-  params.set("success_url", `${siteUrl(env)}/agents/?checkout=success&package=${encodeURIComponent(adPackage.id)}&session_id={CHECKOUT_SESSION_ID}`);
-  params.set("cancel_url", `${siteUrl(env)}/agents/?checkout=cancel`);
-  params.set("line_items[0][quantity]", "1");
-  params.set("line_items[0][price_data][currency]", "usd");
-  params.set("line_items[0][price_data][unit_amount]", String(adPackage.amount));
-  params.set("line_items[0][price_data][product_data][name]", adPackage.name);
-  params.set("line_items[0][price_data][product_data][description]", adPackage.description);
-  if (adPackage.billing.mode === "subscription") {
-    params.set("line_items[0][price_data][recurring][interval]", adPackage.billing.interval);
-  }
-  params.set("metadata[package_id]", adPackage.id);
-  params.set("metadata[source]", "agentid_services_ads_agent");
-
-  const response = await fetch("https://api.stripe.com/v1/checkout/sessions", {
-    method: "POST",
-    headers: {
-      authorization: `Bearer ${env.STRIPE_SECRET_KEY}`,
-      "content-type": "application/x-www-form-urlencoded",
-      "stripe-version": "2026-02-25.clover",
-    },
-    body: params,
-  });
-
-  const result = await response.json();
-  if (!response.ok) {
-    return jsonResponse({ ok: false, error: result.error ? result.error.message : "Stripe Checkout failed." }, 502);
-  }
-
-  return jsonResponse({ ok: true, checkoutUrl: result.url, sessionId: result.id, package: adPackage });
-}
-
-async function handleSoftwareBuildCheckout(request, env) {
-  const body = await readJson(request);
-  if (body === BODY_TOO_LARGE) return payloadTooLargeResponse();
-  if (!body) return jsonResponse({ ok: false, error: "Invalid JSON." }, 400);
-
-  const build = SOFTWARE_BUILDS.find((item) => item.id === cleanText(body.buildId, 80));
-  if (!build) return jsonResponse({ ok: false, error: "Unknown software build." }, 400);
-
-  if (!env.STRIPE_SECRET_KEY) {
-    return jsonResponse({
-      ok: false,
-      error: "STRIPE_SECRET_KEY is not configured for Checkout.",
-      build,
-    }, 503);
-  }
-
-  const params = new URLSearchParams();
-  params.set("mode", "payment");
-  params.set("success_url", `${siteUrl(env)}/software-builds/${encodeURIComponent(build.id)}?checkout=success&session_id={CHECKOUT_SESSION_ID}`);
-  params.set("cancel_url", `${siteUrl(env)}/software-builds/${encodeURIComponent(build.id)}?checkout=cancel`);
-  params.set("allow_promotion_codes", "true");
-  params.set("billing_address_collection", "auto");
-  params.set("line_items[0][quantity]", "1");
-  params.set("line_items[0][price_data][currency]", "usd");
-  params.set("line_items[0][price_data][unit_amount]", String(build.price));
-  params.set("line_items[0][price_data][product_data][name]", build.name);
-  params.set("line_items[0][price_data][product_data][description]", build.summary);
-  params.set("metadata[build_id]", build.id);
-  params.set("metadata[source]", "agent_foundry_software_builds");
-  params.set("metadata[niche]", build.niche);
-  params.set("metadata[delivery]", build.delivery || "fixed_scope_build");
-  if (body.email) params.set("customer_email", cleanEmail(body.email));
-
-  const response = await fetch("https://api.stripe.com/v1/checkout/sessions", {
-    method: "POST",
-    headers: {
-      authorization: `Bearer ${env.STRIPE_SECRET_KEY}`,
-      "content-type": "application/x-www-form-urlencoded",
-      "stripe-version": "2026-02-25.clover",
-    },
-    body: params,
-  });
-
-  const result = await response.json();
-  if (!response.ok) {
-    return jsonResponse({ ok: false, error: result.error ? result.error.message : "Stripe Checkout failed." }, 502);
-  }
-
-  return jsonResponse({ ok: true, checkoutUrl: result.url, sessionId: result.id, build });
-}
-
-async function handleStripeWebhook(request, env, ctx) {
-  if (!env.STRIPE_WEBHOOK_SECRET) {
-    return jsonResponse({ ok: false, error: "STRIPE_WEBHOOK_SECRET is not configured." }, 503);
-  }
-
-  const signature = request.headers.get("stripe-signature") || "";
-  const rawBody = await readRequestText(request, MAX_STRIPE_WEBHOOK_BODY_BYTES);
-  if (rawBody === BODY_TOO_LARGE) return payloadTooLargeResponse(MAX_STRIPE_WEBHOOK_BODY_BYTES);
-  const verified = await verifyStripeSignature(rawBody, signature, env.STRIPE_WEBHOOK_SECRET);
-  if (!verified.ok) {
-    return jsonResponse({ ok: false, error: verified.error }, 400);
-  }
-
-  let event;
-  try {
-    event = JSON.parse(rawBody);
-  } catch {
-    return jsonResponse({ ok: false, error: "Invalid JSON payload." }, 400);
-  }
-
-  if (event.type !== "checkout.session.completed") {
-    return jsonResponse({ ok: true, ignored: true, type: event.type });
-  }
-
-  const session = event.data && event.data.object ? event.data.object : {};
-  const revenueEvent = {
-    id: cleanText(event.id, 120),
-    type: cleanText(event.type, 120),
-    sessionId: cleanText(session.id, 120),
-    createdAt: new Date().toISOString(),
-    amountCents: Number(session.amount_total || session.amount_paid || 0),
-    currency: cleanText(session.currency || "usd", 12),
-    customerEmail: cleanEmail((session.customer_details && session.customer_details.email) || session.customer_email || ""),
-    paymentStatus: cleanText(session.payment_status || "", 40),
-    source: cleanText((session.metadata && session.metadata.source) || "stripe_checkout", 80),
-    buildId: cleanText((session.metadata && session.metadata.build_id) || "", 100),
-    packageId: cleanText((session.metadata && session.metadata.package_id) || "", 100),
-    delivery: cleanText((session.metadata && session.metadata.delivery) || "", 80),
-    mode: cleanText(session.mode || "", 40),
-  };
-
-  const result = await recordRevenueEvent(env, revenueEvent);
-  if (result.recorded) {
-    queueBackgroundWork(env, ctx, "paid_checkout", revenueEvent, appendTask(env, paidCustomerTask(revenueEvent)));
-  }
-
-  return jsonResponse({ ok: true, recorded: result.recorded, revenue: await revenueSnapshot(env) });
-}
-
-async function verifyStripeSignature(rawBody, signature, webhookSecret) {
-  const parts = Object.fromEntries(signature.split(",").map((part) => {
-    const [key, value] = part.split("=", 2);
-    return [key, value];
-  }));
-  const timestamp = parts.t;
-  const expectedSignature = parts.v1;
-  if (!timestamp || !expectedSignature) {
-    return { ok: false, error: "Missing Stripe signature fields." };
-  }
-  const ageSeconds = Math.abs(Date.now() / 1000 - Number(timestamp));
-  if (!Number.isFinite(ageSeconds) || ageSeconds > 300) {
-    return { ok: false, error: "Stripe signature timestamp is outside tolerance." };
-  }
-
-  const encoder = new TextEncoder();
-  const key = await crypto.subtle.importKey(
-    "raw",
-    encoder.encode(webhookSecret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-  const digest = await crypto.subtle.sign("HMAC", key, encoder.encode(`${timestamp}.${rawBody}`));
-  const actualSignature = [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
-  return timingSafeStringEqual(actualSignature, expectedSignature)
-    ? { ok: true }
-    : { ok: false, error: "Invalid Stripe signature." };
-}
-
 async function recordRevenueEvent(env, event) {
   if (!event.id) return { recorded: false, reason: "missing_event_id" };
   await ensureD1Schema(env);
@@ -2378,7 +2227,6 @@ async function revenueSnapshot(env) {
   const dollarsPerHour = hours ? (totalCents / 100) / hours : 0;
   return {
     ok: true,
-    stripeWebhookReady: Boolean(env.STRIPE_WEBHOOK_SECRET),
     paypalWebhookReady: paypal.webhookConfigured,
     paypalSubscriptionsReady: paypal.subscriptionsReady,
     totalCents,
@@ -2395,7 +2243,6 @@ async function revenueSnapshot(env) {
 function publicRevenueSnapshot(revenue) {
   return {
     ok: Boolean(revenue?.ok),
-    stripeWebhookReady: Boolean(revenue?.stripeWebhookReady),
     paypalWebhookReady: Boolean(revenue?.paypalWebhookReady),
     paypalSubscriptionsReady: Boolean(revenue?.paypalSubscriptionsReady),
     totalCents: Number(revenue?.totalCents || 0),
@@ -3152,7 +2999,7 @@ function tasksFor(env, agentId, weakSpot, leadCount, pendingCount) {
       "Review sponsor packages and keep pricing visible on every buyer-intent page.",
       "Prepare one ad slot for a relevant AI or small-business sponsor.",
       "Keep the ad-network page aligned with live checkout and placement inventory.",
-      "Check Stripe Checkout readiness and payout configuration.",
+      "Check PayPal checkout readiness and payout configuration.",
     ];
   }
   if (agentId === "publisher") {
@@ -3172,7 +3019,7 @@ function tasksFor(env, agentId, weakSpot, leadCount, pendingCount) {
   if (agentId === "closer") {
     return [
       "Follow up with hot leads and sponsor buyers within the same cycle.",
-      "Convert the best inbound signal into a Stripe checkout or booked conversation.",
+      "Convert the best inbound signal into a PayPal checkout or booked conversation.",
       "Refresh the highest-intent call-to-action for the next visitor.",
     ];
   }
@@ -3216,7 +3063,6 @@ function adPackages(env) {
       billing: { mode: "subscription", interval: "month" },
       description: `A 30-day sponsor placement on the ${brandName(env)} agent dashboard.`,
       placement: `${siteUrl(env)}/agents/`,
-      checkoutUrl: sponsorStarterCheckoutUrl(env),
     },
     {
       id: "featured_tool_monthly",
@@ -3239,10 +3085,6 @@ function adPackages(env) {
   ];
 }
 
-function sponsorStarterCheckoutUrl(env) {
-  return String(env.SPONSOR_STARTER_CHECKOUT_URL || SPONSOR_STARTER_CHECKOUT_URL || "").trim();
-}
-
 function paymentOfferOptions(env) {
   return [
     ...adPackages(env).map((item) => ({
@@ -3261,40 +3103,13 @@ function paymentOfferOptions(env) {
 }
 
 function paymentMethodCards(env) {
-  const supportEmail = env.SUPPORT_EMAIL || `admin@${new URL(siteUrl(env)).host}`;
   const paypalLink = String(env.PAYPAL_PAYMENT_LINK || "").trim();
-  const bankTransferUrl = String(env.BANK_TRANSFER_URL || "").trim();
-  const cryptoLink = String(env.CRYPTO_PAYMENT_LINK || "").trim();
   return [
-    {
-      name: "Stripe Checkout",
-      href: "#pricing-packages",
-      status: "Eligible one-time offers",
-      description: "Use card checkout only where a live one-time offer explicitly provides it.",
-    },
-    {
-      name: "Invoice / ACH",
-      href: "#payment-request",
-      status: "Request by form",
-      description: "Queue an invoice, ACH, or procurement follow-up.",
-    },
     {
       name: "PayPal",
       href: paypalLink || "#payment-request",
-      status: paypalLink ? "Configured" : "Invoice after approval",
-      description: paypalLink ? "Open the configured PayPal payment link." : "Approved sponsors receive a PayPal invoice after accepting written terms.",
-    },
-    {
-      name: "Bank transfer",
-      href: bankTransferUrl || `mailto:${supportEmail}?subject=${encodeURIComponent("Bank transfer details request")}`,
-      status: bankTransferUrl ? "Configured" : "Email details",
-      description: bankTransferUrl ? "Open the bank transfer instructions." : "Request wire or bank transfer details.",
-    },
-    {
-      name: "Crypto",
-      href: cryptoLink || "#payment-request",
-      status: cryptoLink ? "Configured" : "Request address",
-      description: cryptoLink ? "Open the configured crypto payment link." : "Request a crypto address or payment link.",
+      status: paypalLink ? "Configured" : "Checkout or invoice after approval",
+      description: paypalLink ? "Open the configured PayPal payment link." : "Use secure PayPal checkout for eligible products or request a PayPal invoice after approval.",
     },
   ];
 }
@@ -3652,14 +3467,6 @@ function normalizeProspectForBrand(env, prospect) {
 function prospectCtaUrl(env, value) {
   const url = brandDisplayUrl(env, value);
   if (!url) return `${siteUrl(env)}/sponsor`;
-  try {
-    const parsed = new URL(url);
-    if (parsed.hostname === "checkout.stripe.com" && !sponsorStarterCheckoutUrl(env)) {
-      return `${siteUrl(env)}/sponsor`;
-    }
-  } catch {
-    return `${siteUrl(env)}/sponsor`;
-  }
   return url;
 }
 
@@ -4637,7 +4444,7 @@ function renderDashboard(env, state) {
   const health = latest && latest.health ? latest.health : { status: "pending", checks: [] };
   const spider = state.spider || { prospects: [], latest: null, sources: [] };
   const spiderLatest = spider.latest || null;
-  const revenue = state.revenue || { totalDollars: 0, dollarsPerHour: 0, targetMet: false, paidCheckouts: 0, stripeWebhookReady: false, paypalWebhookReady: false, paypalSubscriptionsReady: false };
+  const revenue = state.revenue || { totalDollars: 0, dollarsPerHour: 0, targetMet: false, paidCheckouts: 0, paypalWebhookReady: false, paypalSubscriptionsReady: false };
   const tagGateway = googleTagGatewayStatus(env);
   const measurement = googleMeasurementStatus(env);
   const indexNow = indexNowStatus(env);
@@ -4716,7 +4523,7 @@ ${googleTagGatewayBody(env)}
       <article class="card">
         <span class="label">$1/hour target</span>
         <h2>${revenue.targetMet ? "Met" : "Not met yet"}</h2>
-        <p>$${Number(revenue.dollarsPerHour || 0).toFixed(4)} / hour tracked from verified Stripe and PayPal webhooks.</p>
+        <p>$${Number(revenue.dollarsPerHour || 0).toFixed(4)} / hour tracked from verified PayPal captures and webhooks.</p>
       </article>
       <article class="card">
         <span class="label">Verified revenue</span>
@@ -4724,9 +4531,9 @@ ${googleTagGatewayBody(env)}
         <p>${Number(revenue.paidCheckouts || 0)} paid checkout${Number(revenue.paidCheckouts || 0) === 1 ? "" : "s"} recorded.</p>
       </article>
       <article class="card">
-        <span class="label">Payment webhooks</span>
-        <h2>${revenue.stripeWebhookReady && revenue.paypalWebhookReady ? "Both ready" : revenue.stripeWebhookReady || revenue.paypalWebhookReady ? "One ready" : "Needs setup"}</h2>
-        <p>Stripe: ${revenue.stripeWebhookReady ? "ready" : "pending"}. PayPal: ${revenue.paypalWebhookReady ? "ready" : "pending"}. <a href="/api/paypal/status">PayPal status</a>.</p>
+        <span class="label">PayPal payments</span>
+        <h2>${revenue.paypalWebhookReady ? "Ready" : "Needs setup"}</h2>
+        <p>PayPal webhook: ${revenue.paypalWebhookReady ? "ready" : "pending"}. <a href="/api/paypal/status">PayPal status</a>.</p>
       </article>
       <article class="card">
         <span class="label">Flagship</span>
@@ -4978,22 +4785,6 @@ ${googleTagGatewayBody(env)}
         leadForm.reset();
         ${turnstile.resetScript}
       }
-    });
-    document.querySelectorAll(".buy-button").forEach((button) => {
-      button.addEventListener("click", async () => {
-        button.textContent = "Opening...";
-        const response = await fetch("/api/agents/ads/checkout", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ packageId: button.dataset.package })
-        });
-        const result = await response.json();
-        if (result.checkoutUrl) {
-          location.href = result.checkoutUrl;
-        } else {
-          button.textContent = result.error || "Stripe not configured";
-        }
-      });
     });
     document.querySelectorAll(".paypal-buy-button").forEach((button) => {
       button.addEventListener("click", async () => {
@@ -5979,7 +5770,7 @@ function renderTrafficSpecialSection(env, page) {
       <div>
         <p class="eyebrow">More ways to pay</p>
         <h2>Use the method procurement prefers</h2>
-      <p>Approved sponsor placements are billed by PayPal invoice only after written terms are accepted. Eligible digital products may use one-time PayPal or card checkout; ACH, bank transfer, and custom procurement remain available by request.</p>
+      <p>Eligible digital products use secure PayPal checkout. Approved services and sponsor placements are billed through PayPal only after written scope or placement terms are accepted.</p>
       </div>
       <div class="page-list">
         ${paymentCards.map((item) => `<article>
@@ -5992,12 +5783,11 @@ function renderTrafficSpecialSection(env, page) {
     <section class="section split" id="payment-request">
       <div>
         <p class="eyebrow">Payment request</p>
-        <h2>Request invoice, bank transfer, or a custom payment link</h2>
+        <h2>Request a PayPal invoice or approved payment link</h2>
         <p>This form queues a follow-up task through the same lead pipeline used for sponsor and sales inquiries.</p>
         <div class="checks">
-          <div class="check ok"><strong>Invoice / ACH</strong><span>request by form</span></div>
-          <div class="check ok"><strong>PayPal</strong><span>request link or open configured link</span></div>
-          <div class="check ok"><strong>Bank transfer</strong><span>request details or open configured instructions</span></div>
+          <div class="check ok"><strong>PayPal Checkout</strong><span>eligible self-service products</span></div>
+          <div class="check ok"><strong>PayPal Invoice</strong><span>approved services and placements</span></div>
         </div>
       </div>
       <form class="lead-form" id="payment-form">
@@ -6008,13 +5798,7 @@ function renderTrafficSpecialSection(env, page) {
         <label><span>Offer</span><select name="payment_offer">
           ${paymentFormOptions.map((option) => `<option value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</option>`).join("")}
         </select></label>
-        <label><span>Method</span><select name="intent">
-          <option value="Invoice request">Invoice request</option>
-          <option value="ACH payment">ACH payment</option>
-          <option value="Bank transfer">Bank transfer</option>
-          <option value="PayPal">PayPal</option>
-          <option value="Crypto">Crypto</option>
-        </select></label>
+        <input type="hidden" name="intent" value="PayPal invoice request">
         <label><span>Budget</span><input name="budget" placeholder="$49/mo, invoice amount, or PO number"></label>
         <label><span>Notes</span><textarea name="goal" rows="4" placeholder="Billing contact, payment preference, or special terms."></textarea></label>
         ${turnstile.widget}
@@ -6173,9 +5957,9 @@ function renderSponsorCheckoutSection(env) {
 
 function renderAdCheckoutScript() {
   return `<script>
-    async function openSponsorCheckout(button, provider) {
+    async function openSponsorCheckout(button) {
       button.disabled = true;
-      button.textContent = provider === "paypal" ? "Opening PayPal..." : "Opening card checkout...";
+      button.textContent = "Opening PayPal...";
       try {
         if (typeof window.agentidTrackGoogleEvent === "function") {
           window.agentidTrackGoogleEvent("begin_checkout", {
@@ -6183,13 +5967,10 @@ function renderAdCheckoutScript() {
             currency: "USD",
             item_id: button.dataset.package,
             item_name: button.dataset.name,
-            payment_provider: provider
+            payment_provider: "paypal"
           });
         }
-        const endpoint = provider === "paypal"
-          ? "/api/paypal/subscriptions/create"
-          : "/api/agents/ads/checkout";
-        const response = await fetch(endpoint, {
+        const response = await fetch("/api/paypal/subscriptions/create", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ packageId: button.dataset.package })
@@ -6199,7 +5980,7 @@ function renderAdCheckoutScript() {
           location.href = result.checkoutUrl;
           return;
         }
-        button.textContent = result.error || (provider === "paypal" ? "PayPal not configured" : "Card checkout not configured");
+        button.textContent = result.error || "PayPal not configured";
         button.disabled = false;
       } catch (error) {
         button.textContent = "Checkout failed";
@@ -6207,10 +5988,7 @@ function renderAdCheckoutScript() {
       }
     }
     document.querySelectorAll(".paypal-buy-button").forEach((button) => {
-      button.addEventListener("click", () => openSponsorCheckout(button, "paypal"));
-    });
-    document.querySelectorAll(".buy-button").forEach((button) => {
-      button.addEventListener("click", () => openSponsorCheckout(button, "card"));
+      button.addEventListener("click", () => openSponsorCheckout(button));
     });
   </script>`;
 }

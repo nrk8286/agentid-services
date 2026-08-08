@@ -8,8 +8,8 @@ Status: production hardening applied and verified on 2026-07-31 America/Chicago.
 - Removed email-, lead-, purchase-, and session-ID customer-dashboard lookups; access now requires a high-entropy dashboard token.
 - Prevented caller-supplied onboarding data from creating a paid entitlement.
 - Separated administrator and autonomous-runtime authorization and removed query-string admin tokens.
-- Required payment-provider evidence before entitlement and made Stripe session fulfillment idempotent.
-- Enabled Stripe card checkout only after creating the canonical `.com` webhook, installing its signing secret, and verifying a signed production probe. Sponsor and custom-service checkout remain disabled until their fulfillment requirements are met.
+- Required a completed, exact PayPal capture plus a separate random access token before granting entitlement.
+- Standardized checkout on PayPal, added recovery for already-captured orders, and queued failed customer-delivery email for retry without resending successful delivery. Sponsor and custom-service checkout remain disabled until their fulfillment requirements are met.
 - Added rate limiting, request-size limits, Turnstile, private cache controls, and noindex controls.
 - Added an enforced CSP plus HSTS, frame, MIME, referrer, and permissions protections.
 - Restricted analytics/webhook relaying and suppressed analytics on private pages.

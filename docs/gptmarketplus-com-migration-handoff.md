@@ -27,13 +27,13 @@ Observed production evidence: live mode, PayPal credentials configured, PayPal w
 - Added Cloudflare custom domains for `gptmarketplus.com` and `www.gptmarketplus.com`.
 - Made `.com` the canonical `SITE_URL`, brand, structured-data origin, sitemap origin, robots host, social-preview origin, public-link registry, agent base URL, and documentation URL.
 - Preserved the existing KV/D1 customer and operational namespace with `STORAGE_SCOPE=agentid.services`; this avoids orphaning pre-migration state.
-- Added same-path HTTP 301 redirects from `agentid.services` and its `www` host, while preserving legacy Stripe and PayPal webhook paths.
+- Added same-path HTTP 301 redirects from `agentid.services` and its `www` host while preserving the PayPal webhook path.
 - Added a permanent `www.gptmarketplus.com` to apex redirect.
 - Retained `.org` compatibility recognition in the Worker for a future redirect if DNS is restored; no domain ownership, registrar, or zone was deleted.
 - Deployed Cloudflare Turnstile for the apex and `www`, stored the secret as a Worker secret, rendered the public widget, and verified a complete form payload without a token is rejected with HTTP 403.
 - Kept D1, KV, R2, Queue, Durable Object scheduler, Analytics Engine, AI Search, rate limiting, and Flagship bindings attached.
 
-Current Worker deployment version: `bbb31100-0857-4919-8e70-1f48676722cc`.
+Current Worker deployment version: `769c7f2b-da32-40ff-a158-4da23ce85687`.
 
 ## Commercial model
 
@@ -53,8 +53,8 @@ Removed or gated: unsupported card readiness, public sponsor subscriptions, unfu
 - Admin access uses `ADMIN_TOKEN`; autonomous runtime actions accept the separate runtime credential. Query-string admin tokens are rejected.
 - Lead-spider controls and prospect records require authorization.
 - Public agent state exposes aggregates rather than customer, task-detail, checkout-session, or token records.
-- Onboarding derives entitlement only from a verified paid Stripe session, paid purchase token, or completed PayPal order token.
-- Stripe storage is idempotent and requires `payment_status=paid`. Card checkout is enabled with a signed production webhook at `https://gptmarketplus.com/api/stripe/webhook`; the signing secret is stored only as a Cloudflare Worker secret.
+- Onboarding derives new payment entitlement only from a completed PayPal order plus its separate random access token. Legacy paid purchase tokens remain readable for existing records.
+- PayPal order creation, capture, exact amount/product/currency checks, secure access, and customer delivery are server controlled. Direct service and sponsor billing remain disabled until their fulfillment terms are approved.
 - Checkout and forms use rate limiting; forms additionally require Turnstile.
 - `npm audit` reported zero dependency vulnerabilities during the migration audit.
 
@@ -125,15 +125,14 @@ Playwright evidence covered 1440px desktop and 390px mobile layouts, canonical r
 
 1. **Old domain retirement — owner/registrar, urgent.** `gptmarketplus.org` expired 2026-05-23, is `pendingDelete`, and returns NXDOMAIN. Decide immediately whether to attempt registrar recovery (which may be impossible or fee-bearing) so the domain can serve 301 redirects for at least a year. Otherwise accept loss of redirect/search continuity and the future impersonation risk after deletion. No domain ownership action was taken.
 2. **Real purchase acceptance — owner/PayPal.** Authorize and complete one real $29 purchase, verify the provider receipt, gated download, refund/support path, and then refund it if desired.
-3. **Card-payment acceptance — owner/Stripe.** The live `.com` webhook and signing secret are configured and signed delivery was verified. A real authorized charge, customer delivery, and refund still need acceptance testing before the full financial lifecycle can be claimed proven.
-4. **Cloudflare zone hardening and Search Console Domain property — owner/Cloudflare.** The current Wrangler OAuth grant can deploy Workers but lacks DNS, Zone Settings, Cache Rules, and Zone WAF read/write permissions. Create a zone-scoped API token with `Zone Read`, `DNS Write`, `Zone Settings Write`, `Cache Purge`, `Cache Rules Edit`, `Transform Rules Edit`, `Zone WAF Edit`, and `Bot Management Edit` for `gptmarketplus.com`. Use it to set minimum TLS 1.2, enable DNSSEC, add CAA and Google verification TXT records, inspect/configure WAF and cache rules, and finish `sc-domain:gptmarketplus.com`. Until minimum TLS can be set at the zone, the Worker rejects TLS 1.0/1.1 application requests with HTTP 426. The production URL-prefix Search Console property and sitemap are already verified and operational.
+3. **Cloudflare zone hardening and Search Console Domain property — owner/Cloudflare.** The current Wrangler OAuth grant can deploy Workers but lacks DNS, Zone Settings, Cache Rules, and Zone WAF read/write permissions. Create a zone-scoped API token with `Zone Read`, `DNS Write`, `Zone Settings Write`, `Cache Purge`, `Cache Rules Edit`, `Transform Rules Edit`, `Zone WAF Edit`, and `Bot Management Edit` for `gptmarketplus.com`. Use it to set minimum TLS 1.2, enable DNSSEC, add CAA and Google verification TXT records, inspect/configure WAF and cache rules, and finish `sc-domain:gptmarketplus.com`. Until minimum TLS can be set at the zone, the Worker rejects TLS 1.0/1.1 application requests with HTTP 426. The production URL-prefix Search Console property and sitemap are already verified and operational.
 
 ## Rollback and recovery
 
 - Application rollback: `npx wrangler rollback ecdca4cb-3875-4a8c-b860-5d4fbf6b0822` restores the last verified pre-email `.com` build if the current deployment causes a regression.
 - Data recovery: current D1 Time Travel bookmark at handoff was `00000410-00000000-000050ba-0e86abe79b68e614a5e4c264eda1b4a8`; use `wrangler d1 time-travel restore agentid-services --bookmark=<bookmark>` only after confirming the restore target and impact.
 - KV continuity: do not remove `STORAGE_SCOPE=agentid.services` until data is explicitly migrated and reconciled.
-- Payment continuity: do not remove legacy webhook exceptions until PayPal/Stripe dashboards are confirmed on `.com` and delivery logs show no old-host traffic.
+- Payment continuity: keep the PayPal webhook configured on `.com` and monitor verified delivery events before retiring any old-host PayPal callback.
 - Domain rollback: custom domains and the retained `agentid.services` routes allow a previous Worker version to be redeployed without changing storage.
 
 ## Data-driven 30/60/90-day plan

@@ -17,6 +17,27 @@ const workerSource = readFileSync(new URL("../src/index.js", import.meta.url), "
 const siteSource = readFileSync(new URL("../src/agentid-site.js", import.meta.url), "utf8");
 const failures = [];
 
+if (/stripe/i.test(`${workerSource}\n${siteSource}\n${raw}`)) {
+  failures.push("runtime source and Worker configuration must remain PayPal-only");
+}
+if (!workerSource.includes('return handlePaypalOrderCreate(request, env);')
+    || !workerSource.includes('body.productId || body.packageId || body.buildId')) {
+  failures.push("one-time product, deposit, and software-build checkout must route through PayPal Orders");
+}
+if (!workerSource.includes('return handlePaypalSubscriptionCheckout(request, env);')) {
+  failures.push("eligible recurring checkout must route through PayPal subscriptions");
+}
+if (!workerSource.includes('const recovery = await paypalApiRequest(env, `/v2/checkout/orders/${encodeURIComponent(orderId)}`)')) {
+  failures.push("PayPal capture must recover a completed order when the initial response is lost");
+}
+if (!workerSource.includes('payload.type === "paypal_purchase_fulfillment"')
+    || !workerSource.includes('await fulfillPaypalPurchaseEmail(env, payload.payload?.orderId)')) {
+  failures.push("failed PayPal customer delivery must use the retryable fulfillment queue");
+}
+if (siteSource.includes('data-endpoint="/api/checkout"') || siteSource.includes("Pay by card")) {
+  failures.push("public product pages must not expose a non-PayPal checkout path");
+}
+
 if (!/"durable_objects"\s*:\s*\{[\s\S]{0,220}?"name"\s*:\s*"AGENT_SCHEDULER"[\s\S]{0,120}?"class_name"\s*:\s*"AgentScheduler"/.test(raw)) {
   failures.push("AGENT_SCHEDULER Durable Object binding is missing");
 }
