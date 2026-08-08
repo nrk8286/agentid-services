@@ -134,6 +134,8 @@ wrangler vars put GOOGLE_ADS_CONVERSION_ID
 wrangler vars put GOOGLE_ADS_CONVERSION_LABEL
 ```
 
+For paid acquisition, use separate destinations in `wrangler.jsonc`: `GOOGLE_ADS_LEAD_CONVERSION_ID` and `GOOGLE_ADS_LEAD_CONVERSION_LABEL` for accepted lead actions, plus `GOOGLE_ADS_PURCHASE_CONVERSION_ID` and `GOOGLE_ADS_PURCHASE_CONVERSION_LABEL` for provider-verified purchases. The older generic pair is retained only as a lead fallback; never reuse one conversion label for both goals.
+
 Stripe card checkout is enabled with a live `.com` webhook at `/api/stripe/webhook`; `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` are stored as Worker secrets. Webhook signatures are verified before paid entitlement is persisted, and the fulfillment path remains idempotent. The $29 AI Agent Launch Kit also supports the verified live PayPal order/capture flow and serves its download only after an exact completed capture. Completed captures send the secure delivery URL through the customer transactional-email adapter and store only sanitized provider results. For Google measurement, the site uses `GOOGLE_TAG_GATEWAY_PATH=/gtag` and serves that path from the Worker itself.
 
 ### Google Cloud Agent Search

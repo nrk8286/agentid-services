@@ -1,11 +1,14 @@
 import { DurableObject } from "cloudflare:workers";
 import {
+  activeSponsorPlacement,
   agentIdIndexablePaths,
   agentIdOneTimeProducts,
   handleAgentIdSiteRequest,
   renderLaunchKitMarkdown,
   sendCustomerTransactionalEmail,
 } from "./agentid-site.js";
+import { googleSearchConsoleStatus } from "./google-search-console.js";
+import { normalizePaypalInvoiceId, summarizePaypalInvoice } from "./paypal-invoice.js";
 
 const JSON_HEADERS = {
   "content-type": "application/json; charset=utf-8",
@@ -66,8 +69,13 @@ const LEGACY_WEBHOOK_HOSTS = new Set([
   "gptmarketplus.org",
   "www.gptmarketplus.org",
 ]);
+const AGENTID_SERVICES_HOSTS = new Set([
+  "agentid.services",
+  "www.agentid.services",
+]);
 const LEGACY_PUBLIC_HOSTS = new Set([
-  ...LEGACY_WEBHOOK_HOSTS,
+  "gptmarketplus.org",
+  "www.gptmarketplus.org",
   ...DOMAIN_CAMPAIGN_REDIRECTS.keys(),
 ]);
 const LEGACY_WEBHOOK_PATHS = new Set([
@@ -75,6 +83,25 @@ const LEGACY_WEBHOOK_PATHS = new Set([
   "/api/agents/paypal/webhook",
   "/api/stripe/webhook",
   "/api/agents/stripe/webhook",
+]);
+const AGENTID_THIN_TRAFFIC_REDIRECTS = new Map([
+  ["/ai-marketing-automation", "/services"],
+  ["/ai-lead-generation", "/ai-agents"],
+  ["/small-business-ai-tools", "/resources"],
+  ["/chatgpt-marketing", "/ai-agents"],
+  ["/ai-sales-funnel", "/services"],
+  ["/ai-seo-service", "/resources"],
+  ["/small-business-crm-automation", "/services"],
+  ["/business-process-automation", "/services"],
+  ["/lead-follow-up-software", "/ai-agents"],
+  ["/ai-automation-consulting", "/book-a-consultation"],
+  ["/bing-webmaster", "/resources"],
+  ["/google-search-console", "/resources"],
+]);
+const AGENTID_NON_INDEXABLE_TRAFFIC_PATHS = new Set([
+  "/sponsor",
+  "/advertise",
+  "/ad-network",
 ]);
 
 const AGENTS = [
@@ -144,8 +171,8 @@ const TRAFFIC_PAGES = [
   {
     path: "/ai-marketing-automation",
     title: "AI Marketing Automation for Small Business",
-    description: "Build an AI marketing system that captures leads, creates follow-up, and keeps revenue tasks moving.",
-    keywords: "AI marketing automation, lead capture, small business AI tools",
+    description: "Build a practical AI marketing automation system for lead capture, qualification, follow-up, sales handoff, and measurable pipeline results.",
+    keywords: "AI marketing automation for small business, AI powered marketing automation, automated lead follow up",
     intent: "small businesses looking for a practical AI marketing setup",
     bullets: ["Capture qualified leads", "Create follow-up tasks", "Keep revenue work moving"],
   },
@@ -166,6 +193,14 @@ const TRAFFIC_PAGES = [
     bullets: ["Pick revenue tools", "Avoid tool sprawl", "Start with lead capture"],
   },
   {
+    path: "/ai-receptionist-software",
+    title: "AI Receptionist Software Comparison for Small Business (2026)",
+    description: "Compare AI receptionist software by channel, booking, human handoff, compliance, agency resale, and current pricing before choosing a product.",
+    keywords: "AI receptionist software comparison, small business virtual receptionist, AI phone answering software",
+    intent: "small businesses and agencies comparing practical AI receptionist products",
+    bullets: ["Match the channel to customers", "Verify booking and handoff", "Test with real call scenarios"],
+  },
+  {
     path: "/chatgpt-marketing",
     title: "ChatGPT Marketing Agents",
     description: "Marketing agents for content, SEO, outreach, and conversion work that can run every day.",
@@ -175,27 +210,27 @@ const TRAFFIC_PAGES = [
   },
   {
     path: "/ai-sales-funnel",
-    title: "AI Sales Funnel Automation",
-    description: "A lightweight AI sales funnel for offers, sponsor placements, lead scoring, and Stripe Checkout.",
-    keywords: "AI sales funnel, Stripe checkout, sponsor placements",
+    title: "AI Sales Funnel Automation: 7-Stage Playbook",
+    description: "Build an AI sales funnel that captures demand, qualifies leads, follows up, routes human decisions, and measures revenue without deceptive automation.",
+    keywords: "AI sales funnel automation, AI marketing funnel, automated lead qualification",
     intent: "founders who want a sales funnel tied directly to checkout and follow-up",
     bullets: ["Clarify offer paths", "Sell sponsor slots", "Connect checkout to follow-up"],
   },
   {
     path: "/sponsor",
     title: "Sponsor GPTMarketPlus",
-    description: "Buy sponsor placements in front of AI agent identity, automation, and small business marketing buyers.",
+    description: "Apply for reviewed sponsor placements in front of AI agent, automation, and small-business software buyers.",
     keywords: "sponsor AI tools, advertise AI product, sponsored placement",
     intent: "AI tool vendors, agencies, courses, and software companies buying targeted placement",
-    bullets: ["Reach AI buyers", "Use monthly Stripe plans", "Get featured on agent surfaces"],
+    bullets: ["Reach AI buyers", "Approve written placement terms", "Pay by PayPal invoice after approval"],
   },
   {
     path: "/advertise",
     title: "Advertise AI Tools and Services",
-    description: "Run sponsor placements across the agent dashboard and buyer-intent pages with PayPal or card-based monthly billing.",
+    description: "Apply for reviewed sponsor placements across the dashboard and buyer-intent pages, with PayPal invoicing after written approval.",
     keywords: "advertise AI tools, sponsor placements, AI service ads",
-    intent: "sponsors that want a direct placement path without a sales call",
-    bullets: ["Show up on buyer pages", "Sell monthly placements", "Route clicks to checkout"],
+    intent: "relevant sponsors seeking a reviewed, clearly labeled placement",
+    bullets: ["Show up on buyer pages", "Confirm creative and dates", "Receive a PayPal invoice after approval"],
   },
   {
     path: "/ai-seo-service",
@@ -256,18 +291,18 @@ const TRAFFIC_PAGES = [
   {
     path: "/ad-network",
     title: "Ad Network Inventory",
-    description: "Sponsored placement inventory for buyer-intent pages, dashboard slots, and monthly placements.",
+    description: "Reviewed sponsored-placement inventory for buyer-intent pages, dashboard slots, and 30-day campaigns.",
     keywords: "ad network inventory, sponsor placements, dashboard ads",
-    intent: "advertisers who want a direct placement path with recurring billing",
-    bullets: ["Reserve placements", "Buy recurring visibility", "Track sponsor inventory"],
+    intent: "advertisers seeking a reviewed placement with transparent labeling and reporting",
+    bullets: ["Apply for placement", "Approve campaign terms", "Track sponsor inventory"],
   },
   {
     path: "/pricing",
     title: "GPTMarketPlus Pricing",
-    description: "Monthly sponsor placements, featured inventory, and fixed-scope builds with live PayPal and card checkout.",
-    keywords: "GPTMarketPlus pricing, sponsor placements, PayPal subscriptions, card checkout, fixed-scope builds",
+    description: "Reviewed sponsor placements, featured inventory, and fixed-scope builds with clear approval and payment paths.",
+    keywords: "GPTMarketPlus pricing, sponsor placements, PayPal invoices, fixed-scope builds",
     intent: "buyers comparing sponsor slots, featured placements, and productized builds",
-    bullets: ["Buy sponsor inventory", "Start a fixed-scope build", "Route interest to Stripe Checkout"],
+    bullets: ["Apply for sponsor inventory", "Start a fixed-scope build", "Confirm terms before payment"],
   },
 ];
 
@@ -577,13 +612,15 @@ export default {
       || hostHeader.startsWith("localhost") || hostHeader.startsWith("127.0.0.1") || hostHeader.startsWith("[::1]") || isWranglerDevPort;
     const requestHost = url.hostname.toLowerCase();
     const isCanonicalWww = requestHost === `www.${CANONICAL_HOST}`;
+    const isAgentIdServicesHost = AGENTID_SERVICES_HOSTS.has(requestHost);
+    const isAgentIdServicesWww = requestHost === "www.agentid.services";
     const isLegacyHost = LEGACY_PUBLIC_HOSTS.has(requestHost);
     const campaignTargetPath = DOMAIN_CAMPAIGN_REDIRECTS.get(requestHost);
     const preserveLegacyWebhook = LEGACY_WEBHOOK_HOSTS.has(requestHost) && LEGACY_WEBHOOK_PATHS.has(url.pathname);
     if (isCloudflareContext && !isLocalhost && !preserveLegacyWebhook
-        && (url.protocol === "http:" || isCanonicalWww || isLegacyHost)) {
+        && (url.protocol === "http:" || isCanonicalWww || isAgentIdServicesWww || isLegacyHost)) {
       url.protocol = "https:";
-      url.hostname = CANONICAL_HOST;
+      url.hostname = isAgentIdServicesHost ? "agentid.services" : CANONICAL_HOST;
       url.port = "";
       if (campaignTargetPath) {
         if (url.pathname === "/" || !url.pathname) url.pathname = campaignTargetPath;
@@ -603,6 +640,18 @@ export default {
     }
     if ((url.pathname === "/api/paypal/status" || url.pathname === "/api/agents/paypal/status") && request.method === "GET") {
       return jsonResponse(await paypalPublicStatus(env));
+    }
+    if ((url.pathname === "/api/adsense/status" || url.pathname === "/api/agents/adsense") && request.method === "GET") {
+      return jsonResponse(adsensePublicStatus(env));
+    }
+    if ((url.pathname === "/api/google-search-console/status" || url.pathname === "/api/agents/google-search-console") && request.method === "GET") {
+      return jsonResponse(await googleSearchConsoleStatus(env));
+    }
+    if ((url.pathname === "/api/paypal/invoices/status" || url.pathname === "/api/agents/paypal/invoices/status") && request.method === "GET") {
+      if (!(await hasAdminAccess(request, env))) {
+        return jsonResponse({ ok: false, error: "Admin access required." }, 403);
+      }
+      return jsonResponse(...await paypalInvoiceStatus(env, url.searchParams.get("invoice_id")));
     }
     if ((url.pathname === "/api/paypal/bootstrap" || url.pathname === "/api/agents/paypal/bootstrap") && request.method === "POST") {
       if (!(await hasAdminAccess(request, env))) {
@@ -660,6 +709,18 @@ export default {
       return handleGoogleTagGatewayRequest(request, env);
     }
     const pagePath = url.pathname.replace(/^\/agents(?=\/|$)/, "") || "/";
+    const thinTrafficTarget = isAgentIdSite(env) ? AGENTID_THIN_TRAFFIC_REDIRECTS.get(pagePath) : "";
+    if (thinTrafficTarget && ["GET", "HEAD"].includes(request.method)) {
+      const destination = new URL(`${siteUrl(env)}${thinTrafficTarget}`);
+      destination.search = url.search;
+      return new Response(null, {
+        status: 301,
+        headers: withSecurityHeaders({
+          location: destination.toString(),
+          "cache-control": "public, max-age=3600",
+        }),
+      });
+    }
     const cacheableKey = cacheKeyFor(request);
 
     if (cacheableKey) {
@@ -668,7 +729,9 @@ export default {
     }
 
     if (pagePath === "/") {
-      return cacheResponse(request, htmlResponse(renderDashboard(env, await publicState(env))));
+      return cacheResponse(request, htmlResponse(renderDashboard(env, await publicState(env)), 200, isAgentIdSite(env) ? {
+        "x-robots-tag": "noindex,nofollow,noarchive",
+      } : {}));
     }
 
     if (url.pathname === "/robots.txt" || pagePath === "/robots.txt") {
@@ -724,11 +787,15 @@ export default {
     }
 
     if (pagePath === "/social") {
-      return cacheResponse(request, htmlResponse(renderSocialPage(env)));
+      return cacheResponse(request, htmlResponse(renderSocialPage(env), 200, isAgentIdSite(env) ? {
+        "x-robots-tag": "noindex,nofollow,noarchive",
+      } : {}));
     }
 
     if (pagePath === "/submission-status") {
-      return cacheResponse(request, htmlResponse(renderSubmissionStatusPage(env)));
+      return cacheResponse(request, htmlResponse(renderSubmissionStatusPage(env), 200, isAgentIdSite(env) ? {
+        "x-robots-tag": "noindex,nofollow,noarchive",
+      } : {}));
     }
 
     if (url.pathname === "/og-image.svg") {
@@ -736,17 +803,24 @@ export default {
     }
 
     if (url.pathname === "/software-builds" || pagePath === "/software-builds") {
-      return cacheResponse(request, htmlResponse(renderSoftwareBuildsPage(env)));
+      return cacheResponse(request, htmlResponse(renderSoftwareBuildsPage(env), 200, isAgentIdSite(env) ? {
+        "x-robots-tag": "noindex,nofollow,noarchive",
+      } : {}));
     }
 
     const softwareBuild = SOFTWARE_BUILDS.find((item) => url.pathname === `/software-builds/${item.id}` || pagePath === `/software-builds/${item.id}`);
     if (softwareBuild) {
-      return cacheResponse(request, htmlResponse(renderSoftwareBuildPage(env, softwareBuild)));
+      return cacheResponse(request, htmlResponse(renderSoftwareBuildPage(env, softwareBuild), 200, isAgentIdSite(env) ? {
+        "x-robots-tag": "noindex,nofollow,noarchive",
+      } : {}));
     }
 
     const trafficPage = TRAFFIC_PAGES.find((page) => url.pathname === page.path || pagePath === page.path);
     if (trafficPage) {
-      return cacheResponse(request, htmlResponse(renderTrafficPage(env, trafficPage)));
+      const noIndex = isAgentIdSite(env) && AGENTID_NON_INDEXABLE_TRAFFIC_PATHS.has(trafficPage.path);
+      return cacheResponse(request, htmlResponse(renderTrafficPage(env, trafficPage), 200, {
+        "x-robots-tag": noIndex ? "noindex,nofollow,noarchive" : "index,follow,max-image-preview:large",
+      }));
     }
 
     if (url.pathname === "/api/agents/health") {
@@ -1150,6 +1224,41 @@ function paypalCredentialsReady(env) {
   return Boolean(String(env.PAYPAL_CLIENT_ID || "").trim() && String(env.PAYPAL_CLIENT_SECRET || "").trim());
 }
 
+function adsensePublicStatus(env) {
+  const publisherId = String(env.ADSENSE_CLIENT_ID || "").trim();
+  const adSlot = String(env.ADSENSE_AD_SLOT || "").trim();
+  const enabled = String(env.ADSENSE_ENABLED || "").trim().toLowerCase() === "true";
+  const allowedStates = new Set(["not_submitted", "under_review", "approved", "needs_attention", "rejected"]);
+  const configuredState = String(env.ADSENSE_REVIEW_STATE || "not_submitted").trim().toLowerCase();
+  const reviewState = allowedStates.has(configuredState) ? configuredState : "not_submitted";
+  const submittedAtValue = Date.parse(String(env.ADSENSE_REVIEW_SUBMITTED_AT || ""));
+  const reviewSubmittedAt = Number.isFinite(submittedAtValue) ? new Date(submittedAtValue).toISOString() : null;
+  const approved = reviewState === "approved";
+  return {
+    ok: true,
+    provider: "google_adsense",
+    publisherConfigured: /^ca-pub-\d+$/.test(publisherId),
+    adUnitConfigured: /^\d+$/.test(adSlot),
+    loaderEnabled: enabled,
+    adsTxtPublished: enabled && /^ca-pub-\d+$/.test(publisherId),
+    reviewState,
+    reviewSubmittedAt,
+    accountApproved: approved,
+    adsServingVerified: false,
+    validImpressionsVerified: false,
+    earningsVerified: false,
+    paymentThresholdReached: false,
+    paymentSettled: false,
+    verifiedAdvertisingRevenueCents: 0,
+    providerEvidence: reviewState === "under_review"
+      ? "Google AdSense mandatory account email: site under review"
+      : "operator-maintained provider status",
+    note: approved
+      ? "Approval is recorded, but serving, valid impressions, earnings, threshold, and settlement require separate evidence."
+      : "Publisher code and ads.txt do not prove approval, serving, earnings, or settlement.",
+  };
+}
+
 async function paypalCatalog(env) {
   const stored = await getJson(env, "paypal:catalog:v1") || {};
   return {
@@ -1258,6 +1367,18 @@ async function paypalApiRequest(env, path, options = {}) {
   return { ok: true, status: response.status, result };
 }
 
+async function paypalInvoiceStatus(env, rawInvoiceId) {
+  const invoiceId = normalizePaypalInvoiceId(rawInvoiceId);
+  if (!invoiceId) {
+    return [{ ok: false, error: "A valid PayPal invoice ID is required." }, 400];
+  }
+  const response = await paypalApiRequest(env, `/v2/invoicing/invoices/${encodeURIComponent(invoiceId)}`);
+  if (!response.ok) {
+    return [{ ok: false, error: response.error, providerStatus: response.status || null }, response.status || 502];
+  }
+  return [summarizePaypalInvoice(response.result, { mode: paypalMode(env) }), 200];
+}
+
 async function bootstrapPaypalSponsorCatalog(env) {
   if (!paypalCredentialsReady(env)) {
     return { ok: false, error: "Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET before creating live plans." };
@@ -1353,6 +1474,8 @@ async function bootstrapPaypalSponsorCatalog(env) {
           "PAYMENT.SALE.DENIED",
           "PAYMENT.SALE.REFUNDED",
           "PAYMENT.SALE.REVERSED",
+          "INVOICING.INVOICE.PAID",
+          "INVOICING.INVOICE.REFUNDED",
         ].map((name) => ({ name })),
       },
     });
@@ -2599,8 +2722,8 @@ function salesPlayFor(haystack, env) {
   if (/sponsor|advertise|featured|paid/.test(haystack)) {
     return {
       title: "Sponsor placement sale",
-      nextStep: "Pitch the $49/mo Sponsor Starter placement and include the live Checkout link.",
-      ctaUrl: sponsorStarterCheckoutUrl(env) || `${siteUrl(env)}/sponsor`,
+      nextStep: "Pitch the $49/30-day Sponsor Starter placement and include the reviewed application link.",
+      ctaUrl: `${siteUrl(env)}/contact?intent=sponsor&package=sponsor_starter_monthly`,
     };
   }
   if (/submit|directory|list|tool/.test(haystack)) {
@@ -2972,10 +3095,10 @@ function recommendationFor(agentId, seed, weakSpot, leadCount, pendingCount) {
   if (agentId === "content") return `Publish a buyer-intent asset about ${angle}.`;
   if (agentId === "outreach") return `Find 10 relevant communities or partners where ${angle} is already being discussed.`;
   if (agentId === "seo") return `Expand sitemap coverage and publish or refresh a search-intent page for ${angle}.`;
-  if (agentId === "ads") return "Package sponsor inventory, rotate it across buyer-intent pages, and route paid placements through Stripe Checkout.";
+  if (agentId === "ads") return "Package sponsor inventory, review relevance, and route accepted placements to a PayPal invoice after written approval.";
   if (agentId === "publisher") return `Ship one new page or update that supports ${angle} and points to the lead form.`;
   if (agentId === "traffic") return "Push the buyer-intent pages into directories, partner lists, and owned profiles.";
-  if (agentId === "closer") return "Chase hot leads, sponsor clicks, and checkout starts with the fastest possible follow-up.";
+  if (agentId === "closer") return "Follow up on qualified leads and sponsor applications with reviewed terms and a clear next step.";
   if (agentId === "lead_spider") return "Scan public prospect sources, score sponsor/listing/audit fits, and queue sales actions.";
   return `Prioritize ${leadCount} captured leads and reduce the ${pendingCount} open-task backlog.`;
 }
@@ -3056,7 +3179,7 @@ function tasksFor(env, agentId, weakSpot, leadCount, pendingCount) {
   if (agentId === "lead_spider") {
     return [
       "Run the public lead spider and refresh the hot prospect board.",
-      "Work the top five hot prospects with sponsor checkout or revenue-audit CTAs.",
+      "Work the top five hot prospects with sponsor-application or revenue-audit calls to action.",
       "Add one new public source page where AI tool vendors or small-business buyers already gather.",
     ];
   }
@@ -3089,9 +3212,9 @@ function adPackages(env) {
       id: "sponsor_starter_monthly",
       name: "Sponsor Starter",
       amount: 4900,
-      priceLabel: "$49/mo",
+      priceLabel: "$49 / 30 days",
       billing: { mode: "subscription", interval: "month" },
-      description: `Monthly sponsor visibility on the ${brandName(env)} agent dashboard.`,
+      description: `A 30-day sponsor placement on the ${brandName(env)} agent dashboard.`,
       placement: `${siteUrl(env)}/agents/`,
       checkoutUrl: sponsorStarterCheckoutUrl(env),
     },
@@ -3099,18 +3222,18 @@ function adPackages(env) {
       id: "featured_tool_monthly",
       name: "Featured AI Tool",
       amount: 9900,
-      priceLabel: "$99/mo",
+      priceLabel: "$99 / 30 days",
       billing: { mode: "subscription", interval: "month" },
-      description: "Monthly featured placement for an AI, automation, or small-business tool.",
+      description: "A 30-day featured placement for an AI, automation, or small-business tool.",
       placement: `${siteUrl(env)}/agents/`,
     },
     {
       id: "growth_partner_monthly",
       name: "Growth Partner",
       amount: 14900,
-      priceLabel: "$149/mo",
+      priceLabel: "$149 / 30 days",
       billing: { mode: "subscription", interval: "month" },
-      description: "Monthly sponsor package for dashboard placement, lead follow-up content, and partner mentions.",
+      description: "A 30-day sponsor package for dashboard placement, lead follow-up content, and partner mentions.",
       placement: `${siteUrl(env)}/agents/`,
     },
   ];
@@ -3146,8 +3269,8 @@ function paymentMethodCards(env) {
     {
       name: "Stripe Checkout",
       href: "#pricing-packages",
-      status: "Live now",
-      description: "Open the recurring sponsor or fixed-scope checkout.",
+      status: "Eligible one-time offers",
+      description: "Use card checkout only where a live one-time offer explicitly provides it.",
     },
     {
       name: "Invoice / ACH",
@@ -3158,8 +3281,8 @@ function paymentMethodCards(env) {
     {
       name: "PayPal",
       href: paypalLink || "#payment-request",
-      status: paypalLink ? "Configured" : "Request link",
-      description: paypalLink ? "Open the configured PayPal payment link." : "Request a PayPal payment link.",
+      status: paypalLink ? "Configured" : "Invoice after approval",
+      description: paypalLink ? "Open the configured PayPal payment link." : "Approved sponsors receive a PayPal invoice after accepting written terms.",
     },
     {
       name: "Bank transfer",
@@ -3233,6 +3356,7 @@ function trafficPageTemplates(env) {
     "/ai-marketing-automation",
     "/ai-lead-generation",
     "/small-business-ai-tools",
+    "/ai-receptionist-software",
     "/chatgpt-marketing",
     "/ai-sales-funnel",
     "/sponsor",
@@ -3240,7 +3364,10 @@ function trafficPageTemplates(env) {
     "/ad-network",
     "/pricing",
   ]);
-  return TRAFFIC_PAGES.filter((page) => legacyPaths.has(page.path)).map((page) => ({
+  return TRAFFIC_PAGES.filter((page) => legacyPaths.has(page.path)
+    && (!isAgentIdSite(env)
+      || (!AGENTID_THIN_TRAFFIC_REDIRECTS.has(page.path)
+        && !AGENTID_NON_INDEXABLE_TRAFFIC_PATHS.has(page.path)))).map((page) => ({
     ...page,
     title: brandDisplayText(env, page.title),
     description: brandDisplayText(env, page.description),
@@ -3387,7 +3514,7 @@ function dailyPlaybook(env, state, now = new Date()) {
     ads: `Keep ${sponsorPackage.name} visible as an application tier, test one tighter sponsor message, and route interest to reviewed placement approval.`,
     sales: revenue && revenue.targetMet
       ? `Double down on the offers that are already paying, then follow up every hot lead and sponsor signal the same day.`
-      : `Focus the closer on hot leads, sponsor interest, and checkout starts until verified revenue clears the $1/hour target.`,
+      : `Focus the closer on qualified leads, sponsor interest, and accepted placement terms until verified revenue clears the $1/hour target.`,
   };
 }
 
@@ -4936,8 +5063,7 @@ Host: ${new URL(siteUrl(env)).host}
 }
 
 function renderSitemap(env) {
-  const urls = [
-    { path: "/", changefreq: "daily", priority: "1.0" },
+  const operationalUrls = isAgentIdSite(env) ? [] : [
     { path: "/agents/", changefreq: "daily", priority: "0.8" },
     { path: "/social", changefreq: "weekly", priority: "0.78" },
     { path: "/submission-status", changefreq: "weekly", priority: "0.7" },
@@ -4945,6 +5071,10 @@ function renderSitemap(env) {
     { path: "/playbook", changefreq: "daily", priority: "0.75" },
     { path: "/software-builds", changefreq: "daily", priority: "0.85" },
     ...SOFTWARE_BUILDS.map((build) => ({ path: `/software-builds/${build.id}`, changefreq: "weekly", priority: "0.78" })),
+  ];
+  const urls = [
+    { path: "/", changefreq: "daily", priority: "1.0" },
+    ...operationalUrls,
     ...trafficPageTemplates(env).map((page) => ({ path: page.path, changefreq: "weekly", priority: "0.75" })),
   ];
   const today = new Date().toISOString().slice(0, 10);
@@ -5572,7 +5702,7 @@ function renderTrafficPage(env, page) {
   const related = trafficPageTemplates(env).filter((item) => item.path !== page.path).slice(0, 4);
   const showSponsorRail = page.path === "/sponsor" || page.path === "/advertise" || page.path === "/ad-network" || page.path === "/pricing";
   const primaryCtaHref = page.path === "/pricing" ? "#pricing-packages" : "/pricing";
-  const primaryCtaLabel = page.path === "/pricing" ? "Buy now" : "View pricing";
+  const primaryCtaLabel = page.path === "/pricing" ? "Review options" : "View pricing";
   const specialSection = renderTrafficSpecialSection(env, page);
   return `<!doctype html>
 <html lang="en">
@@ -5583,7 +5713,7 @@ ${googleTagGatewayHead(env)}
   <title>${escapeHtml(page.title)} | ${escapeHtml(brandName(env))}</title>
   <meta name="description" content="${escapeHtml(page.description)}">
   <meta name="keywords" content="${escapeHtml(page.keywords)}">
-  <meta name="robots" content="index,follow,max-image-preview:large">
+  <meta name="robots" content="${isAgentIdSite(env) && AGENTID_NON_INDEXABLE_TRAFFIC_PATHS.has(page.path) ? "noindex,nofollow,noarchive" : "index,follow,max-image-preview:large"}">
   <meta property="og:title" content="${escapeHtml(page.title)}">
   <meta property="og:description" content="${escapeHtml(page.description)}">
   <meta property="og:url" content="${siteUrl(env)}${page.path}">
@@ -5626,6 +5756,7 @@ ${googleTagGatewayBody(env)}
       </div>
     </section>
     ${specialSection}
+    ${showSponsorRail || activeSponsorPlacement(env) ? renderActiveSponsorInventory(env) : ""}
     ${showSponsorRail ? renderSponsorCheckoutSection(env) : renderAdInventorySection(env, "Automated ads", page.path === "/ad-network" ? "This page is the canonical sponsor inventory view for all recurring placements." : "Sponsor placements are sold through the live dashboard, with buyer-intent pages feeding the same inventory.") }
     <section class="section">
       <p class="eyebrow">Related pages</p>
@@ -5634,13 +5765,162 @@ ${googleTagGatewayBody(env)}
         ${related.map((item) => `<article><a href="${escapeHtml(item.path)}"><strong>${escapeHtml(item.title)}</strong></a><p>${escapeHtml(item.description)}</p><span>${escapeHtml(item.keywords)}</span></article>`).join("")}
       </div>
     </section>
-    ${showSponsorRail ? renderAdCheckoutScript() : ""}
+    ${renderActiveSponsorTrackingScript(env)}
   </main>
 </body>
 </html>`;
 }
 
 function renderTrafficSpecialSection(env, page) {
+  if (page.path === "/sponsor" || page.path === "/advertise") {
+    return `<section class="section">
+      <p class="eyebrow">Founding sponsor delivery terms</p>
+      <h2>Know exactly what the 30-day placement includes</h2>
+      <div class="page-list">
+        <article>
+          <strong>Visible placement</strong>
+          <p>A clearly labeled Sponsored placement using the approved name, copy, and HTTPS destination on the agreed GPTMarketPlus inventory.</p>
+          <span>Exact pages, creative, destination, and dates are confirmed before invoicing.</span>
+        </article>
+        <article>
+          <strong>Bounded delivery</strong>
+          <p>The placement runs for 30 consecutive days inside the written start and end window. It is not activated until PayPal payment is verified.</p>
+          <span>No automatic renewal or recurring charge is enabled for founding placements.</span>
+        </article>
+        <article>
+          <strong>Privacy-safe report</strong>
+          <p>The sponsor receives aggregate viewable impressions and genuine outbound clicks within five business days after the placement ends.</p>
+          <span>No visitor identity, email address, or customer-level data is included.</span>
+        </article>
+        <article>
+          <strong>No performance promise</strong>
+          <p>GPTMarketPlus does not guarantee traffic, clicks, leads, sales, rankings, or exclusivity. The purchased deliverable is the disclosed placement and report.</p>
+          <span>Results depend on audience demand, offer fit, creative, and destination experience.</span>
+        </article>
+      </div>
+      <div class="panel">
+        <h3>Cancellation and delivery baseline</h3>
+        <ul>
+          <li>There is no charge to apply or review the fit.</li>
+          <li>The sponsor may decline before paying the PayPal invoice at no cost.</li>
+          <li>If GPTMarketPlus cannot start the agreed placement, the sponsor receives a full refund.</li>
+          <li>If GPTMarketPlus causes an interruption, the sponsor receives replacement days or a proportional refund for undelivered days.</li>
+          <li>The final written placement terms control and must be accepted before the invoice is sent.</li>
+        </ul>
+      </div>
+    </section>`;
+  }
+
+  if (page.path === "/ai-marketing-automation") {
+    return `<section class="section">
+      <p class="eyebrow">Practical implementation</p>
+      <h2>A small-business AI marketing system in four connected stages</h2>
+      <p>Useful AI marketing automation starts with a real customer action and ends with an accountable next step. It should not publish generic content or send unlimited messages simply because a model can generate them.</p>
+      <div class="page-list">
+        <article>
+          <strong>1. Capture intent</strong>
+          <p>Use a focused landing page, form, call, or chat to record what the buyer needs, the source that brought them in, and consent for the requested follow-up.</p>
+          <span>Measure qualified sessions and completed inquiries</span>
+        </article>
+        <article>
+          <strong>2. Qualify and route</strong>
+          <p>Ask only the questions that change the next action. Route urgent, high-value, sensitive, or ambiguous requests to a named person instead of letting automation improvise.</p>
+          <span>Measure qualified-lead rate and routing accuracy</span>
+        </article>
+        <article>
+          <strong>3. Follow up with context</strong>
+          <p>Acknowledge the request, preserve the submitted details, give a realistic response window, and stop the sequence when the buyer replies or opts out.</p>
+          <span>Measure response time, replies, bookings, and opt-outs</span>
+        </article>
+        <article>
+          <strong>4. Learn from revenue outcomes</strong>
+          <p>Connect each lead to its source and final outcome. Improve the page, offer, and handoff using qualified conversations and settled revenue—not raw message volume.</p>
+          <span>Measure pipeline and verified revenue by source</span>
+        </article>
+      </div>
+      <div class="panel">
+        <h3>Build the workflow from these practical resources</h3>
+        <p><a href="/guides/ai-lead-follow-up">Use the AI lead follow-up workflow</a>, adapt the <a href="/templates/lead-follow-up-scripts">consent-aware follow-up scripts</a>, and test the economics with the <a href="/tools/ai-automation-roi-calculator">AI automation ROI calculator</a>.</p>
+      </div>
+    </section>`;
+  }
+
+  if (page.path === "/ai-sales-funnel") {
+    return `<section class="section">
+      <p class="eyebrow">Seven-stage playbook</p>
+      <h2>What an AI sales funnel should automate—and where a person decides</h2>
+      <p>The funnel is a measured sequence, not a chatbot pasted onto a website. Give every stage one owner, one exit condition, and one metric before adding another tool.</p>
+      <div class="page-list">
+        <article><strong>1. Demand</strong><p>Publish a useful page that answers a specific buying question and earns the next action.</p><span>Search impressions and qualified visits</span></article>
+        <article><strong>2. Capture</strong><p>Collect the minimum contact and project details needed to respond, with clear consent.</p><span>Completed qualified inquiries</span></article>
+        <article><strong>3. Qualification</strong><p>Score fit, urgency, location, scope, and readiness using visible rules.</p><span>Qualified-lead rate</span></article>
+        <article><strong>4. Acknowledgment</strong><p>Confirm receipt immediately, preserve context, and state when a person will respond.</p><span>Time to first useful response</span></article>
+        <article><strong>5. Human decision</strong><p>Let a person approve price, promises, exceptions, sensitive claims, and high-impact actions.</p><span>Accepted opportunity rate</span></article>
+        <article><strong>6. Checkout or booking</strong><p>Use a clear proposal, invoice, or booking step that matches the approved scope.</p><span>Completed bookings or settled payments</span></article>
+        <article><strong>7. Attribution</strong><p>Reconcile the traffic source, fees, refunds, and final outcome before calling the funnel profitable.</p><span>Verified net profit</span></article>
+      </div>
+      <div class="panel">
+        <h3>Start with the handoff, not the tool list</h3>
+        <p>Map the sequence with the <a href="/guides/ai-lead-follow-up">AI lead follow-up playbook</a>, calculate a conservative business case in the <a href="/tools/ai-automation-roi-calculator">ROI calculator</a>, and review <a href="/ai-marketing-automation">the connected AI marketing automation system</a>.</p>
+      </div>
+    </section>`;
+  }
+
+  if (page.path === "/ai-receptionist-software") {
+    return `<section class="section">
+      <p class="eyebrow">Editorial comparison</p>
+      <h2>Start with the communication channel and operating model</h2>
+      <p>There is no universal best AI receptionist. Shortlist products by where customers already contact the business, who operates the system, which calendars or CRMs must connect, and when a human must take over.</p>
+      <div class="panel">
+        <h3>Need prices before comparing features?</h3>
+        <p>Use the <a href="/guides/ai-receptionist-cost"><strong>AI receptionist pricing and cost comparison</strong></a> for a dated snapshot of published plans, included usage, overage models, setup questions, and total-cost checks.</p>
+      </div>
+      <div class="page-list">
+        <article>
+          <a href="https://www.heyfirstcall.com/" target="_blank" rel="noopener"><strong>Firstcall</strong></a>
+          <p>The vendor positions Firstcall as a fully managed, white-label phone receptionist for agencies, including script setup, calendar and CRM integration, monitoring, and reporting.</p>
+          <span>Review when an agency wants a managed resale model instead of operating voice infrastructure.</span>
+        </article>
+        <article>
+          <a href="https://receply.net/" target="_blank" rel="noopener"><strong>Receply</strong></a>
+          <p>The vendor describes a WhatsApp Business receptionist that answers, qualifies, books, supports multiple languages, and allows human takeover.</p>
+          <span>Review when customers already use WhatsApp and chat-based handoff matters.</span>
+        </article>
+        <article>
+          <a href="https://www.reachwellhq.com/" target="_blank" rel="noopener"><strong>Reachwell</strong></a>
+          <p>The vendor focuses on local service businesses, with call answering, job booking, text summaries, and routing for urgent or high-value calls.</p>
+          <span>Review for trades and local services where a missed phone call can mean a lost job.</span>
+        </article>
+        <article>
+          <a href="https://www.voxtell.ai/" target="_blank" rel="noopener"><strong>Voxtell AI</strong></a>
+          <p>The vendor offers white-label voice agents for resellers and describes voice, SMS, and chat workflows with CRM and automation integrations.</p>
+          <span>Review when a reseller wants broader omnichannel packaging under its own brand.</span>
+        </article>
+        <article>
+          <a href="https://withconnect.ai/" target="_blank" rel="noopener"><strong>WithConnect AI</strong></a>
+          <p>The vendor describes a 24/7 phone receptionist with appointment booking, structured intake, urgent-call handoff, AI disclosure, and recording-consent controls.</p>
+          <span>Review when California-oriented compliance and professional-services intake are central requirements.</span>
+        </article>
+        <article>
+          <a href="https://www.rxpt.ai/" target="_blank" rel="noopener"><strong>Rexpt</strong></a>
+          <p>The vendor positions Rexpt for 24/7 call answering, lead qualification, calendar booking, after-hours coverage, and integrations for small-business workflows.</p>
+          <span>Review when a business wants a self-serve starting point with broader front-desk automation options.</span>
+        </article>
+      </div>
+      <div class="panel">
+        <h3>Questions to ask in every demo</h3>
+        <ul>
+          <li>Can the system complete a booking in the real calendar, not only collect a message?</li>
+          <li>What triggers immediate transfer to a human, and what happens when the transfer fails?</li>
+          <li>Can recordings, transcripts, retention, and consent settings meet the business's legal and privacy obligations?</li>
+          <li>How are incorrect answers reviewed, corrected, and prevented from recurring?</li>
+          <li>What is included in setup, usage, monitoring, and ongoing support?</li>
+        </ul>
+      </div>
+      <p><small>Editorial disclosure: these products were selected for distinct operating models, not because they paid for inclusion. Product descriptions summarize vendor-published information checked August 7, 2026. Verify current capabilities and terms directly with each vendor. Any paid placement on GPTMarketPlus is labeled Sponsored.</small></p>
+    </section>`;
+  }
+
   if (page.path === "/bing-webmaster") {
     return `<section class="section split">
       <div>
@@ -5675,8 +5955,8 @@ function renderTrafficSpecialSection(env, page) {
     return `<section class="section split">
       <div>
         <p class="eyebrow">Ad network</p>
-        <h2>Buy placement across the buyer-intent surface</h2>
-        <p>The dashboard and search pages expose monthly sponsor inventory that can be sold directly without waiting for a classic ad network approval flow.</p>
+        <h2>Apply for placement across the buyer-intent surface</h2>
+        <p>The dashboard and search pages expose reviewed 30-day sponsor inventory without depending on a classic ad-network approval flow. Billing begins only after written placement terms are accepted.</p>
       </div>
       <div class="checks">
         <div class="check ok"><strong>Dashboard sponsor slot</strong><span>${escapeHtml(adPackages(env)[0].priceLabel)}</span></div>
@@ -5694,7 +5974,7 @@ function renderTrafficSpecialSection(env, page) {
       <div>
         <p class="eyebrow">More ways to pay</p>
         <h2>Use the method procurement prefers</h2>
-      <p>Use PayPal for recurring sponsor subscriptions or card checkout for the same monthly inventory. Invoice, ACH, bank transfer, and custom procurement remain available by request.</p>
+      <p>Approved sponsor placements are billed by PayPal invoice only after written terms are accepted. Eligible digital products may use one-time PayPal or card checkout; ACH, bank transfer, and custom procurement remain available by request.</p>
       </div>
       <div class="page-list">
         ${paymentCards.map((item) => `<article>
@@ -5871,7 +6151,7 @@ function renderSponsorCheckoutSection(env) {
   return `<section class="section split checkout-panel" id="pricing-packages">
     <div>
       <p class="eyebrow">Reviewed applications</p>
-      <h2>Monthly sponsor inventory requires approval</h2>
+      <h2>30-day sponsor inventory requires approval</h2>
       <p>${escapeHtml(sponsorPackage.description)} Billing remains disabled until relevance, placement, and fulfillment are confirmed.</p>
       <p><a href="/software-builds">Review build scopes</a> or <a href="/sponsor">apply for sponsor review</a>.</p>
     </div>
@@ -5880,7 +6160,7 @@ function renderSponsorCheckoutSection(env) {
         <strong>${escapeHtml(item.name)}</strong>
         <span>${escapeHtml(item.priceLabel)}</span>
         <p>${escapeHtml(item.description)}</p>
-        <a class="checkout-link" href="/sponsor">Request review</a>
+        <a class="checkout-link" href="/contact?intent=sponsor&amp;package=${encodeURIComponent(item.id)}">Request review</a>
       </article>`).join("")}
     </div>
   </section>`;
@@ -6019,10 +6299,89 @@ function renderAdInventorySection(env, title, description) {
         <strong>${escapeHtml(item.name)}</strong>
         <span>${escapeHtml(item.priceLabel)}</span>
         <p>${escapeHtml(item.description)}</p>
-        <a class="checkout-link" href="/sponsor">Request review</a>
+        <a class="checkout-link" href="/contact?intent=sponsor&amp;package=${encodeURIComponent(item.id)}">Request review</a>
       </article>`).join("")}
     </div>
   </section>`;
+}
+
+function renderActiveSponsorInventory(env) {
+  const sponsor = activeSponsorPlacement(env);
+  if (!sponsor) {
+    return `<section class="section"><p class="eyebrow">Current inventory</p><h2>Founding sponsor slot available</h2><p>No paid sponsor is currently active. Applications are reviewed before billing.</p></section>`;
+  }
+  return `<section class="section split checkout-panel" aria-label="Current sponsor" data-sponsor-placement="${escapeHtml(sponsor.id)}">
+    <div>
+      <p class="eyebrow">Sponsored</p>
+      <h2>${escapeHtml(sponsor.name)}</h2>
+      <p>${escapeHtml(sponsor.copy)}</p>
+    </div>
+    <div class="packages">
+      <article>
+        <strong>Active placement</strong>
+        <span>${escapeHtml(sponsor.startsAt.slice(0, 10))} to ${escapeHtml(sponsor.endsAt.slice(0, 10))}</span>
+        <a class="checkout-link" href="${escapeHtml(sponsor.destinationUrl)}" target="_blank" rel="sponsored nofollow noopener" data-sponsor-click="${escapeHtml(sponsor.id)}">Visit sponsor</a>
+      </article>
+    </div>
+  </section>`;
+}
+
+function renderActiveSponsorTrackingScript(env) {
+  const sponsor = activeSponsorPlacement(env);
+  if (!sponsor) return "";
+  return `<script>
+    (function() {
+      const placement = document.querySelector('[data-sponsor-placement="${escapeJs(sponsor.id)}"]');
+      if (!placement) return;
+      const sessionKey = "gptmarketplus.sponsor.session.v1";
+      let sessionId = "";
+      try {
+        sessionId = sessionStorage.getItem(sessionKey) || "";
+        if (!sessionId) {
+          sessionId = crypto.randomUUID();
+          sessionStorage.setItem(sessionKey, sessionId);
+        }
+      } catch {
+        sessionId = crypto.randomUUID();
+      }
+      const record = function(eventName, properties) {
+        const payload = {
+          eventName,
+          sourcePage: location.pathname + location.search,
+          sessionId,
+          properties: Object.assign({ sponsor_id: "${escapeJs(sponsor.id)}" }, properties || {}),
+        };
+        if (typeof window.agentidTrackGoogleEvent === "function") {
+          window.agentidTrackGoogleEvent(eventName, payload.properties);
+        }
+        fetch("/api/events", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          keepalive: true,
+          body: JSON.stringify(payload),
+        }).catch(function() {});
+      };
+      let impressionRecorded = false;
+      if ("IntersectionObserver" in window) {
+        const observer = new IntersectionObserver(function(entries) {
+          entries.forEach(function(entry) {
+            if (!impressionRecorded && entry.isIntersecting && entry.intersectionRatio >= 0.5) {
+              impressionRecorded = true;
+              record("sponsor_impression", { viewability_threshold: 0.5 });
+              observer.disconnect();
+            }
+          });
+        }, { threshold: [0.5] });
+        observer.observe(placement);
+      }
+      const sponsorLink = placement.querySelector("[data-sponsor-click]");
+      if (sponsorLink) {
+        sponsorLink.addEventListener("click", function() {
+          record("sponsor_click", { destination_host: new URL(sponsorLink.href).hostname });
+        });
+      }
+    })();
+  </script>`;
 }
 
 function trafficPageStructuredData(env, page) {
@@ -6073,20 +6432,21 @@ function singleSoftwareBuildStructuredData(env, build) {
 }
 
 function renderAdsTxt(env) {
-  if (env.ADS_TXT) return env.ADS_TXT;
+  const adsEnabled = String(env.ADSENSE_ENABLED || "true").trim().toLowerCase() !== "false";
+  if (adsEnabled && env.ADS_TXT) return env.ADS_TXT;
   const rawClientId = String(env.ADSENSE_CLIENT_ID || "").trim();
   const publisherId = /^ca-pub-\d{16}$/.test(rawClientId)
     ? rawClientId.replace(/^ca-/, "")
     : /^pub-\d{16}$/.test(rawClientId)
       ? rawClientId
       : "";
-  if (publisherId) {
+  if (adsEnabled && publisherId) {
     return `# ${brandName(env)} ads.txt
 google.com, ${publisherId}, DIRECT, f08c47fec0942fa0
 `;
   }
   return `# ${brandName(env)} ads.txt
-# Google AdSense publisher authorization pending.
+# Google AdSense is not active on this host while policy review is pending.
 `;
 }
 
@@ -6148,7 +6508,17 @@ function cleanText(value, maxLength) {
 
 function requestScopedEnv(env, url) {
   const hostname = url.hostname.replace(/^www\./, "").toLowerCase();
-  if (["gptmarketplus.com", "gptmarketplus.org", "agentid.services"].includes(hostname)) {
+  if (hostname === "agentid.services") {
+    return {
+      ...env,
+      SITE_URL: "https://agentid.services",
+      BRAND_NAME: "AgentID Services",
+      ADSENSE_ENABLED: "false",
+      PUBLIC_OFFER_URL: "https://agentid.services/#start",
+      SUPPORT_EMAIL: env.SUPPORT_EMAIL || "admin@gptmarketplus.com",
+    };
+  }
+  if (["gptmarketplus.com", "gptmarketplus.org"].includes(hostname)) {
     return {
       ...env,
       SITE_URL: "https://gptmarketplus.com",
@@ -6184,6 +6554,9 @@ function systemTags(env) {
 }
 
 function siteDescription(env) {
+  if (isAgentIdSite(env)) {
+    return "AgentID Services designs and implements practical AI agents, lead workflows, and business automations with clear scope and human handoff.";
+  }
   return "GPTMarketPlus provides practical AI-agent products, automation services, and verified digital delivery for businesses adopting AI.";
 }
 
@@ -6203,9 +6576,16 @@ function googleAnalyticsId(env) {
   return String(env.GOOGLE_ANALYTICS_ID || "").trim();
 }
 
-function googleAdsConversionSendTo(env) {
-  const conversionId = String(env.GOOGLE_ADS_CONVERSION_ID || "").trim();
-  const conversionLabel = String(env.GOOGLE_ADS_CONVERSION_LABEL || "").trim();
+function googleAdsConversionSendTo(env, eventName = "generate_lead") {
+  const isPurchase = eventName === "purchase";
+  const legacyConversionId = String(env.GOOGLE_ADS_CONVERSION_ID || "").trim();
+  const legacyConversionLabel = String(env.GOOGLE_ADS_CONVERSION_LABEL || "").trim();
+  const conversionId = String(isPurchase
+    ? env.GOOGLE_ADS_PURCHASE_CONVERSION_ID || ""
+    : env.GOOGLE_ADS_LEAD_CONVERSION_ID || legacyConversionId).trim();
+  const conversionLabel = String(isPurchase
+    ? env.GOOGLE_ADS_PURCHASE_CONVERSION_LABEL || ""
+    : env.GOOGLE_ADS_LEAD_CONVERSION_LABEL || legacyConversionLabel).trim();
   return conversionId && conversionLabel ? `${conversionId}/${conversionLabel}` : "";
 }
 
@@ -6243,7 +6623,12 @@ function googleTagGatewayStatus(env) {
 function googleMeasurementStatus(env) {
   const tagId = googleTagId(env);
   const analyticsId = googleAnalyticsId(env);
-  const conversionSendTo = googleAdsConversionSendTo(env);
+  const leadConversionSendTo = googleAdsConversionSendTo(env, "generate_lead");
+  const purchaseConversionSendTo = googleAdsConversionSendTo(env, "purchase");
+  const conversionSendTo = {
+    generate_lead: leadConversionSendTo || null,
+    purchase: purchaseConversionSendTo || null,
+  };
   return {
     ok: true,
     configured: Boolean(tagId || analyticsId),
@@ -6253,8 +6638,10 @@ function googleMeasurementStatus(env) {
     gatewayPath: googleTagGatewayPath(env),
     gatewayUrl: `${siteUrl(env)}${googleTagGatewayPath(env)}`,
     analyticsConfigured: Boolean(analyticsId || tagId.startsWith("G-")),
-    adsConversionConfigured: Boolean(conversionSendTo),
-    adsConversionSendTo: conversionSendTo || null,
+    adsConversionConfigured: Boolean(leadConversionSendTo || purchaseConversionSendTo),
+    adsLeadConversionConfigured: Boolean(leadConversionSendTo),
+    adsPurchaseConversionConfigured: Boolean(purchaseConversionSendTo),
+    adsConversionSendTo: conversionSendTo,
     scrollDepthThresholds: [25, 50, 75, 90],
     chatOpenEvent: "chat_open",
     recommendedKeyEvents: ["chat_open", "generate_lead", "purchase"],
@@ -6262,9 +6649,9 @@ function googleMeasurementStatus(env) {
     ga4KeyEventStatus: "Runtime tagging is configured; GA4 event receipt and Key Event status require post-deployment verification.",
     ga4AdminActionRequired: "Verify incoming events in GA4 DebugView/Realtime, then mark genuine conversion events as Key Events.",
     note: tagId || analyticsId
-      ? conversionSendTo
+      ? leadConversionSendTo || purchaseConversionSendTo
         ? "Google tagging is configured through the first-party proxy. Verify live event receipt before relying on conversion reporting."
-        : "Google Analytics tagging is configured through the first-party proxy. Verify live event receipt, then add an Ads conversion ID and label only when paid acquisition begins."
+        : "Google Analytics tagging is configured through the first-party proxy. Verify live event receipt, then add separate lead and purchase Ads conversion destinations only when paid acquisition begins."
       : "Set GOOGLE_TAG_ID or GOOGLE_ANALYTICS_ID first, then the proxy can serve Google Tag Manager, Google Analytics, and Google Ads measurement.",
   };
 }
@@ -6286,7 +6673,12 @@ function webVitalsStatus(env) {
 }
 
 function indexNowEnabled(env) {
-  return Boolean(indexNowKey(env)) && isAgentIdSite(env);
+  if (!indexNowKey(env)) return false;
+  try {
+    return new URL(siteUrl(env)).protocol === "https:";
+  } catch {
+    return false;
+  }
 }
 
 function indexNowKey(env) {
@@ -6309,14 +6701,12 @@ function indexNowKeyLocation(env) {
 
 function indexNowUrls(env) {
   const urls = [
-    ...agentIdIndexablePaths().map((path) => `${siteUrl(env)}${path}`),
+    ...agentIdIndexablePaths(env).map((path) => `${siteUrl(env)}${path}`),
     `${siteUrl(env)}/agents/`,
     `${siteUrl(env)}/social`,
     `${siteUrl(env)}/playbook`,
     `${siteUrl(env)}/software-builds`,
-    `${siteUrl(env)}/sponsor`,
-    `${siteUrl(env)}/advertise`,
-    `${siteUrl(env)}/ad-network`,
+    ...trafficPageTemplates(env).map((page) => `${siteUrl(env)}${page.path}`),
     ...SOFTWARE_BUILDS.map((build) => `${siteUrl(env)}/software-builds/${build.id}`),
   ];
   return [...new Set(urls)];
@@ -6476,9 +6866,14 @@ function googleTagGatewayBody(env) {
 
 function googleMeasurementHead(env) {
   const tagId = googleTagId(env);
-  if (!tagId) return "";
-  const conversionSendTo = googleAdsConversionSendTo(env);
-  const tagType = tagId.startsWith("GTM-") ? "google-tag-manager" : tagId.startsWith("AW-") ? "google-ads" : tagId.startsWith("G-") ? "google-analytics" : "google-tag";
+  const analyticsId = googleAnalyticsId(env);
+  if (!tagId && !analyticsId) return "";
+  const conversionSendTo = {
+    generate_lead: googleAdsConversionSendTo(env, "generate_lead"),
+    purchase: googleAdsConversionSendTo(env, "purchase"),
+  };
+  const effectiveTagId = tagId || analyticsId;
+  const tagType = effectiveTagId.startsWith("GTM-") ? "google-tag-manager" : effectiveTagId.startsWith("AW-") ? "google-ads" : effectiveTagId.startsWith("G-") ? "google-analytics" : "google-tag";
   return `  <script>
     window.agentidGoogleTagType = ${JSON.stringify(tagType)};
     window.agentidGoogleAdsConversionSendTo = ${JSON.stringify(conversionSendTo || "")};
@@ -6492,8 +6887,9 @@ function googleMeasurementHead(env) {
       if (window.agentidGoogleTagType !== "google-tag-manager" && typeof window.gtag === "function") {
         window.gtag("event", item.eventName, payload);
       }
-      if ((item.eventName === "generate_lead" || item.eventName === "purchase") && window.agentidGoogleAdsConversionSendTo) {
-        var conversionPayload = Object.assign({ event: "conversion", send_to: window.agentidGoogleAdsConversionSendTo }, payload);
+      var conversionDestination = window.agentidGoogleAdsConversionSendTo[item.eventName] || "";
+      if (conversionDestination) {
+        var conversionPayload = Object.assign({ event: "conversion", send_to: conversionDestination }, payload);
         if (typeof conversionPayload.value === "undefined") conversionPayload.value = 1;
         if (!conversionPayload.currency) conversionPayload.currency = "USD";
         window.dataLayer.push(conversionPayload);
@@ -6644,8 +7040,8 @@ function jsonResponse(data, status = 200) {
   return new Response(JSON.stringify(data), { status, headers: withSecurityHeaders(JSON_HEADERS) });
 }
 
-function htmlResponse(html, status = 200) {
-  return new Response(html, { status, headers: withSecurityHeaders(HTML_HEADERS) });
+function htmlResponse(html, status = 200, overrides = {}) {
+  return new Response(html, { status, headers: withSecurityHeaders({ ...HTML_HEADERS, ...overrides }) });
 }
 
 function textResponse(text, status = 200) {

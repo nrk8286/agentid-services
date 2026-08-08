@@ -4,6 +4,12 @@ import {
   sendCustomerTransactionalEmail,
   sendOwnerTransactionalEmail,
 } from "../src/agentid-site.js";
+import {
+  googlePropertyCandidates,
+  summarizeGoogleIndexInspection,
+  summarizeGoogleSearchAnalytics,
+} from "../src/google-search-console.js";
+import { normalizePaypalInvoiceId, summarizePaypalInvoice } from "../src/paypal-invoice.js";
 
 const raw = readFileSync(new URL("../wrangler.jsonc", import.meta.url), "utf8");
 const runtimeMigration = readFileSync(new URL("../migrations/0004_agent_runtime.sql", import.meta.url), "utf8");
@@ -114,8 +120,67 @@ if (!workerSource.includes('url.searchParams.set("utm_medium", "domain_redirect"
 if (!workerSource.includes("LEGACY_WEBHOOK_HOSTS.has(requestHost) && LEGACY_WEBHOOK_PATHS.has(url.pathname)")) {
   failures.push("campaign domains must not inherit legacy payment-webhook routing");
 }
+if (!workerSource.includes('url.hostname = isAgentIdServicesHost ? "agentid.services" : CANONICAL_HOST')) {
+  failures.push("agentid.services must remain on its own canonical host instead of redirecting to GPTMarketPlus");
+}
+if (!workerSource.includes('SITE_URL: "https://agentid.services"') || !workerSource.includes('ADSENSE_ENABLED: "false"')) {
+  failures.push("agentid.services must receive a host-scoped brand and disabled AdSense configuration");
+}
 if (!/"SITE_URL"\s*:\s*"https:\/\/gptmarketplus\.com"/.test(raw)) failures.push("SITE_URL must use the .com canonical origin");
 if (!/"STORAGE_SCOPE"\s*:\s*"agentid\.services"/.test(raw)) failures.push("STORAGE_SCOPE must preserve the existing production data namespace during migration");
+if (!/function indexNowEnabled\(env\) \{[\s\S]{0,180}?new URL\(siteUrl\(env\)\)\.protocol === "https:"/.test(workerSource)) {
+  failures.push("IndexNow must support the canonical HTTPS host instead of requiring the legacy agentid.services hostname");
+}
+if (/function indexNowEnabled\(env\) \{[\s\S]{0,120}?isAgentIdSite\(env\)/.test(workerSource)) {
+  failures.push("IndexNow must not be restricted to the legacy agentid.services hostname");
+}
+if (!workerSource.includes('/contact?intent=sponsor&amp;package=${encodeURIComponent(item.id)}')) {
+  failures.push("Sponsor review buttons must route to a package-specific application instead of looping back to /sponsor");
+}
+if (!siteSource.includes('trackEvent: isSponsorApplication ? "sponsor_application_submit" : "contact_submit"')) {
+  failures.push("Sponsor applications must be recorded as a distinct conversion event");
+}
+if (!siteSource.includes("approved placements receive a PayPal invoice only after written terms are accepted")) {
+  failures.push("Sponsor applications must disclose the review-before-PayPal-invoice workflow");
+}
+if (!siteSource.includes('rel="sponsored nofollow noopener"') || !siteSource.includes('window.agentidTrackEvent("sponsor_impression"')) {
+  failures.push("Active sponsor placements must be clearly labeled and track viewable impressions without invalid clicks");
+}
+if (!workerSource.includes('record("sponsor_impression", { viewability_threshold: 0.5 })') || !workerSource.includes('data-sponsor-click=')) {
+  failures.push("Worker buyer-intent pages must measure viewable sponsor impressions and real outbound clicks");
+}
+if (!workerSource.includes('showSponsorRail || activeSponsorPlacement(env) ? renderActiveSponsorInventory(env) : ""') || !workerSource.includes("renderActiveSponsorTrackingScript(env)")) {
+  failures.push("Active sponsor inventory must render on buyer-intent pages with its measurement script");
+}
+for (const requiredSponsorTerm of [
+  "The placement runs for 30 consecutive days",
+  "does not guarantee traffic, clicks, leads, sales, rankings, or exclusivity",
+  "within five business days after the placement ends",
+  "replacement days or a proportional refund for undelivered days",
+]) {
+  if (!workerSource.includes(requiredSponsorTerm)) failures.push(`Sponsor terms are missing: ${requiredSponsorTerm}`);
+}
+if (!workerSource.includes("30-day sponsor inventory requires approval")) {
+  failures.push("Sponsor inventory must not describe fixed 30-day placements as monthly subscriptions");
+}
+if (!workerSource.includes('url.pathname === "/api/paypal/invoices/status"') || !workerSource.includes("paypalInvoiceStatus(env, url.searchParams.get(\"invoice_id\"))")) {
+  failures.push("PayPal invoice settlement must have an administrator-only provider status route");
+}
+if (!workerSource.includes('url.pathname === "/api/agents/google-search-console"') || !workerSource.includes("googleSearchConsoleStatus(env)")) {
+  failures.push("Google Search Console must have a privacy-safe public acquisition status route");
+}
+if (!workerSource.includes('url.pathname === "/api/agents/adsense"') || !workerSource.includes("adsensePublicStatus(env)")) {
+  failures.push("AdSense must expose a public staged status that separates code installation from approval and settlement");
+}
+if (!/"ADSENSE_REVIEW_STATE"\s*:\s*"under_review"/.test(raw) || !/"ADSENSE_REVIEW_SUBMITTED_AT"\s*:\s*"2026-08-01T19:52:03\.000Z"/.test(raw)) {
+  failures.push("AdSense provider-email review evidence must be recorded in production configuration");
+}
+for (const requiredAdSenseStage of ["accountApproved", "adsServingVerified", "validImpressionsVerified", "earningsVerified", "paymentSettled"]) {
+  if (!workerSource.includes(requiredAdSenseStage)) failures.push(`AdSense staged status is missing ${requiredAdSenseStage}`);
+}
+if (!/"ACTIVE_SPONSOR_START_AT"\s*:\s*""[\s\S]{0,120}?"ACTIVE_SPONSOR_END_AT"\s*:\s*""/.test(raw)) {
+  failures.push("Sponsor fulfillment must remain disabled by default and require an explicit bounded placement window");
+}
 
 if (!runtimeMigration.includes("CREATE TABLE IF NOT EXISTS agent_state") || !runtimeMigration.includes("CREATE TABLE IF NOT EXISTS agent_tasks")) {
   failures.push("0004_agent_runtime.sql must provision agent_state and agent_tasks");
@@ -127,6 +192,12 @@ if (/\b(?:d1SchemaPromise|schemaPromise)\b/.test(`${workerSource}\n${siteSource}
 
 if (!siteSource.includes('} else if (analyticsId.startsWith("G-")) {')) {
   failures.push("Google Analytics fallback must not load beside Google Tag Manager");
+}
+if (!workerSource.includes('if (!tagId && !analyticsId) return "";')) {
+  failures.push("direct GA4 pages must still install the Google Ads conversion event helper");
+}
+if (!workerSource.includes('googleAdsConversionSendTo(env, "generate_lead")') || !workerSource.includes('googleAdsConversionSendTo(env, "purchase")')) {
+  failures.push("lead and purchase events must use separate Google Ads conversion destinations");
 }
 
 const securityResponse = await handleAgentIdSiteRequest(
@@ -180,6 +251,141 @@ const pricingResponse = await handleAgentIdSiteRequest(
 const pricingBody = await pricingResponse.text();
 if (pricingBody.includes("adsbygoogle") || pricingBody.includes('data-ad-slot="3045151068"')) {
   failures.push("high-conversion pricing page must remain free of publisher ads");
+}
+
+const agentIdEnv = {
+  SITE_URL: "https://agentid.services",
+  SUPPORT_EMAIL: "admin@gptmarketplus.com",
+  BRAND_NAME: "AgentID Services",
+  ADSENSE_CLIENT_ID: "ca-pub-7354323580032872",
+  ADSENSE_AD_SLOT: "3045151068",
+  ADSENSE_ENABLED: "false",
+};
+const agentIdHomeResponse = await handleAgentIdSiteRequest(
+  new Request("https://agentid.services/"),
+  agentIdEnv,
+  { waitUntil() {} },
+);
+const agentIdHomeBody = await agentIdHomeResponse.text();
+if (!agentIdHomeBody.includes("AgentID Services") || agentIdHomeBody.includes("pagead2.googlesyndication.com") || agentIdHomeBody.includes("adsbygoogle")) {
+  failures.push("agentid.services homepage must retain AgentID branding without AdSense code");
+}
+const agentIdSitemapResponse = await handleAgentIdSiteRequest(
+  new Request("https://agentid.services/sitemap.xml"),
+  agentIdEnv,
+  { waitUntil() {} },
+);
+const agentIdSitemapBody = await agentIdSitemapResponse.text();
+if (!agentIdSitemapBody.includes("https://agentid.services/services")
+  || agentIdSitemapBody.includes("https://agentid.services/software-builds")
+  || agentIdSitemapBody.includes("https://agentid.services/sponsor")) {
+  failures.push("agentid.services sitemap must keep core service pages and exclude operational or sponsor inventory");
+}
+const agentIdAdsResponse = await handleAgentIdSiteRequest(
+  new Request("https://agentid.services/ads.txt"),
+  agentIdEnv,
+  { waitUntil() {} },
+);
+const agentIdAdsBody = await agentIdAdsResponse.text();
+if (agentIdAdsBody.includes("google.com, pub-") || !agentIdAdsBody.includes("not active on this host")) {
+  failures.push("agentid.services ads.txt must not authorize the GPTMarketPlus AdSense publisher");
+}
+
+const adsMeasurementResponse = await handleAgentIdSiteRequest(
+  new Request("https://gptmarketplus.com/contact"),
+  {
+    SITE_URL: "https://gptmarketplus.com",
+    SUPPORT_EMAIL: "admin@gptmarketplus.com",
+    BRAND_NAME: "GPTMarketPlus",
+    GOOGLE_ANALYTICS_ID: "G-TEST123456",
+    GOOGLE_ADS_LEAD_CONVERSION_ID: "AW-123456789",
+    GOOGLE_ADS_LEAD_CONVERSION_LABEL: "LeadLabel123",
+    GOOGLE_ADS_PURCHASE_CONVERSION_ID: "AW-987654321",
+    GOOGLE_ADS_PURCHASE_CONVERSION_LABEL: "PurchaseLabel456",
+  },
+  { waitUntil() {} },
+);
+const adsMeasurementBody = await adsMeasurementResponse.text();
+for (const requiredMeasurementControl of [
+  '"generate_lead":"AW-123456789/LeadLabel123"',
+  '"purchase":"AW-987654321/PurchaseLabel456"',
+  'window.agentidTrackGoogleAdsConversion = function(eventName, properties)',
+  '["generate_lead", "purchase"].includes(eventName)',
+  'window.agentidTrackEvent("generate_lead"',
+]) {
+  if (!adsMeasurementBody.includes(requiredMeasurementControl)) {
+    failures.push(`Google Ads conversion-ready page is missing ${requiredMeasurementControl}`);
+  }
+}
+
+const sponsorApplicationResponse = await handleAgentIdSiteRequest(
+  new Request("https://gptmarketplus.com/contact?intent=sponsor&package=featured_tool_monthly"),
+  {
+    SITE_URL: "https://gptmarketplus.com",
+    SUPPORT_EMAIL: "admin@gptmarketplus.com",
+    BRAND_NAME: "GPTMarketPlus",
+  },
+  { waitUntil() {} },
+);
+const sponsorApplicationBody = await sponsorApplicationResponse.text();
+for (const requiredControl of ['name="applicationType"', 'value="sponsor"', 'name="email"', 'name="businessName"', 'name="website"', 'name="whatDoYouWantToAutomate"', 'name="contactConsent"']) {
+  if (!sponsorApplicationBody.includes(requiredControl)) failures.push(`sponsor application is missing ${requiredControl}`);
+}
+for (const excessRequiredControl of ['name="phone"', 'name="businessType"', 'name="budgetRange"', 'name="timeline"', 'name="preferredContactMethod"']) {
+  if (sponsorApplicationBody.includes(excessRequiredControl)) failures.push(`sponsor application still includes high-friction control ${excessRequiredControl}`);
+}
+if (!sponsorApplicationBody.includes("$99.00 / 30 days") || !sponsorApplicationBody.includes("PayPal invoice only after written approval")) {
+  failures.push("sponsor application must show the selected 30-day price and PayPal review workflow");
+}
+
+if (normalizePaypalInvoiceId("INV2-Z56S-5LLA-Q52L-CPZ5") !== "INV2-Z56S-5LLA-Q52L-CPZ5" || normalizePaypalInvoiceId("../private")) {
+  failures.push("PayPal invoice IDs must be normalized and path-safe");
+}
+const invoiceSummary = summarizePaypalInvoice({
+  id: "INV2-Z56S-5LLA-Q52L-CPZ5",
+  status: "PAID",
+  detail: { currency_code: "USD" },
+  amount: { currency_code: "USD", value: "99.00" },
+  due_amount: { currency_code: "USD", value: "0.00" },
+  payments: {
+    paid_amount: { currency_code: "USD", value: "99.00" },
+    transactions: [{ type: "PAYPAL", payment_id: "sensitive-payment-id" }],
+  },
+  primary_recipients: [{ billing_info: { email_address: "customer@example.com", name: { full_name: "Private Customer" } } }],
+}, { mode: "live", checkedAt: "2026-08-07T00:00:00.000Z" });
+const invoiceSummaryText = JSON.stringify(invoiceSummary);
+if (!invoiceSummary.providerPaid || invoiceSummary.totalCents !== 9900 || invoiceSummary.dueCents !== 0 || invoiceSummary.feeVerified || invoiceSummary.verifiedNetProfitReady) {
+  failures.push("PayPal invoice summary must distinguish provider-paid status from fee-verified net profit");
+}
+for (const sensitiveInvoiceValue of ["customer@example.com", "Private Customer", "sensitive-payment-id"]) {
+  if (invoiceSummaryText.includes(sensitiveInvoiceValue)) failures.push("PayPal invoice summary exposes private recipient or transaction data");
+}
+
+const propertyCandidates = googlePropertyCandidates("https://gptmarketplus.com");
+if (!propertyCandidates.includes("sc-domain:gptmarketplus.com") || !propertyCandidates.includes("https://gptmarketplus.com/")) {
+  failures.push("Search Console property matching must support domain and HTTPS URL-prefix properties");
+}
+const inspectionSummary = summarizeGoogleIndexInspection({
+  inspectionResult: {
+    indexStatusResult: {
+      verdict: "PASS",
+      coverageState: "Submitted and indexed",
+      indexingState: "INDEXING_ALLOWED",
+      pageFetchState: "SUCCESSFUL",
+      robotsTxtState: "ALLOWED",
+      lastCrawlTime: "2026-08-06T12:00:00Z",
+      googleCanonical: "https://gptmarketplus.com/",
+      userCanonical: "https://gptmarketplus.com/",
+      referringUrls: ["https://private.example/customer-record"],
+    },
+  },
+});
+const searchSummary = summarizeGoogleSearchAnalytics({ rows: [{ clicks: 2, impressions: 40, ctr: 0.05, position: 8.123456 }] }, "2026-07-08", "2026-08-04");
+if (inspectionSummary.verdict !== "PASS" || inspectionSummary.lastCrawlTime !== "2026-08-06T12:00:00.000Z" || searchSummary.clicks !== 2 || searchSummary.impressions !== 40 || searchSummary.position !== 8.1235) {
+  failures.push("Search Console diagnostics must preserve index evidence and aggregate acquisition metrics");
+}
+if (JSON.stringify(inspectionSummary).includes("private.example")) {
+  failures.push("Search Console diagnostics must not expose provider-only discovery URLs");
 }
 
 const ownerMessages = [];

@@ -71,6 +71,8 @@ const MAX_JSON_BODY_BYTES = 128 * 1024;
 const MAX_STRIPE_WEBHOOK_BODY_BYTES = 1024 * 1024;
 const BODY_TOO_LARGE = Symbol("body-too-large");
 const GOOGLE_SITE_VERIFICATION = "hxvcDl32V0BA5LSTQx-OfIUE6DAIR6TrRp2pUbE5XZo";
+const GOOGLE_SITE_VERIFICATION_FILE = "google9b1a14a98542c3e1.html";
+const GOOGLE_SITE_VERIFICATION_BODY = `google-site-verification: ${GOOGLE_SITE_VERIFICATION_FILE}`;
 
 let googleAccessTokenCache = {
   token: "",
@@ -489,21 +491,21 @@ const SPONSOR_SUBSCRIPTIONS = [
     id: "sponsor_starter_monthly",
     name: "Sponsor Starter",
     price: 4900,
-    summary: "Monthly sponsor visibility across the GPTMarketPlus dashboard and sponsor directory.",
+    summary: "A reviewed 30-day sponsor placement across the GPTMarketPlus dashboard and sponsor directory.",
     placement: "Dashboard sponsor slot",
   },
   {
     id: "featured_tool_monthly",
     name: "Featured AI Tool",
     price: 9900,
-    summary: "Featured placement for an AI, automation, or small-business product across buyer-intent pages.",
+    summary: "A reviewed 30-day featured placement for an AI, automation, or small-business product across buyer-intent pages.",
     placement: "Featured tool placement",
   },
   {
     id: "growth_partner_monthly",
     name: "Growth Partner",
     price: 14900,
-    summary: "Priority sponsor placement with dashboard visibility, partner mentions, and lead-follow-up content.",
+    summary: "A reviewed 30-day priority placement with dashboard visibility, partner mentions, and lead-follow-up content.",
     placement: "Priority partner placement",
   },
 ];
@@ -660,9 +662,29 @@ const RESOURCE_PAGES = [
   {
     path: "/guides/ai-agent-for-small-business",
     category: "Guide",
-    title: "AI Agents for Small Business: A Practical Buyer’s Guide",
-    description: "Learn where a small-business AI agent creates value, what it should cost, what to automate first, and how to avoid buying an impressive demo that never becomes a useful workflow.",
+    title: "AI Agent for Small Business: Costs, Use Cases, and 30-Day Plan",
+    description: "Choose a practical AI agent for a small business, compare first-workflow use cases and cost drivers, estimate payback, and follow a measurable 30-day rollout plan.",
     summary: "Start with one measurable bottleneck, connect it to a real handoff, and expand only after the first workflow is reliable.",
+    publishedAt: "2026-07-30",
+    updatedAt: "2026-08-07",
+    updatedLabel: "August 7, 2026",
+    faqKicker: "Buyer questions",
+    faqTitle: "Small-business AI agent FAQ",
+    faqDescription: "Use these answers to choose a first workflow, budget conservatively, and keep a person accountable for the result.",
+    faqs: [
+      {
+        question: "What is the best first AI agent for a small business?",
+        answer: "Start with a frequent, rules-based workflow that has a clear owner and measurable outcome. Missed-lead response, appointment intake, common pre-sale questions, and CRM handoff are usually easier to test than a broad all-purpose assistant.",
+      },
+      {
+        question: "How should a small business budget for an AI agent?",
+        answer: "Separate one-time workflow design, integration, testing, and launch from monthly software, usage, monitoring, and support. Compare the full cost with measured time value and contribution from recovered opportunities, not with gross revenue alone.",
+      },
+      {
+        question: "How long should an AI-agent pilot run?",
+        answer: "A 30-day controlled pilot is long enough to capture representative requests for many small-business workflows. Record a baseline first, review failures weekly, and expand only after the agent meets the agreed accuracy, handoff, and outcome targets.",
+      },
+    ],
     sections: [
       {
         title: "What a business AI agent should actually do",
@@ -704,15 +726,74 @@ const RESOURCE_PAGES = [
           "Week 4: controlled launch and measurement",
         ],
       },
+      {
+        title: "Estimate cost and payback before signing",
+        body: "Model one-time setup, monthly software and support, expected usage, staff time saved, and the contribution margin from opportunities the workflow may recover. Use conservative assumptions, then replace estimates with real operating data after the first 30 days.",
+        points: [
+          "Separate setup cost from recurring cost",
+          "Apply gross margin before counting recovered revenue as value",
+          "Include monitoring, corrections, and human review",
+          "Set a maximum acceptable payback period before launch",
+        ],
+      },
     ],
-    related: ["/tools/ai-automation-roi-calculator", "/compare/ai-agent-vs-chatbot", "/ai-agent-launch-kit"],
+    related: ["/tools/ai-automation-roi-calculator", "/guides/ai-lead-follow-up", "/ai-marketing-automation", "/compare/ai-agent-vs-chatbot"],
   },
   {
     path: "/guides/ai-receptionist-cost",
     category: "Cost guide",
-    title: "AI Receptionist Cost: What Changes the Price?",
-    description: "A transparent guide to AI receptionist pricing, setup costs, ongoing support, integrations, and the questions to ask before choosing a system.",
-    summary: "The price depends less on the word “AI” and more on channels, workflow depth, integrations, traffic, compliance needs, and support.",
+    title: "AI Receptionist Pricing (2026): Costs, Plans, and Fees",
+    description: "Compare published AI receptionist prices from $20 to $500 per month, included usage, overage fees, setup costs, integrations, and support.",
+    summary: "Published self-service plans in this August 2026 snapshot range from $20 to $500 per month, but included usage, overages, integrations, setup, and support determine the real cost.",
+    publishedAt: "2026-07-30",
+    updatedAt: "2026-08-07",
+    updatedLabel: "August 7, 2026",
+    pricingSnapshot: [
+      {
+        provider: "Frontdesk",
+        url: "https://www.myaifrontdesk.com/pricing",
+        publishedPrice: "$20 or $99/month; enterprise custom",
+        usageModel: "The $99 plan lists 200 voice minutes plus chat, SMS, CRM, and automations.",
+      },
+      {
+        provider: "Dialzara",
+        url: "https://dialzara.com/pricing",
+        publishedPrice: "From $29/month",
+        usageModel: "The entry voice plan lists 60 minutes and $0.48 per overage minute; the vendor says no setup fee.",
+      },
+      {
+        provider: "Goodcall",
+        url: "https://www.goodcall.com/pricing",
+        publishedPrice: "$79, $129, or $249/month per agent",
+        usageModel: "Plans are based on unique customers, with published overage pricing of $0.50 per customer.",
+      },
+      {
+        provider: "Smith.ai",
+        url: "https://smith.ai/pricing/ai-receptionist",
+        publishedPrice: "$0 base pay-as-you-go; $150, $270, or $500/month plans",
+        usageModel: "Published tiers use included calls and per-call overages; custom pricing applies above the listed volumes.",
+      },
+    ],
+    sources: [
+      { name: "Frontdesk pricing", url: "https://www.myaifrontdesk.com/pricing" },
+      { name: "Dialzara pricing", url: "https://dialzara.com/pricing" },
+      { name: "Goodcall pricing", url: "https://www.goodcall.com/pricing" },
+      { name: "Smith.ai AI receptionist pricing", url: "https://smith.ai/pricing/ai-receptionist" },
+    ],
+    faqs: [
+      {
+        question: "How much does an AI receptionist cost per month?",
+        answer: "The published self-service plans checked for this guide range from $20 to $500 per month, plus possible usage overages. Enterprise, multi-location, white-label, and custom-integration work is commonly quote-based.",
+      },
+      {
+        question: "Which fees can make the monthly price misleading?",
+        answer: "Check included calls or minutes, per-call or per-minute overages, unique-customer limits, phone numbers, SMS, integrations, setup, monitoring, support, and data-retention charges.",
+      },
+      {
+        question: "Should a business choose the cheapest AI receptionist plan?",
+        answer: "Choose the least expensive plan that can complete the required workflow reliably. Booking, CRM updates, human transfer, consent, monitoring, and support can matter more than the advertised base price.",
+      },
+    ],
     sections: [
       {
         title: "The five cost drivers",
@@ -755,14 +836,17 @@ const RESOURCE_PAGES = [
         ],
       },
     ],
-    related: ["/pricing", "/guides/ai-agent-for-small-business", "/tools/ai-automation-roi-calculator"],
+    related: ["/ai-receptionist-software", "/tools/ai-automation-roi-calculator", "/pricing"],
   },
   {
     path: "/guides/ai-lead-follow-up",
     category: "Playbook",
-    title: "AI Lead Follow-Up: A Workflow That Keeps Humans in Control",
-    description: "Build a practical lead follow-up workflow for fast acknowledgment, qualification, reminders, staff handoff, consent, and performance measurement.",
+    title: "AI Lead Follow-Up: 4-Stage Workflow and Scripts",
+    description: "Use a practical AI lead follow-up workflow for fast acknowledgment, qualification, reminders, human handoff, consent, scripts, and measurement.",
     summary: "Automation should shorten the wait, preserve context, and tell the team what to do next—not send endless generic messages.",
+    publishedAt: "2026-07-30",
+    updatedAt: "2026-08-07",
+    updatedLabel: "August 7, 2026",
     sections: [
       {
         title: "Stage 1: acknowledge and set expectations",
@@ -910,8 +994,8 @@ const RESOURCE_PAGES = [
   {
     path: "/templates/lead-follow-up-scripts",
     category: "Templates",
-    title: "Lead Follow-Up Scripts for Service Businesses",
-    description: "Copy, customize, and ethically use concise lead acknowledgment, qualification, quote reminder, missed-call, appointment, and reactivation scripts.",
+    title: "Customer Service and Lead Follow-Up Scripts",
+    description: "Copy and customize consent-aware customer service and lead follow-up scripts for acknowledgment, qualification, quotes, missed calls, appointments, issues, and reactivation.",
     summary: "Good follow-up is specific, useful, easy to answer, and easy to stop. Replace every bracketed field and send only where you have a lawful, consent-aligned reason.",
     sections: [
       {
@@ -952,6 +1036,16 @@ const RESOURCE_PAGES = [
           "Make the timing relevant",
           "Avoid manufactured urgency",
           "Make declining easy",
+        ],
+      },
+      {
+        title: "Customer service issue follow-up",
+        body: "Hi [first name]—following up on your [issue or request] from [date]. We have [confirmed action already taken] and the next update is due by [time or date]. Has anything changed that the team should know before then?",
+        points: [
+          "Name the real issue and date",
+          "State only actions that are actually confirmed",
+          "Give a specific next-update time",
+          "Escalate unresolved safety, billing, or service failures",
         ],
       },
     ],
@@ -1004,6 +1098,10 @@ const CHAT_OBJECTIONS = [
 
 function siteUrl(env) {
   return (env.SITE_URL || "https://gptmarketplus.com").replace(/\/+$/, "");
+}
+
+function isAgentIdSite(env) {
+  return new URL(siteUrl(env)).hostname.replace(/^www\./, "").toLowerCase() === "agentid.services";
 }
 
 function campaignUrl(env, pathname, {
@@ -3316,7 +3414,7 @@ function renderHomePage(env, state) {
     <section class="section">
       ${renderSectionTitle("Plan before you automate", "Free tools and practical AI agent guides", "Use the calculator, buyer guides, and templates to choose a workflow with a real owner, measurable value, and a safe human handoff.")}
       ${renderCardGrid([
-        { kicker: "Free tool", title: "AI Automation ROI Calculator", description: "Estimate time value, recovered opportunity value, cost, payback, and first-year return.", href: "/tools/ai-automation-roi-calculator" },
+        { kicker: "Free tool", title: "AI Automation ROI Calculator", description: "Estimate time savings, recovered contribution, cost, payback, and first-year ROI without treating gross sales as profit.", href: "/tools/ai-automation-roi-calculator" },
         { kicker: "Buyer guide", title: "AI Agents for Small Business", description: "Choose the right first workflow and avoid paying for a demo that never becomes useful.", href: "/guides/ai-agent-for-small-business" },
         { kicker: "Comparison", title: "AI Agent vs. Chatbot", description: "Understand when a chatbot is enough and when tool-connected action is worth the added complexity.", href: "/compare/ai-agent-vs-chatbot" },
         { kicker: "$29 download", title: "AI Agent Launch Kit", description: "Get the planning workbook, prompt pack, intake templates, launch checklist, and 30-day scorecard.", href: "/ai-agent-launch-kit" },
@@ -3490,14 +3588,14 @@ function renderPricingPage(env) {
     <section class="section">
       ${renderSectionTitle(
         "Advertise with GPTMarketPlus",
-        "Reserve recurring sponsor inventory",
+        "Apply for reviewed 30-day sponsor inventory",
         "Reach visitors researching AI agents, automation, business software, and implementation services. Sponsor applications are reviewed before billing or placement."
       )}
       <div class="support-grid sponsor-pricing-grid">
         ${SPONSOR_SUBSCRIPTIONS.map((plan) => `
           <article class="support-card sponsor-price-card">
             <p class="card-kicker">${escapeHtml(plan.placement)}</p>
-            <strong>${moneyWithCents(plan.price)}/month</strong>
+            <strong>${moneyWithCents(plan.price)} / 30 days</strong>
             <p>${escapeHtml(plan.name)}</p>
             <span>${escapeHtml(plan.summary)}</span>
             <div class="checkout-stack">
@@ -3585,6 +3683,9 @@ function resourceLinkTitle(path) {
   if (path === "/tools/ai-automation-roi-calculator") return "AI Automation ROI Calculator";
   if (path === "/ai-agent-launch-kit") return "AI Agent Launch Kit";
   if (path === "/small-business-crm-automation") return "Small Business CRM Automation";
+  if (path === "/ai-receptionist-software") return "AI Receptionist Software Comparison";
+  if (path === "/ai-marketing-automation") return "AI Marketing Automation for Small Business";
+  if (path === "/ai-sales-funnel") return "AI Sales Funnel Automation";
   return RESOURCE_PAGES.find((page) => page.path === path)?.title || toTitle(path.split("/").filter(Boolean).pop() || path);
 }
 
@@ -3612,6 +3713,29 @@ function renderResourcesPage(env) {
         description: page.description,
         href: page.path,
       })), "Read resource")}
+    </section>
+    <section class="section">
+      ${renderSectionTitle("Popular topic hubs", "Continue into the workflows Google users are already researching", "These pages connect pricing, software selection, marketing automation, and funnel design to the detailed guides above.")}
+      ${renderCardGrid([
+        {
+          kicker: "2026 comparison",
+          title: "AI Receptionist Software Comparison",
+          description: "Compare voice, WhatsApp, booking, human handoff, compliance, agency resale, and current pricing.",
+          href: "/ai-receptionist-software",
+        },
+        {
+          kicker: "Implementation system",
+          title: "AI Marketing Automation for Small Business",
+          description: "Connect demand, capture, qualification, follow-up, human decisions, and revenue attribution.",
+          href: "/ai-marketing-automation",
+        },
+        {
+          kicker: "Seven-stage playbook",
+          title: "AI Sales Funnel Automation",
+          description: "Map a measured sales funnel from search demand through qualification, payment, and verified profit.",
+          href: "/ai-sales-funnel",
+        },
+      ], "Open topic")}
     </section>
     <section class="section split-section product-offer">
       <div>
@@ -3643,6 +3767,36 @@ function renderResourcesPage(env) {
   });
 }
 
+function renderResourceEvidenceSection(page) {
+  const pricing = Array.isArray(page.pricingSnapshot) ? page.pricingSnapshot : [];
+  const faqs = Array.isArray(page.faqs) ? page.faqs : [];
+  if (!pricing.length && !faqs.length) return "";
+
+  return `
+    ${pricing.length ? `<section class="section resource-evidence">
+      ${renderSectionTitle("Published pricing snapshot", "What AI receptionist plans cost in August 2026", "This is a dated comparison of public vendor pages, not a universal market average or a paid ranking. Prices and allowances can change; verify the linked source before buying.")}
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th>Provider</th><th>Published price</th><th>Included usage or billing model</th></tr></thead>
+          <tbody>
+            ${pricing.map((item) => `<tr>
+              <td><a href="${escapeHtml(item.url)}" target="_blank" rel="noopener nofollow">${escapeHtml(item.provider)}</a></td>
+              <td>${escapeHtml(item.publishedPrice)}</td>
+              <td>${escapeHtml(item.usageModel)}</td>
+            </tr>`).join("")}
+          </tbody>
+        </table>
+      </div>
+      <p class="trust-line">Sources checked ${escapeHtml(page.updatedLabel || "August 7, 2026")}. GPTMarketPlus did not receive payment for inclusion. Compare total cost at your expected volume, not only the lowest advertised base price.</p>
+    </section>` : ""}
+    ${faqs.length ? `<section class="section resource-faq">
+      ${renderSectionTitle(page.faqKicker || "Pricing questions", page.faqTitle || "AI receptionist cost FAQ", page.faqDescription || "Use these answers to turn a headline price into a realistic monthly budget.")}
+      <div class="feature-rack">
+        ${faqs.map((item) => `<article class="feature-card"><h3>${escapeHtml(item.question)}</h3><p>${escapeHtml(item.answer)}</p></article>`).join("")}
+      </div>
+    </section>` : ""}`;
+}
+
 function renderResourceArticlePage(env, page) {
   const body = `
     <article class="resource-article">
@@ -3653,11 +3807,13 @@ function renderResourceArticlePage(env, page) {
         <p class="eyebrow">${escapeHtml(page.category)}</p>
         <h1>${escapeHtml(page.title)}</h1>
         <p class="hero-lede">${escapeHtml(page.description)}</p>
+        <p class="trust-line">Written by the <a href="/about">GPTMarketPlus editorial team</a> · Updated ${escapeHtml(page.updatedLabel || "July 30, 2026")}</p>
         <div class="resource-summary">
           <p class="card-kicker">Bottom line</p>
           <strong>${escapeHtml(page.summary)}</strong>
         </div>
       </header>
+      ${renderResourceEvidenceSection(page)}
       <div class="resource-layout">
         <div class="resource-content">
           ${page.sections.map((section, index) => `
@@ -3714,7 +3870,7 @@ function renderRoiCalculatorPage(env) {
   const body = `
     <section class="page-hero split-section">
       <div>
-        ${renderPageTitle("Free calculator", "AI Automation ROI Calculator", "Estimate the potential monthly value, payback period, and first-year return of one proposed workflow. All calculations run in your browser; the values are not submitted.")}
+        ${renderPageTitle("Free calculator", "AI Automation ROI Calculator: Estimate Payback and Savings", "Estimate monthly time savings, recovered contribution value, operating cost, payback period, and first-year ROI for one proposed workflow. All calculations run in your browser; the values are not submitted.")}
         <p class="trust-line">Use conservative inputs and compare the estimate with a measured baseline. This is a planning model, not a revenue guarantee.</p>
       </div>
       <div class="side-note">
@@ -3737,6 +3893,7 @@ function renderRoiCalculatorPage(env) {
           <label class="field"><span>Missed or delayed opportunities per month</span><input name="missedOpportunities" type="number" min="0" step="1" value="5"></label>
           <label class="field"><span>Average gross value per converted opportunity ($)</span><input name="opportunityValue" type="number" min="0" step="1" value="450"></label>
           <label class="field"><span>Conservative recovery rate (%)</span><input name="recoveryPercent" type="number" min="0" max="100" step="1" value="20"></label>
+          <label class="field"><span>Contribution margin after direct costs (%)</span><input name="contributionMarginPercent" type="number" min="0" max="100" step="1" value="50"></label>
         </fieldset>
         <fieldset>
           <legend>Proposed cost</legend>
@@ -3749,14 +3906,14 @@ function renderRoiCalculatorPage(env) {
         <p class="card-kicker">Planning estimate</p>
         <div class="result-grid">
           <article><span>Monthly time value</span><strong data-result="time">$0</strong></article>
-          <article><span>Recovered opportunity value</span><strong data-result="opportunity">$0</strong></article>
+          <article><span>Recovered contribution value</span><strong data-result="opportunity">$0</strong></article>
           <article><span>Net monthly value</span><strong data-result="net">$0</strong></article>
           <article><span>Estimated payback</span><strong data-result="payback">—</strong></article>
           <article><span>First-year net value</span><strong data-result="yearOne">$0</strong></article>
           <article><span>First-year ROI</span><strong data-result="roi">—</strong></article>
         </div>
         <div class="recommendation" data-result="recommendation">Enter conservative inputs and calculate the workflow.</div>
-        <p class="form-note">Estimate excludes taxes, financing, implementation delay, risk, opportunity margin, and benefits or costs not entered above. Validate with actual operational data.</p>
+        <p class="form-note">The recovery estimate applies your contribution margin so gross sales are not treated as profit. It still excludes taxes, financing, implementation delay, risk, refunds, and benefits or costs not entered above. Validate with actual operational data.</p>
         <div class="cta-row">
           <a class="button-primary" href="/book-a-consultation" data-track-event="calculator_cta" data-track-label="Review My Estimate">Review my estimate</a>
           <a class="button-secondary" href="/ai-agent-launch-kit" data-track-event="product_view" data-track-label="Plan It Myself">Plan it myself for $29</a>
@@ -3772,6 +3929,23 @@ function renderRoiCalculatorPage(env) {
         { kicker: "Review", title: "Compare after 30 days", description: "Use actual time saved, outcomes recovered, errors, opt-outs, and operating cost." },
       ])}
     </section>
+    <section class="section split-section">
+      <div>
+        ${renderSectionTitle("Calculation method", "How the AI automation ROI estimate works", "The calculator keeps time value, recovered contribution, setup cost, and recurring cost separate so the assumptions can be challenged individually.")}
+        <ol class="benefit-list compact">
+          <li><strong>Monthly time value:</strong> weekly tasks × minutes per task × 4.33 weeks × hourly value × safe automation share.</li>
+          <li><strong>Recovered contribution:</strong> missed opportunities × average gross value × recovery rate × contribution margin.</li>
+          <li><strong>Net monthly value:</strong> time value + recovered contribution − monthly software and support cost.</li>
+          <li><strong>First-year ROI:</strong> first-year net value ÷ setup and 12 months of recurring cost.</li>
+        </ol>
+      </div>
+      <div class="side-note">
+        <p class="card-kicker">Interpretation</p>
+        <strong>A high estimate is a hypothesis, not proof.</strong>
+        <p>Test the most uncertain input first. For lead workflows, that is often recovery rate or contribution margin. For administrative workflows, it is often the share of time that can be automated safely.</p>
+        <p><a href="/guides/ai-agent-for-small-business">Use the 30-day small-business AI-agent plan</a> or map the response sequence with the <a href="/guides/ai-lead-follow-up">AI lead follow-up workflow</a>.</p>
+      </div>
+    </section>
     <script>
       document.addEventListener("DOMContentLoaded", function () {
         const form = document.getElementById("roi-calculator");
@@ -3784,7 +3958,7 @@ function renderRoiCalculatorPage(env) {
         const render = function () {
           const monthlyHours = value("tasksPerWeek") * value("minutesPerTask") / 60 * 4.33;
           const monthlyTimeValue = monthlyHours * value("hourlyValue") * Math.min(100, value("automationPercent")) / 100;
-          const opportunityValue = value("missedOpportunities") * value("opportunityValue") * Math.min(100, value("recoveryPercent")) / 100;
+          const opportunityValue = value("missedOpportunities") * value("opportunityValue") * Math.min(100, value("recoveryPercent")) / 100 * Math.min(100, value("contributionMarginPercent")) / 100;
           const monthlyBenefit = monthlyTimeValue + opportunityValue;
           const monthlyNet = monthlyBenefit - value("monthlyCost");
           const annualInvestment = value("setupCost") + value("monthlyCost") * 12;
@@ -3819,8 +3993,8 @@ function renderRoiCalculatorPage(env) {
 
   return renderShell(env, {
     path: "/tools/ai-automation-roi-calculator",
-    title: "AI Automation ROI Calculator",
-    description: "Estimate the monthly time value, recovered opportunity value, operating cost, payback period, and first-year return of a proposed automation.",
+    title: "AI Automation ROI Calculator: Estimate Payback and Savings",
+    description: "Estimate monthly time savings, recovered contribution value, operating cost, payback period, and first-year ROI for a proposed AI automation workflow.",
     body,
     schema: [
       organizationSchema(env),
@@ -4220,54 +4394,93 @@ function renderRefundPolicyPage(env) {
   });
 }
 
-function renderContactPage(env) {
+function renderContactPage(env, requestUrl = null) {
+  const intent = cleanText(requestUrl?.searchParams?.get("intent") || "", 40).toLowerCase();
+  const requestedPackageId = cleanText(requestUrl?.searchParams?.get("package") || "", 80);
+  const requestedSponsorPlan = intent === "sponsor"
+    ? SPONSOR_SUBSCRIPTIONS.find((plan) => plan.id === requestedPackageId) || SPONSOR_SUBSCRIPTIONS[0]
+    : null;
+  const isSponsorApplication = Boolean(requestedSponsorPlan);
+  const requestDescription = isSponsorApplication
+    ? `Sponsor application for ${requestedSponsorPlan.name} (${moneyWithCents(requestedSponsorPlan.price)} / 30 days). Product or service to review: `
+    : "";
+  const fields = isSponsorApplication
+    ? [
+        { name: "applicationType", type: "hidden", value: "sponsor" },
+        { name: "name", label: "Your name", placeholder: "Your name", required: true },
+        { name: "email", label: "Work email", type: "email", placeholder: "you@company.com", required: true },
+        { name: "businessName", label: "Company or product", placeholder: "Company or product name", required: true },
+        { name: "website", label: "Product website", type: "url", placeholder: "https://yourproduct.com", required: true },
+        {
+          name: "whatDoYouWantToAutomate",
+          label: "Product, audience fit, and preferred dates",
+          type: "textarea",
+          rows: 4,
+          placeholder: "Describe the product, target audience, destination URL, and preferred campaign dates.",
+          value: requestDescription,
+          required: true,
+        },
+        { name: "contactConsent", label: "I agree to be contacted about this sponsor application.", type: "checkbox", required: true },
+      ]
+    : [
+        { name: "name", label: "Name", placeholder: "Your name", required: true },
+        { name: "email", label: "Email", type: "email", placeholder: "you@example.com", required: true },
+        { name: "phone", label: "Phone", placeholder: "(555) 555-5555", required: true },
+        { name: "businessName", label: "Business name", placeholder: "Company or brand name", required: true },
+        { name: "website", label: "Website", type: "url", placeholder: "https://yourbusiness.com", required: true },
+        { name: "businessType", label: "Business type", type: "select", required: true, options: businessTypeCatalog() },
+        {
+          name: "whatDoYouWantToAutomate",
+          label: "What do you want to automate?",
+          type: "textarea",
+          rows: 4,
+          placeholder: "Tell us what work you want the agent to handle.",
+          required: true,
+        },
+        { name: "budgetRange", label: "Budget range", type: "select", required: true, options: ["Under $500", "$500-$1,500", "$1,500-$3,500", "$3,500+", "Not sure yet"] },
+        { name: "timeline", label: "Timeline", type: "select", required: true, options: ["Immediately", "This week", "This month", "Just researching"] },
+        { name: "preferredContactMethod", label: "Preferred contact method", type: "select", required: true, options: ["Email", "Phone", "Text"] },
+        { name: "bestTimeToContact", label: "Best time to contact", placeholder: "Morning, afternoon, or evening", required: false },
+        { name: "contactConsent", label: "I agree to be contacted about my request.", type: "checkbox", required: true },
+      ];
   const form = renderLeadForm({
     action: "/api/contact",
     formId: "contact-form",
-    cta: "Request My AI Agent Plan",
-    note: "By submitting, you agree we can contact you about your request. Add only the information you want us to use for this project.",
+    cta: isSponsorApplication ? "Submit Sponsor Application" : "Request My AI Agent Plan",
+    note: isSponsorApplication
+      ? "Submitting does not create a charge or guarantee placement. We review relevance, inventory, and fulfillment first; approved placements receive a PayPal invoice only after written terms are accepted."
+      : "By submitting, you agree we can contact you about your request. Add only the information you want us to use for this project.",
     turnstileHtml: renderTurnstileWidget(env),
-    fields: [
-      { name: "name", label: "Name", placeholder: "Your name", required: true },
-      { name: "email", label: "Email", type: "email", placeholder: "you@example.com", required: true },
-      { name: "phone", label: "Phone", placeholder: "(555) 555-5555", required: true },
-      { name: "businessName", label: "Business name", placeholder: "Company or brand name", required: true },
-      { name: "website", label: "Website", type: "url", placeholder: "https://yourbusiness.com", required: true },
-      { name: "businessType", label: "Business type", type: "select", required: true, options: businessTypeCatalog() },
-      { name: "whatDoYouWantToAutomate", label: "What do you want to automate?", type: "textarea", rows: 4, placeholder: "Tell us what work you want the agent to handle.", required: true },
-      { name: "budgetRange", label: "Budget range", type: "select", required: true, options: ["Under $500", "$500-$1,500", "$1,500-$3,500", "$3,500+", "Not sure yet"] },
-      { name: "timeline", label: "Timeline", type: "select", required: true, options: ["Immediately", "This week", "This month", "Just researching"] },
-      { name: "preferredContactMethod", label: "Preferred contact method", type: "select", required: true, options: ["Email", "Phone", "Text"] },
-      { name: "bestTimeToContact", label: "Best time to contact", placeholder: "Morning, afternoon, or evening", required: false },
-      { name: "contactConsent", label: "I agree to be contacted about my request.", type: "checkbox", required: true },
-    ],
+    fields,
   });
 
   const body = `
     <section class="page-hero split-section">
       <div>
-        ${renderPageTitle("Contact", "Request your AI Agent Plan", "Validated lead capture, CRM-ready structure, and a conversion-focused next step.")}
-        <p>Tell us what you want to automate. We’ll validate the request, generate a lead summary, and prepare the next step.</p>
+        ${isSponsorApplication
+          ? renderPageTitle("Sponsor application", `Apply for ${requestedSponsorPlan.name}`, "A reviewed application with no charge until relevance, inventory, placement, and fulfillment terms are confirmed.")
+          : renderPageTitle("Contact", "Request your AI Agent Plan", "Validated lead capture, CRM-ready structure, and a conversion-focused next step.")}
+        <p>${isSponsorApplication
+          ? `The requested placement is ${escapeHtml(requestedSponsorPlan.placement)} at ${moneyWithCents(requestedSponsorPlan.price)} / 30 days. Describe the product and audience fit so we can review it.`
+          : "Tell us what you want to automate. We’ll validate the request, generate a lead summary, and prepare the next step."}</p>
       </div>
       <div class="hero-side">
         <article class="info-card">
           <p class="card-kicker">What happens on submit</p>
-          <ul>
-            <li>Validate required fields</li>
-            <li>Save or route the lead</li>
-            <li>Trigger analytics events</li>
-            <li>Prepare for CRM integration</li>
-            <li>Generate a lead summary when enough detail is provided</li>
-          </ul>
+          <ul>${isSponsorApplication
+          ? "<li>Review product and audience relevance</li><li>Confirm available placement and dates</li><li>Agree on creative, labeling, and destination URL</li><li>Confirm reporting and fulfillment terms</li><li>Send a PayPal invoice only after written approval</li>"
+            : "<li>Validate required fields</li><li>Save or route the lead</li><li>Trigger analytics events</li><li>Prepare for CRM integration</li><li>Generate a lead summary when enough detail is provided</li>"}</ul>
         </article>
       </div>
     </section>
     <section class="section split-section">
       <div>${form}</div>
       <div class="side-note">
-        <p class="card-kicker">Internal notification</p>
-        <strong>New GPTMarketPlus lead received.</strong>
-        <p>Review business type, automation request, budget, and timeline. Respond within 15 minutes if possible.</p>
+          <p class="card-kicker">${isSponsorApplication ? "Sponsor review" : "Internal notification"}</p>
+          <strong>${isSponsorApplication ? "Applications are reviewed before billing." : "New GPTMarketPlus lead received."}</strong>
+          <p>${isSponsorApplication
+            ? "No performance guarantee is made. Approved placements remain clearly labeled and separate from editorial content."
+            : "Review business type, automation request, budget, and timeline. Respond within 15 minutes if possible."}</p>
       </div>
     </section>
   `;
@@ -5726,7 +5939,7 @@ const AGENTID_PUBLIC_PAGES = [
   { path: "/use-cases", title: "Use Cases", description: "Realistic use cases for contractors, real estate, facilities, medical offices, and agencies." },
   { path: "/resources", title: "AI Agent Resources", description: "Practical guides, templates, comparisons, and tools for planning useful business AI agents." },
   ...RESOURCE_PAGES.map((page) => ({ path: page.path, title: page.title, description: page.description })),
-  { path: "/tools/ai-automation-roi-calculator", title: "AI Automation ROI Calculator", description: "Estimate the monthly time value, recovered opportunity value, operating cost, payback period, and first-year return of a proposed automation." },
+  { path: "/tools/ai-automation-roi-calculator", title: "AI Automation ROI Calculator: Estimate Payback and Savings", description: "Estimate monthly time savings, recovered contribution value, operating cost, payback period, and first-year ROI for a proposed AI automation workflow." },
   { path: "/ai-agent-launch-kit", title: "AI Agent Launch Kit", description: "A downloadable workbook, prompt pack, intake template, launch checklist, and 30-day scorecard for your first business AI agent." },
   { path: "/about", title: "About", description: "Practical AI implementation for real businesses." },
   { path: "/contact", title: "Contact", description: "Request your AI agent plan with a validated lead form." },
@@ -5786,7 +5999,38 @@ function renderFooter(env) {
     </footer>`;
 }
 
-function renderSponsorHouseAd(path) {
+export function activeSponsorPlacement(env, now = Date.now()) {
+  const id = cleanText(env.ACTIVE_SPONSOR_ID || "", 80);
+  const name = cleanText(env.ACTIVE_SPONSOR_NAME || "", 120);
+  const copy = cleanText(env.ACTIVE_SPONSOR_COPY || "", 240);
+  const destinationUrl = cleanUrl(env.ACTIVE_SPONSOR_URL || "");
+  if (!id || !name || !copy || !destinationUrl) return null;
+
+  let parsedDestination;
+  try {
+    parsedDestination = new URL(destinationUrl);
+  } catch {
+    return null;
+  }
+  if (parsedDestination.protocol !== "https:") return null;
+
+  const startsAt = Date.parse(String(env.ACTIVE_SPONSOR_START_AT || ""));
+  const endsAt = Date.parse(String(env.ACTIVE_SPONSOR_END_AT || ""));
+  if (!Number.isFinite(startsAt) || !Number.isFinite(endsAt) || startsAt >= endsAt) return null;
+  if (now < startsAt || now >= endsAt) return null;
+
+  return {
+    id,
+    name,
+    copy,
+    destinationUrl: parsedDestination.toString(),
+    startsAt: new Date(startsAt).toISOString(),
+    endsAt: new Date(endsAt).toISOString(),
+  };
+}
+
+function renderSponsorHouseAd(env, path) {
+  if (isAgentIdSite(env)) return "";
   const excluded = new Set([
     "/pricing",
     "/contact",
@@ -5799,6 +6043,18 @@ function renderSponsorHouseAd(path) {
     "/admin-dashboard",
   ]);
   if (excluded.has(path)) return "";
+  const sponsor = activeSponsorPlacement(env);
+  if (sponsor) {
+    return `
+      <aside class="sponsor-house-ad" aria-label="Sponsored placement" data-sponsor-placement="${escapeHtml(sponsor.id)}">
+        <div>
+          <p class="card-kicker">Sponsored</p>
+          <strong>${escapeHtml(sponsor.name)}</strong>
+          <span>${escapeHtml(sponsor.copy)}</span>
+        </div>
+        <a class="button-secondary" href="${escapeHtml(sponsor.destinationUrl)}" target="_blank" rel="sponsored nofollow noopener" data-track-event="sponsor_click" data-track-label="${escapeHtml(sponsor.id)}">Visit sponsor</a>
+      </aside>`;
+  }
   return `
     <aside class="sponsor-house-ad" aria-label="Advertising opportunity">
       <div>
@@ -5853,7 +6109,7 @@ function renderShell(env, { path, title, description, body, schema = [], extraHe
   <main>
     ${body}
     ${privatePage ? "" : renderAdSenseUnit(env, path)}
-    ${renderSponsorHouseAd(path)}
+    ${renderSponsorHouseAd(env, path)}
   </main>
   ${renderFooter(env)}
   ${privatePage ? "" : renderAnalyticsBootstrap(env)}
@@ -6076,7 +6332,7 @@ function renderLeadForm({ action, formId, fields, cta, note, turnstileHtml = "",
         <label class="field">
           <span>${escapeHtml(field.label)}</span>
           <select name="${escapeHtml(field.name)}" ${field.required ? "required" : ""}>
-            ${field.options.map((option) => `<option value="${escapeHtml(option)}">${escapeHtml(option)}</option>`).join("")}
+            ${field.options.map((option) => `<option value="${escapeHtml(option)}" ${option === field.value ? "selected" : ""}>${escapeHtml(option)}</option>`).join("")}
           </select>
         </label>`;
     }
@@ -6084,7 +6340,7 @@ function renderLeadForm({ action, formId, fields, cta, note, turnstileHtml = "",
       return `
         <label class="field full">
           <span>${escapeHtml(field.label)}</span>
-          <textarea name="${escapeHtml(field.name)}" rows="${field.rows || 4}" placeholder="${escapeHtml(field.placeholder || "")}" ${field.required ? "required" : ""}></textarea>
+          <textarea name="${escapeHtml(field.name)}" rows="${field.rows || 4}" placeholder="${escapeHtml(field.placeholder || "")}" ${field.required ? "required" : ""}>${escapeHtml(field.value || "")}</textarea>
         </label>`;
     }
     if (field.type === "checkbox") {
@@ -6097,7 +6353,7 @@ function renderLeadForm({ action, formId, fields, cta, note, turnstileHtml = "",
     return `
       <label class="field">
         <span>${escapeHtml(field.label)}</span>
-        <input type="${escapeHtml(field.type || "text")}" name="${escapeHtml(field.name)}" placeholder="${escapeHtml(field.placeholder || "")}" ${field.required ? "required" : ""}>
+        <input type="${escapeHtml(field.type || "text")}" name="${escapeHtml(field.name)}" value="${escapeHtml(field.value || "")}" placeholder="${escapeHtml(field.placeholder || "")}" ${field.required ? "required" : ""}>
       </label>`;
   }).join("");
 
@@ -6186,21 +6442,24 @@ function adSenseAllowedPath(path) {
 function adSenseStatus(env) {
   const clientId = adSenseClientId(env);
   const adSlot = adSenseAdSlot(env);
+  const enabled = adSenseEnabled(env);
   return {
     ok: true,
     provider: "google-adsense",
-    enabled: adSenseEnabled(env),
-    publisherConfigured: Boolean(clientId),
-    publisherId: clientId || null,
-    codeInstalled: Boolean(clientId) && adSenseEnabled(env),
-    adUnitConfigured: Boolean(clientId) && Boolean(adSlot) && adSenseEnabled(env),
+    enabled,
+    publisherConfigured: Boolean(clientId) && enabled,
+    publisherId: enabled ? clientId || null : null,
+    codeInstalled: Boolean(clientId) && enabled,
+    adUnitConfigured: Boolean(clientId) && Boolean(adSlot) && enabled,
     adSlotId: adSlot || null,
-    adsTxtConfigured: Boolean(clientId),
+    adsTxtConfigured: Boolean(clientId) && enabled,
     adsTxtUrl: `${siteUrl(env)}/ads.txt`,
     site: new URL(siteUrl(env)).hostname,
-    earningStatus: clientId
+    earningStatus: clientId && enabled
       ? "Ad serving depends on Google site review, Auto ads settings, advertiser demand, and valid traffic."
-      : "Add the AdSense publisher ID after creating or selecting the publisher account.",
+      : enabled
+        ? "Add the AdSense publisher ID after creating or selecting the publisher account."
+        : "AdSense is intentionally disabled on this host.",
     policy: {
       selfClicksAllowed: false,
       incentivizedClicksAllowed: false,
@@ -6220,7 +6479,8 @@ function renderAdSenseUnit(env, path) {
   const clientId = adSenseClientId(env);
   const adSlot = adSenseAdSlot(env);
   if (!clientId || !adSlot || !adSenseEnabled(env) || !adSenseAllowedPath(path)) return "";
-  return `<!-- unit 1 -->
+  return `<div class="publisher-ad" aria-label="Advertisement">
+<p class="publisher-ad-label">Advertisement</p>
 <ins class="adsbygoogle"
      style="display:block"
      data-ad-client="${escapeHtml(clientId)}"
@@ -6229,14 +6489,29 @@ function renderAdSenseUnit(env, path) {
      data-full-width-responsive="true"></ins>
 <script>
      (adsbygoogle = window.adsbygoogle || []).push({});
-</script>`;
+</script>
+</div>`;
 }
 
 function renderAnalyticsBootstrap(env) {
+  const legacyGoogleAdsConversionId = String(env.GOOGLE_ADS_CONVERSION_ID || "").trim();
+  const legacyGoogleAdsConversionLabel = String(env.GOOGLE_ADS_CONVERSION_LABEL || "").trim();
+  const googleAdsLeadConversionId = String(env.GOOGLE_ADS_LEAD_CONVERSION_ID || legacyGoogleAdsConversionId).trim();
+  const googleAdsLeadConversionLabel = String(env.GOOGLE_ADS_LEAD_CONVERSION_LABEL || legacyGoogleAdsConversionLabel).trim();
+  const googleAdsPurchaseConversionId = String(env.GOOGLE_ADS_PURCHASE_CONVERSION_ID || "").trim();
+  const googleAdsPurchaseConversionLabel = String(env.GOOGLE_ADS_PURCHASE_CONVERSION_LABEL || "").trim();
   const config = {
     siteUrl: siteUrl(env),
     googleTagId: String(env.GOOGLE_TAG_ID || "").trim(),
     googleAnalyticsId: String(env.GOOGLE_ANALYTICS_ID || "").trim(),
+    googleAdsConversionSendTo: {
+      generate_lead: googleAdsLeadConversionId && googleAdsLeadConversionLabel
+        ? `${googleAdsLeadConversionId}/${googleAdsLeadConversionLabel}`
+        : "",
+      purchase: googleAdsPurchaseConversionId && googleAdsPurchaseConversionLabel
+        ? `${googleAdsPurchaseConversionId}/${googleAdsPurchaseConversionLabel}`
+        : "",
+    },
     metaPixelId: String(env.META_PIXEL_ID || "").trim(),
     linkedInInsightId: String(env.LINKEDIN_INSIGHT_ID || "").trim(),
     posthogKey: String(env.POSTHOG_API_KEY || "").trim(),
@@ -6289,6 +6564,28 @@ function renderAnalyticsBootstrap(env) {
         event: "agentid_attribution_ready",
         agentid_session_id: window.__agentidSessionId,
       }, window.__agentidAttribution));
+      window.__agentidGoogleAdsConversionKeys = new Set();
+      window.agentidTrackGoogleAdsConversion = function(eventName, properties) {
+        const sendTo = window.__agentidAnalyticsConfig.googleAdsConversionSendTo[eventName] || "";
+        if (!sendTo || !["generate_lead", "purchase"].includes(eventName)) return false;
+        const eventProperties = Object.assign({}, properties || {});
+        const transactionId = String(eventProperties.transaction_id || eventProperties.lead_id || "").trim();
+        const conversionKey = [sendTo, eventName, transactionId].join("|");
+        if (transactionId && window.__agentidGoogleAdsConversionKeys.has(conversionKey)) return false;
+        if (transactionId) window.__agentidGoogleAdsConversionKeys.add(conversionKey);
+        const conversionProperties = Object.assign({
+          send_to: sendTo,
+          value: typeof eventProperties.value === "number" ? eventProperties.value : 1,
+          currency: eventProperties.currency || "USD",
+        }, eventProperties);
+        window.dataLayer = window.dataLayer || [];
+        window.dataLayer.push(Object.assign({ event: "conversion" }, conversionProperties));
+        if (!window.__agentidAnalyticsConfig.googleTagId.startsWith("GTM-")
+            && typeof window.gtag === "function") {
+          window.gtag("event", "conversion", conversionProperties);
+        }
+        return true;
+      };
       window.agentidTrackEvent = async function(eventName, properties) {
         const eventProperties = Object.assign({
           agentid_session_id: window.__agentidSessionId,
@@ -6308,6 +6605,7 @@ function renderAnalyticsBootstrap(env) {
               && typeof window.gtag === "function") {
             window.gtag("event", eventName, eventProperties);
           }
+          window.agentidTrackGoogleAdsConversion(eventName, eventProperties);
           await fetch("/api/events", {
             method: "POST",
             headers: { "content-type": "application/json" },
@@ -6382,6 +6680,28 @@ function renderAnalyticsBootstrap(env) {
               href: target.getAttribute("href") || "",
             });
           }
+        });
+
+        document.querySelectorAll("[data-sponsor-placement]").forEach((placement) => {
+          let recorded = false;
+          const recordImpression = () => {
+            if (recorded) return;
+            recorded = true;
+            window.agentidTrackEvent("sponsor_impression", {
+              sponsorId: placement.getAttribute("data-sponsor-placement") || "",
+            });
+          };
+          if (!("IntersectionObserver" in window)) {
+            recordImpression();
+            return;
+          }
+          const observer = new IntersectionObserver((entries) => {
+            if (entries.some((entry) => entry.isIntersecting && entry.intersectionRatio >= 0.5)) {
+              recordImpression();
+              observer.disconnect();
+            }
+          }, { threshold: [0.5] });
+          observer.observe(placement);
         });
       }
 
@@ -6557,7 +6877,15 @@ function renderChatBootstrap(env) {
             if (window.agentidTrackEvent) {
               window.agentidTrackEvent("conversation_started", { conversationId: state.conversationId, pagePath: page });
               if (result.leadCaptured) {
-                window.agentidTrackEvent("lead_captured", { leadTag: result.leadTag || "", package: result.recommendedPackage || "" });
+                const leadProperties = {
+                  leadTag: result.leadTag || "",
+                  package: result.recommendedPackage || "",
+                  transaction_id: result.leadId || state.conversationId || "",
+                  value: 1,
+                  currency: "USD",
+                };
+                window.agentidTrackEvent("lead_captured", leadProperties);
+                window.agentidTrackEvent("generate_lead", leadProperties);
               }
             }
           } catch (error) {
@@ -6610,7 +6938,6 @@ function renderChatBootstrap(env) {
           nudge = root.querySelector(".agentid-chat-nudge");
 
           if (state.messages && state.messages.length) {
-            root.classList.add("open");
             renderMessages();
           } else {
             state.messages = [{ role: "assistant", text: greeting }];
@@ -6740,11 +7067,20 @@ function renderFormsBootstrap(env) {
               return;
             }
             if (window.agentidTrackEvent) {
-              window.agentidTrackEvent(result.trackEvent || "lead_captured", {
+              const trackedEvent = result.trackEvent || "lead_captured";
+              const eventProperties = {
                 leadTag: result.leadTag || "",
                 package: result.recommendedPackage || "",
                 sourcePage: location.pathname,
-              });
+                transaction_id: result.leadId || "",
+              };
+              window.agentidTrackEvent(trackedEvent, eventProperties);
+              if (["contact_submit", "booking_submit"].includes(trackedEvent)) {
+                window.agentidTrackEvent("generate_lead", Object.assign({
+                  value: 1,
+                  currency: "USD",
+                }, eventProperties));
+              }
             }
             form.reset();
           } catch (error) {
@@ -6773,6 +7109,16 @@ const AGENTID_PRIVATE_PATHS = new Set([
   "/onboarding",
   "/customer-dashboard",
   "/admin-dashboard",
+]);
+const AGENTID_NON_INDEXABLE_PATHS = new Set([
+  "/agents",
+  "/social",
+  "/playbook",
+  "/submission-status",
+  "/software-builds",
+  "/sponsor",
+  "/advertise",
+  "/ad-network",
 ]);
 
 function isAgentIdPrivatePath(pathname) {
@@ -6820,9 +7166,15 @@ function formatMoney(value) {
   return moneyWithCents(Number(value || 0));
 }
 
-function pageEntriesForSitemap() {
+function pageEntriesForSitemap(env) {
   const pages = [
     ...AGENTID_PUBLIC_PAGES,
+    { path: "/ai-marketing-automation", title: "AI Marketing Automation for Small Business", description: "A practical system for lead capture, qualification, follow-up, sales handoff, and measurable pipeline results." },
+    { path: "/ai-lead-generation", title: "AI Lead Generation System", description: "Use bounded AI workflows to score leads, queue follow-up, and move qualified demand into sales conversations." },
+    { path: "/small-business-ai-tools", title: "Small Business AI Tools", description: "Practical AI tools for local service businesses, consultants, and creators that need useful revenue workflows." },
+    { path: "/ai-receptionist-software", title: "AI Receptionist Software Comparison", description: "Compare AI receptionist software by channel, booking, human handoff, compliance, operating model, and price." },
+    { path: "/chatgpt-marketing", title: "ChatGPT Marketing Agents", description: "Marketing-agent workflows for useful content, SEO, outreach, conversion, and accountable daily execution." },
+    { path: "/ai-sales-funnel", title: "AI Sales Funnel Automation", description: "A seven-stage AI sales funnel from demand and qualification through payment and verified attribution." },
     { path: "/agents/", title: "Autonomous Agent Operations", description: "Operational status and capabilities for GPTMarketPlus automation agents." },
     { path: "/social", title: "GPTMarketPlus Social Hub", description: "Share-ready links for legitimate GPTMarketPlus discovery and customer acquisition." },
     { path: "/playbook", title: "Growth Playbook", description: "Current public growth priorities and transparent agent operating status." },
@@ -6838,11 +7190,16 @@ function pageEntriesForSitemap() {
     { path: "/software-builds/public-data-monitor-and-alert-service", title: "Public Data Monitor and Alert Service", description: "A fixed-scope public data monitoring and alerting package." },
   ];
   const seen = new Set();
-  return pages.filter((page) => !isAgentIdPrivatePath(page.path) && !seen.has(page.path) && seen.add(page.path));
+  return pages.filter((page) => {
+    const path = normalizePath(page.path);
+    const nonIndexable = isAgentIdSite(env)
+      && (AGENTID_NON_INDEXABLE_PATHS.has(path) || path.startsWith("/software-builds/"));
+    return !isAgentIdPrivatePath(path) && !nonIndexable && !seen.has(page.path) && seen.add(page.path);
+  });
 }
 
-export function agentIdIndexablePaths() {
-  return pageEntriesForSitemap().map((page) => page.path);
+export function agentIdIndexablePaths(env = {}) {
+  return pageEntriesForSitemap(env).map((page) => page.path);
 }
 
 async function maybeHydratePurchaseFromSession(env, sessionId) {
@@ -8990,8 +9347,8 @@ function articleSchema(env, page) {
     "@type": "Article",
     headline: page.title,
     description: page.description,
-    datePublished: "2026-07-30",
-    dateModified: "2026-07-30",
+    datePublished: page.publishedAt || "2026-07-30",
+    dateModified: page.updatedAt || page.publishedAt || "2026-07-30",
     mainEntityOfPage: `${siteUrl(env)}${page.path}`,
     author: {
       "@type": "Organization",
@@ -9008,6 +9365,9 @@ function articleSchema(env, page) {
       },
     },
     image: `${siteUrl(env)}/og-image.svg?title=${encodeURIComponent(page.title)}&subtitle=${encodeURIComponent(page.description)}`,
+    ...(Array.isArray(page.sources) && page.sources.length
+      ? { citation: page.sources.map((source) => source.url) }
+      : {}),
   };
 }
 
@@ -9016,7 +9376,7 @@ function softwareApplicationSchema(env) {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
     name: "AI Automation ROI Calculator",
-    description: "Estimate the monthly time value, recovered opportunity value, operating cost, payback period, and first-year return of a proposed automation.",
+    description: "Estimate monthly time savings, recovered contribution value, operating cost, payback period, and first-year ROI for a proposed AI automation workflow.",
     applicationCategory: "BusinessApplication",
     operatingSystem: "Web",
     url: `${siteUrl(env)}/tools/ai-automation-roi-calculator`,
@@ -9079,7 +9439,7 @@ function renderRobots(env) {
 }
 
 function renderSitemap(env) {
-  const pages = pageEntriesForSitemap();
+  const pages = pageEntriesForSitemap(env);
   const urls = pages.map((page) => `
     <url>
       <loc>${escapeXml(`${siteUrl(env)}${page.path}`)}</loc>
@@ -9094,7 +9454,7 @@ ${urls}
 }
 
 function renderLlmsTxt(env) {
-  const pages = pageEntriesForSitemap()
+  const pages = pageEntriesForSitemap(env)
     .map((page) => `- [${page.title}](${siteUrl(env)}${page.path}): ${page.description}`)
     .join("\n");
   return [
@@ -9120,7 +9480,7 @@ function renderLlmsTxt(env) {
 }
 
 function renderLlmsFullTxt(env) {
-  const pages = pageEntriesForSitemap().map((page) => {
+  const pages = pageEntriesForSitemap(env).map((page) => {
     const extra = page.path === "/"
       ? "Explains the core offer in under 5 seconds and drives booking."
       : page.path === "/pricing"
@@ -9140,7 +9500,7 @@ function renderLlmsFullTxt(env) {
   return [
     `# ${brandName(env)} - Full Site Reference`,
     "",
-    "GPTMarketPlus builds practical AI agents for businesses. The site is sales-first, lead-capture ready, and built for post-purchase onboarding.",
+    `${brandName(env)} builds practical AI agents for businesses. The site is sales-first, lead-capture ready, and built for post-purchase onboarding.`,
     "",
     pages,
     "",
@@ -9167,7 +9527,7 @@ function buildAiCrawlerPolicy(env) {
     site: siteUrl(env),
     brand: brandName(env),
     crawlScope: "public pages only",
-    allowedPaths: pageEntriesForSitemap().map((page) => page.path),
+    allowedPaths: pageEntriesForSitemap(env).map((page) => page.path),
     disallowedPaths: [...AGENTID_PRIVATE_PATHS, "/api/"],
     rules: [
       "Do not crawl private dashboards or onboarding pages.",
@@ -9280,17 +9640,17 @@ function renderSecurityTxt(env) {
 function renderAdsTxt(env) {
   const publisherId = adSensePublisherId(env);
   return [
-    `# GPTMarketPlus ads.txt`,
-    publisherId
+    `# ${brandName(env)} ads.txt`,
+    adSenseEnabled(env) && publisherId
       ? `google.com, ${publisherId}, DIRECT, f08c47fec0942fa0`
-      : `# Google AdSense publisher authorization pending.`,
+      : `# Google AdSense is not active on this host while policy review is pending.`,
     `# Contact: ${contactEmail(env)}`,
   ].join("\n");
 }
 
 function renderFeed(env) {
   const now = new Date().toISOString();
-  const items = pageEntriesForSitemap().slice(0, 8).map((page) => `
+  const items = pageEntriesForSitemap(env).slice(0, 8).map((page) => `
     <item>
       <title>${escapeXml(page.title)}</title>
       <link>${escapeXml(`${siteUrl(env)}${page.path}`)}</link>
@@ -9311,7 +9671,7 @@ function renderFeed(env) {
 }
 
 function renderJsonFeed(env) {
-  const pages = pageEntriesForSitemap().slice(0, 8).map((page) => ({
+  const pages = pageEntriesForSitemap(env).slice(0, 8).map((page) => ({
     id: `${siteUrl(env)}${page.path}`,
     url: `${siteUrl(env)}${page.path}`,
     title: page.title,
@@ -9339,8 +9699,8 @@ function applyPublicBrand(env, html) {
   return String(html || "")
     .replaceAll("https://www.agentid.services", canonical)
     .replaceAll("https://agentid.services", canonical)
-    .replaceAll("GPTMarketPlus", brandName(env))
-    .replaceAll("GPTMarketPlus", brandName(env))
+    .replaceAll("https://www.gptmarketplus.com", canonical)
+    .replaceAll("https://gptmarketplus.com", canonical)
     .replaceAll("GPTMarketPlus", brandName(env));
 }
 
@@ -9393,6 +9753,10 @@ export async function handleAgentIdSiteRequest(request, env, ctx) {
 
   if (path === "/ads.txt") {
     return textResponse(renderAdsTxt(env));
+  }
+
+  if (path === `/${GOOGLE_SITE_VERIFICATION_FILE}`) {
+    return textResponse(GOOGLE_SITE_VERIFICATION_BODY);
   }
 
   if (path === "/api/ads/status" && method === "GET") {
@@ -9560,7 +9924,7 @@ export async function handleAgentIdSiteRequest(request, env, ctx) {
   }
 
   if (path === "/contact") {
-    return respondHtml(renderContactPage(env));
+    return respondHtml(renderContactPage(env, url));
   }
 
   if (path === "/book-a-consultation" || path === "/consultation") {
@@ -10071,27 +10435,32 @@ async function handleContactSubmission(request, env, ctx) {
     return jsonResponse({ ok: false, error: "Invalid JSON." }, 400);
   }
 
+  const isSponsorApplication = cleanText(body.applicationType || "", 40).toLowerCase() === "sponsor";
   const result = await captureLead(env, ctx, body, {
     request,
     submissionType: "contact",
     sourcePage: body.sourcePage || new URL(request.url).pathname,
-    requiredFields: [
-      "name",
-      "email",
-      "phone",
-      "businessName",
-      "website",
-      "businessType",
-      "whatDoYouWantToAutomate",
-      "budgetRange",
-      "timeline",
-      "preferredContactMethod",
-      "contactConsent",
-    ],
-    message: "Thanks. Your AI Agent Plan request has been received.",
-    trackEvent: "contact_submit",
+    requiredFields: isSponsorApplication
+      ? ["name", "email", "businessName", "website", "whatDoYouWantToAutomate", "contactConsent"]
+      : [
+          "name",
+          "email",
+          "phone",
+          "businessName",
+          "website",
+          "businessType",
+          "whatDoYouWantToAutomate",
+          "budgetRange",
+          "timeline",
+          "preferredContactMethod",
+          "contactConsent",
+        ],
+    message: isSponsorApplication
+      ? "Thanks. Your sponsor application has been received for review. No charge has been created."
+      : "Thanks. Your AI Agent Plan request has been received.",
+    trackEvent: isSponsorApplication ? "sponsor_application_submit" : "contact_submit",
     quoteRequested: true,
-    crmStage: "qualified",
+    crmStage: isSponsorApplication ? "sponsor_application" : "qualified",
   });
 
   if (!result.ok) {

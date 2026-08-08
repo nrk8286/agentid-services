@@ -1,0 +1,206 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-08-07",
+  "business": "GPTMarketPlus",
+  "canonicalDomain": "https://gptmarketplus.com",
+  "accountState": "ACCOUNT_SIGN_IN_REQUIRED",
+  "draftState": "PAUSED",
+  "currency": "USD",
+  "timeZone": "America/Chicago",
+  "launchGates": {
+    "googleAdsAccountAuthenticated": false,
+    "billingOwnerApproved": false,
+    "dailyBudgetOwnerApproved": false,
+    "nativeLeadConversionCreated": false,
+    "nativePurchaseConversionCreated": false,
+    "conversionIdAndLabelInstalled": false,
+    "tagAssistantVerified": false,
+    "realLeadReceiptVerified": false,
+    "realPurchaseReceiptVerified": false
+  },
+  "sharedSettings": {
+    "networks": ["Google Search"],
+    "searchPartners": false,
+    "displayExpansion": false,
+    "locations": ["United States"],
+    "locationPresence": "People in or regularly in the targeted locations",
+    "languages": ["English"],
+    "audiences": "Observation only",
+    "adRotation": "Optimize",
+    "urlExpansion": false,
+    "autoApplyRecommendations": false,
+    "brandExclusions": [],
+    "dailyBudgetUsd": null
+  },
+  "campaigns": [
+    {
+      "name": "US | Search | AI Automation Services | Leads",
+      "status": "PAUSED",
+      "objective": "LEADS",
+      "primaryConversion": "generate_lead",
+      "conversionDefinition": "A server-accepted contact or strategy-call request; exclude lead-magnet downloads and unqualified clicks.",
+      "biddingAtLaunch": "Maximize conversions without a target CPA after conversion verification",
+      "biddingAfterEvidence": "Test Target CPA only after enough genuine conversions establish a stable CPA range",
+      "landingPage": "https://gptmarketplus.com/book-a-consultation",
+      "path1": "ai-automation",
+      "path2": "strategy",
+      "adGroups": [
+        {
+          "name": "AI Automation Services",
+          "keywords": [
+            { "text": "ai automation consultant", "matchType": "PHRASE" },
+            { "text": "ai automation consultant", "matchType": "EXACT" },
+            { "text": "small business automation services", "matchType": "PHRASE" },
+            { "text": "small business automation services", "matchType": "EXACT" },
+            { "text": "ai automation services", "matchType": "PHRASE" },
+            { "text": "ai automation services", "matchType": "EXACT" }
+          ],
+          "headlines": [
+            "AI Automation for Business",
+            "Custom AI Agent Development",
+            "Build an AI Agent That Works",
+            "Automate Repetitive Work",
+            "Practical AI Implementation",
+            "AI Agents for Small Business",
+            "Book a Free AI Strategy Call",
+            "Turn Manual Work Into Systems",
+            "GPTMarketPlus AI Automation",
+            "Plan, Build & Launch Faster",
+            "Custom Workflows, Clear Scope",
+            "AI Agent Setup for Your Team",
+            "Reduce Busywork With AI",
+            "Get a Practical AI Roadmap",
+            "Book an AI Strategy Call"
+          ],
+          "descriptions": [
+            "Plan and implement a practical AI agent for your real workflow. Start with a free call.",
+            "Get a clear scope, implementation plan, and next steps without inflated promises.",
+            "Automate lead follow-up, intake, support, or operations with a reviewed custom build.",
+            "GPTMarketPlus helps small businesses turn repetitive work into reliable AI workflows."
+          ]
+        },
+        {
+          "name": "Custom AI Agent Development",
+          "keywords": [
+            { "text": "custom ai agent development", "matchType": "PHRASE" },
+            { "text": "custom ai agent development", "matchType": "EXACT" },
+            { "text": "build ai agent for business", "matchType": "PHRASE" },
+            { "text": "build ai agent for business", "matchType": "EXACT" },
+            { "text": "ai agent implementation", "matchType": "PHRASE" },
+            { "text": "ai agent implementation", "matchType": "EXACT" }
+          ],
+          "headlines": [
+            "Custom AI Agent Development",
+            "Build an AI Agent That Works",
+            "AI Agents for Small Business",
+            "Practical AI Implementation",
+            "AI Agent Setup for Your Team",
+            "Custom Workflows, Clear Scope",
+            "Plan, Build & Launch Faster",
+            "Turn Manual Work Into Systems",
+            "Reduce Busywork With AI",
+            "Get a Practical AI Roadmap",
+            "Book a Free AI Strategy Call",
+            "AI Automation for Business",
+            "Automate Repetitive Work",
+            "GPTMarketPlus AI Automation",
+            "Book an AI Strategy Call"
+          ],
+          "descriptions": [
+            "Plan and implement a practical AI agent for your real workflow. Start with a free call.",
+            "Get a clear scope, implementation plan, and next steps without inflated promises.",
+            "Automate lead follow-up, intake, support, or operations with a reviewed custom build.",
+            "GPTMarketPlus helps small businesses turn repetitive work into reliable AI workflows."
+          ]
+        }
+      ]
+    },
+    {
+      "name": "US | Search | AI Agent Launch Kit | Sales",
+      "status": "PAUSED",
+      "objective": "SALES",
+      "primaryConversion": "purchase",
+      "conversionDefinition": "A payment-provider-verified completed purchase with a unique transaction ID and the actual USD value.",
+      "biddingAtLaunch": "Remain paused until native purchase tracking is verified; then test Maximize conversion value without a target ROAS",
+      "biddingAfterEvidence": "Use Target ROAS only after verified purchase values and enough volume establish a defensible baseline",
+      "landingPage": "https://gptmarketplus.com/ai-agent-launch-kit",
+      "path1": "ai-agent",
+      "path2": "launch-kit",
+      "adGroups": [
+        {
+          "name": "AI Agent Launch Kit",
+          "keywords": [
+            { "text": "ai agent launch kit", "matchType": "PHRASE" },
+            { "text": "ai agent launch kit", "matchType": "EXACT" },
+            { "text": "ai agent planning template", "matchType": "PHRASE" },
+            { "text": "ai agent planning template", "matchType": "EXACT" },
+            { "text": "ai agent workbook", "matchType": "PHRASE" },
+            { "text": "ai agent workbook", "matchType": "EXACT" }
+          ],
+          "headlines": [
+            "AI Agent Launch Kit - $29",
+            "Launch Your First AI Agent",
+            "Build an AI Agent Step by Step",
+            "Practical AI Agent Workbook",
+            "Start Your AI Project for $29",
+            "AI Agent Planning Templates",
+            "Turn a Workflow Into an Agent",
+            "Plan Before You Build",
+            "Download the AI Launch Kit",
+            "A Clear AI Agent Roadmap",
+            "Define Scope, Tools & Success",
+            "Avoid Costly AI Guesswork",
+            "For Small Business AI Projects",
+            "GPTMarketPlus Launch Kit",
+            "Get the Editable Workbook"
+          ],
+          "descriptions": [
+            "Plan one useful AI agent with an editable workbook, checklists, and a clear launch path.",
+            "Define the workflow, tools, guardrails, success metrics, and next steps before you build.",
+            "Get the practical $29 AI Agent Launch Kit with secure payment-gated delivery.",
+            "Use a structured roadmap built for small-business owners planning their first AI agent."
+          ]
+        }
+      ]
+    }
+  ],
+  "sharedNegativeKeywords": [
+    "free",
+    "jobs",
+    "salary",
+    "career",
+    "internship",
+    "course",
+    "certification",
+    "training",
+    "tutorial",
+    "definition",
+    "research paper",
+    "github",
+    "open source",
+    "robotics",
+    "toy robot",
+    "stock",
+    "crypto trading",
+    "resume",
+    "interview questions"
+  ],
+  "assets": {
+    "sitelinks": [
+      { "text": "Plans & Pricing", "url": "https://gptmarketplus.com/pricing" },
+      { "text": "AI Agent Launch Kit", "url": "https://gptmarketplus.com/ai-agent-launch-kit" },
+      { "text": "Book a Strategy Call", "url": "https://gptmarketplus.com/book-a-consultation" },
+      { "text": "AI Automation ROI Tool", "url": "https://gptmarketplus.com/tools/ai-automation-roi-calculator" }
+    ],
+    "callouts": [
+      "Practical Implementation",
+      "Small-Business Focus",
+      "Reviewed Custom Builds",
+      "Transparent Pricing"
+    ],
+    "structuredSnippet": {
+      "header": "Types",
+      "values": ["AI Agents", "Workflow Automation", "Lead Follow-Up", "Customer Support"]
+    }
+  }
+}
