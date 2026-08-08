@@ -37,6 +37,6 @@
     "validate:links:live": "node scripts/validate-public-links.mjs --live"
   },
   "devDependencies": {
-    "wrangler": "^4.116.0"
+    "wrangler": "^4.119.0"
   }
 }
