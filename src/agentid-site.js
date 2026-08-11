@@ -86,7 +86,7 @@ let googleAccessTokenCache = {
   expiresAt: 0,
 };
 
-const SITE_CONTENT_LAST_MODIFIED = "2026-07-30";
+const SITE_CONTENT_LAST_MODIFIED = "2026-08-10";
 
 const BUILD_STAGES = [
   "purchase_received",
@@ -1076,6 +1076,87 @@ const RESOURCE_PAGES = [
     ],
     related: ["/guides/ai-lead-follow-up", "/ai-agent-launch-kit", "/contact"],
   },
+  {
+    path: "/industries/facilities-ai-work-order-automation",
+    category: "Operations guide",
+    title: "AI Work Order Automation for Facility Teams",
+    description: "Use an AI work-order agent to capture maintenance requests, prioritize risk, route work, document completion, and keep safety decisions with qualified people.",
+    summary: "A practical workflow for turning texts, calls, and hallway requests into trackable work without removing human approval from safety-critical decisions.",
+    publishedAt: "2026-08-10",
+    updatedAt: "2026-08-10",
+    updatedLabel: "August 10, 2026",
+    faqKicker: "Facility operations questions",
+    faqTitle: "AI work-order automation FAQ",
+    faqDescription: "Use a narrow workflow, a clear owner, and an auditable handoff before expanding automation across a facility.",
+    faqs: [
+      {
+        question: "What should an AI work-order agent do first?",
+        answer: "Start with intake and routing. The agent can capture the location, issue, urgency, access needs, photos, and requester details, then create a structured work order for a qualified person to review.",
+      },
+      {
+        question: "Can AI decide whether a maintenance issue is an emergency?",
+        answer: "It can ask approved screening questions and flag possible emergencies, but a qualified person should retain responsibility for life-safety, medical, electrical, gas, structural, security, and other high-risk decisions.",
+      },
+      {
+        question: "How should a facility measure the pilot?",
+        answer: "Track complete requests, time to assignment, time to first response, overdue work, repeat requests, documentation completeness, and staff corrections. Compare the results with a baseline before expanding the workflow.",
+      },
+    ],
+    sections: [
+      {
+        title: "Start with the request, not the chatbot",
+        body: "The useful first step is a structured intake that turns an informal request into information a maintenance team can act on. A good workflow asks only what is needed, saves the request once, and shows the requester what happens next.",
+        points: [
+          "Building, floor, room, or equipment location",
+          "What happened and when it started",
+          "Urgency, access restrictions, and current risk",
+          "Photos, documents, or readings when available",
+        ],
+      },
+      {
+        title: "Route by risk, trade, and responsibility",
+        body: "Routing rules should reflect the facility's actual ownership model. Plumbing, HVAC, electrical, housekeeping, security, vendor, and supervisor queues may need different response targets. The agent can recommend a queue, but the responsible person should be able to correct it.",
+        points: [
+          "Separate routine work from possible life-safety concerns",
+          "Escalate gas, fire, flooding, electrical, security, and injury language",
+          "Preserve the original request and every reassignment",
+          "Record who accepted the work and when",
+        ],
+      },
+      {
+        title: "Keep safety decisions human-controlled",
+        body: "Automation should reduce missed handoffs, not authorize unsafe work. Use approved scripts for immediate precautions, require human review for high-risk situations, and direct staff to emergency services or qualified contractors when the issue exceeds the team's authority.",
+        points: [
+          "Never let the agent invent repair instructions",
+          "Do not use the workflow as a substitute for required inspections",
+          "Keep resident, patient, employee, and visitor information limited to the business need",
+          "Document the escalation and final disposition",
+        ],
+      },
+      {
+        title: "Make completion documentation useful",
+        body: "A closed work order should tell the next person what was found, what was done, what materials were used, whether a vendor was involved, and what follow-up remains. Structured completion notes make recurring failures and preventive-maintenance decisions easier to see.",
+        points: [
+          "Before and after condition",
+          "Repair, adjustment, replacement, or vendor action",
+          "Parts, measurements, photos, and supporting records",
+          "Follow-up date, verification, and remaining risk",
+        ],
+      },
+      {
+        title: "Pilot one workflow for 30 days",
+        body: "Choose one high-volume request type, establish a baseline, train the staff who will receive the work, and review the queue every week. Expand only when intake is complete, routing is reliable, and the team can explain how the workflow improves response without hiding unresolved work.",
+        points: [
+          "Week 1: map intake fields and escalation rules",
+          "Week 2: connect the queue, notifications, and records",
+          "Week 3: test normal and high-risk scenarios",
+          "Week 4: review metrics, corrections, and staff feedback",
+        ],
+      },
+    ],
+    related: ["/ai-agents", "/guides/ai-agent-for-small-business", "/tools/ai-automation-roi-calculator", "/contact"],
+  },
+
 ];
 
 const AGENT_STAGE_LABELS = {
@@ -3219,17 +3300,51 @@ async function handleChat(request, env, ctx) {
 }
 
 function renderHomePage(env, state) {
+  const agentIdSite = isAgentIdSite(env);
+  const hero = agentIdSite
+    ? {
+      eyebrow: "AgentID Services",
+      title: "AI agents that capture leads, automate follow-up, and keep your business moving",
+      lede: "AgentID Services designs practical AI workflows for lead capture, customer response, scheduling, follow-up, and internal operations—with clear scope and human handoff.",
+      primaryPath: "/contact",
+      primaryLabel: "Get My AI Automation Plan",
+      secondaryPath: "/pricing",
+      secondaryLabel: "See Starting Prices",
+      trustLine: "Clear scope, human handoff, and measurable next steps—without a vague chatbot demo.",
+      ownershipLabel: "AgentID Services delivery advantages",
+      finalEyebrow: "Ready to improve response time?",
+      finalTitle: "Get a scoped AI automation plan",
+      finalDescription: "Tell us where leads, requests, or repetitive work are getting stuck. We will map the first workflow and show the next practical step.",
+      finalLabel: "Request My Plan",
+      description: "AgentID Services designs and implements practical AI agents for lead capture, customer response, scheduling, follow-up, and internal operations with clear scope and human handoff.",
+    }
+    : {
+      eyebrow: "GPTMarketPlus",
+      title: "Custom AI Agents That Help Your Business Sell, Respond, and Operate Faster",
+      lede: "Turn missed leads, slow follow-up, repetitive customer questions, and manual admin into one AI workflow your business can use every day.",
+      primaryPath: "/book-a-consultation",
+      primaryLabel: "Book a Free AI Strategy Call",
+      secondaryPath: "/pricing",
+      secondaryLabel: "See Plans & Pricing",
+      trustLine: "Plans start at $497. Built for small businesses, service companies, agencies, and operations teams that need practical AI systems - not confusing tech.",
+      ownershipLabel: "GPTMarketPlus platform advantages",
+      finalEyebrow: "Ready to build your first AI agent?",
+      finalTitle: "Book your free strategy call",
+      finalDescription: "We will look at your business, identify what can be automated, and recommend the best AI agent setup.",
+      finalLabel: "Book Your Free Strategy Call",
+      description: "GPTMarketPlus builds AI-powered assistants, automation systems, and lead-capture tools that handle repetitive work, improve response time, and help businesses turn more visitors into customers.",
+    };
   const body = `
     <section class="hero">
       <div class="hero-copy">
-        <p class="eyebrow">GPTMarketPlus</p>
-        <h1>Custom AI Agents That Help Your Business Sell, Respond, and Operate Faster</h1>
-        <p class="hero-lede">Turn missed leads, slow follow-up, repetitive customer questions, and manual admin into one AI workflow your business can use every day.</p>
+        <p class="eyebrow">${escapeHtml(hero.eyebrow)}</p>
+        <h1>${escapeHtml(hero.title)}</h1>
+        <p class="hero-lede">${escapeHtml(hero.lede)}</p>
         <div class="cta-row">
-          <a class="button-primary" href="/book-a-consultation" data-track-event="cta_click" data-track-label="Book a Free AI Strategy Call">Book a Free AI Strategy Call</a>
-          <a class="button-secondary" href="/pricing" data-track-event="cta_click" data-track-label="See Plans and Pricing">See Plans &amp; Pricing</a>
+          <a class="button-primary" href="${escapeHtml(hero.primaryPath)}" data-track-event="cta_click" data-track-label="${escapeHtml(hero.primaryLabel)}">${escapeHtml(hero.primaryLabel)}</a>
+          <a class="button-secondary" href="${escapeHtml(hero.secondaryPath)}" data-track-event="cta_click" data-track-label="${escapeHtml(hero.secondaryLabel)}">${escapeHtml(hero.secondaryLabel)}</a>
         </div>
-        <p class="trust-line">Plans start at $497. Built for small businesses, service companies, agencies, and operations teams that need practical AI systems - not confusing tech.</p>
+        <p class="trust-line">${escapeHtml(hero.trustLine)}</p>
         <ul class="benefit-list">
           <li>Capture leads 24/7</li>
           <li>Automate follow-up</li>
@@ -3242,7 +3357,7 @@ function renderHomePage(env, state) {
       ${renderHeroVisual()}
     </section>
 
-    <div class="ownership-strip" aria-label="GPTMarketPlus platform advantages">
+    <div class="ownership-strip" aria-label="${escapeHtml(hero.ownershipLabel)}">
       <span>First-party sales tool</span>
       <span>No platform lock-in</span>
       <span>Secure checkout</span>
@@ -3250,6 +3365,19 @@ function renderHomePage(env, state) {
     </div>
 
     ${renderOpportunityScannerBootstrap()}
+
+    ${agentIdSite ? `
+    <section class="section split-section">
+      <div>
+        ${renderSectionTitle("Built for accountable operations", "A clear path from request to completed work", "AgentID Services connects customer-facing intake with the people and systems responsible for the next step.")}
+      </div>
+      <div class="feature-rack">
+        <article class="feature-card"><strong>Capture</strong><span>Collect the details a person needs to act.</span></article>
+        <article class="feature-card"><strong>Qualify</strong><span>Separate routine requests from high-risk issues.</span></article>
+        <article class="feature-card"><strong>Route</strong><span>Send the work to the right person or system.</span></article>
+        <article class="feature-card"><strong>Prove</strong><span>Keep a record of the action, handoff, and result.</span></article>
+      </div>
+    </section>` : ""}
 
     <section class="section split-section">
       <div>
@@ -3323,18 +3451,18 @@ function renderHomePage(env, state) {
 
     <section class="section split-section final-cta">
       <div>
-        ${renderSectionTitle("Ready to build your first AI agent?", "Book your free strategy call", "We’ll look at your business, identify what can be automated, and recommend the best AI agent setup.")}
+        ${renderSectionTitle(hero.finalEyebrow, hero.finalTitle, hero.finalDescription)}
       </div>
       <div class="cta-box">
-        <a class="button-primary" href="/book-a-consultation" data-track-event="cta_click" data-track-label="Book Your Free Strategy Call">Book Your Free Strategy Call</a>
+        <a class="button-primary" href="${escapeHtml(hero.primaryPath)}" data-track-event="cta_click" data-track-label="${escapeHtml(hero.finalLabel)}">${escapeHtml(hero.finalLabel)}</a>
       </div>
     </section>
   `;
 
   return renderShell(env, {
     path: "/",
-    title: "Custom AI Agents Built to Help Your Business Sell, Respond, and Operate Faster",
-    description: "GPTMarketPlus builds AI-powered assistants, automation systems, and lead-capture tools that handle repetitive work, improve response time, and help businesses turn more visitors into customers.",
+    title: hero.title,
+    description: hero.description,
     body,
     schema: [
       organizationSchema(env),
@@ -5567,7 +5695,7 @@ const AGENTID_PUBLIC_PAGES = [
 
 function renderNav(activePath) {
   const items = NAV_LINKS.map((item) => `
-    <a class="${normalizePath(activePath) === item.path ? "active " : ""}${item.optional ? "nav-optional" : ""}" href="${item.path}">${escapeHtml(item.label)}</a>
+    <a class="${normalizePath(activePath) === item.path ? "active " : ""}${item.optional ? "nav-optional" : ""}" href="${item.path}" data-track-event="nav_click" data-track-label="${escapeHtml(item.label)}">${escapeHtml(item.label)}</a>
   `).join("");
 
   return `
@@ -5577,7 +5705,7 @@ function renderNav(activePath) {
         <span class="brand-sub">Custom AI agents for business</span>
       </div>
       <nav class="nav-links">${items}</nav>
-      <a class="nav-cta" href="/book-a-consultation">Book a Free AI Strategy Call</a>
+      <a class="nav-cta" href="/book-a-consultation" data-track-event="cta_click" data-track-label="Book a Free AI Strategy Call">Book a Free AI Strategy Call</a>
     </header>`;
 }
 
@@ -5915,7 +6043,7 @@ function renderCardGrid(items, ctaLabel = "") {
           <h3>${escapeHtml(item.title)}</h3>
           <p>${escapeHtml(item.description || item.summary || "")}</p>
           ${item.points ? `<ul>${item.points.map((point) => `<li>${escapeHtml(point)}</li>`).join("")}</ul>` : ""}
-          ${ctaLabel && item.href ? `<a class="card-link" href="${escapeHtml(item.href)}">${escapeHtml(ctaLabel)}</a>` : ""}
+          ${ctaLabel && item.href ? `<a class="card-link" href="${escapeHtml(item.href)}" data-track-event="resource_click" data-track-label="${escapeHtml(item.title)}">${escapeHtml(ctaLabel)}</a>` : ""}
         </article>
       `).join("")}
     </div>`;
@@ -5995,6 +6123,12 @@ function renderMeasurementHead(env) {
   const tagManagerId = String(env.GOOGLE_TAG_ID || "").trim();
   const analyticsId = String(env.GOOGLE_ANALYTICS_ID || "").trim();
   const snippets = [];
+  const measurementConfig = JSON.stringify({
+    send_page_view: true,
+    cookie_domain: "auto",
+    linker: { domains: ["gptmarketplus.com", "agentid.services"] },
+    site_variant: isAgentIdSite(env) ? "agentid_services" : "gptmarketplus",
+  });
 
   if (tagManagerId.startsWith("GTM-")) {
     snippets.push(`<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
@@ -6009,7 +6143,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
   function gtag(){dataLayer.push(arguments);}
   gtag("set", "linker", { domains: ${JSON.stringify(GOOGLE_CROSS_DOMAIN_HOSTS)} });
   gtag("js", new Date());
-  gtag("config", "${escapeJs(analyticsId)}");
+  gtag("config", "${escapeJs(analyticsId)}", ${measurementConfig});
 </script>`);
   }
 
@@ -6123,6 +6257,8 @@ function renderAnalyticsBootstrap(env) {
   const googleAdsPurchaseConversionLabel = String(env.GOOGLE_ADS_PURCHASE_CONVERSION_LABEL || "").trim();
   const config = {
     siteUrl: siteUrl(env),
+    siteVariant: isAgentIdSite(env) ? "agentid_services" : "gptmarketplus",
+    canonicalHost: new URL(siteUrl(env)).hostname,
     googleTagId: String(env.GOOGLE_TAG_ID || "").trim(),
     googleAnalyticsId: String(env.GOOGLE_ANALYTICS_ID || "").trim(),
     googleAdsConversionSendTo: {
@@ -6160,6 +6296,9 @@ function renderAnalyticsBootstrap(env) {
         const search = new URLSearchParams(location.search);
         const incoming = {
           landing_page: location.pathname + location.search,
+          landing_host: location.hostname,
+          landing_origin: location.origin,
+          site_variant: window.__agentidAnalyticsConfig.siteVariant,
           page_referrer: document.referrer || "",
           utm_source: search.get("utm_source") || "",
           utm_medium: search.get("utm_medium") || "",
@@ -6184,6 +6323,8 @@ function renderAnalyticsBootstrap(env) {
       window.dataLayer.push(Object.assign({
         event: "agentid_attribution_ready",
         agentid_session_id: window.__agentidSessionId,
+        site_variant: window.__agentidAnalyticsConfig.siteVariant,
+        page_hostname: location.hostname,
       }, window.__agentidAttribution));
       window.__agentidGoogleAdsConversionKeys = new Set();
       window.agentidTrackGoogleAdsConversion = function(eventName, properties) {
@@ -6210,6 +6351,10 @@ function renderAnalyticsBootstrap(env) {
       window.agentidTrackEvent = async function(eventName, properties) {
         const eventProperties = Object.assign({
           agentid_session_id: window.__agentidSessionId,
+          site_variant: window.__agentidAnalyticsConfig.siteVariant,
+          page_hostname: location.hostname,
+          page_origin: location.origin,
+          page_title: document.title,
         }, window.__agentidAttribution || {}, properties || {});
         const payload = {
           eventName,
@@ -6327,6 +6472,7 @@ function renderAnalyticsBootstrap(env) {
       }
 
       document.addEventListener("DOMContentLoaded", () => {
+        window.agentidTrackEvent("site_view", { page_path: location.pathname });
         trackScrollDepth();
         trackFaqOpen();
         trackClicks();
