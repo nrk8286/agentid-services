@@ -17,6 +17,24 @@ const workerSource = readFileSync(new URL("../src/index.js", import.meta.url), "
 const siteSource = readFileSync(new URL("../src/agentid-site.js", import.meta.url), "utf8");
 const failures = [];
 
+function cspDirectiveSources(source, directiveName) {
+  const cspMatch = source.match(/"content-security-policy"\s*:\s*"([^"\r\n]*)"/i);
+  if (!cspMatch) return [];
+
+  const normalizedDirectiveName = String(directiveName || "").trim().toLowerCase();
+  const directive = cspMatch[1]
+    .split(";")
+    .map((value) => value.trim())
+    .find((value) => value.split(/\s+/, 1)[0]?.toLowerCase() === normalizedDirectiveName);
+
+  return directive ? directive.split(/\s+/).slice(1) : [];
+}
+
+function hasExactCspSource(source, directiveName, expectedSource) {
+  return cspDirectiveSources(source, directiveName)
+    .some((candidate) => candidate === expectedSource);
+}
+
 if (/stripe/i.test(`${workerSource}\n${siteSource}\n${raw}`)) {
   failures.push("runtime source and Worker configuration must remain PayPal-only");
 }
@@ -61,11 +79,32 @@ if (!/"binding"\s*:\s*"GMP_QUEUE"[\s\S]{0,160}?"queue"\s*:\s*"agentid-services-e
   failures.push("GMP_QUEUE producer binding is missing or targets the wrong queue");
 }
 
-if (!workerSource.includes("https://track.hubspot.com") || !siteSource.includes("https://track.hubspot.com")) {
+const cspSubstringAttackFixtures = [
+  '"content-security-policy": "connect-src \'self\' https://track.hubspot.com.attacker.example"',
+  '"content-security-policy": "connect-src \'self\' https://attacker.example/https://track.hubspot.com"',
+];
+if (cspSubstringAttackFixtures.some((fixture) => (
+  hasExactCspSource(fixture, "connect-src", "https://track.hubspot.com")
+))) {
+  failures.push("CSP source validation must reject hosts that only contain a trusted URL substring");
+}
+
+if (![workerSource, siteSource].every((source) => (
+  hasExactCspSource(source, "connect-src", "https://track.hubspot.com")
+))) {
   failures.push("Worker CSP must permit the configured HubSpot Zaraz tracking endpoint");
 }
-if (!workerSource.includes("connect-src 'self' https://analytics.google.com https://*.google-analytics.com https://www.google.com")
-    || !siteSource.includes("connect-src 'self' https://analytics.google.com https://*.google-analytics.com https://www.google.com")) {
+
+const requiredGoogleConnectSources = [
+  "https://analytics.google.com",
+  "https://*.google-analytics.com",
+  "https://www.google.com",
+];
+if (![workerSource, siteSource].every((source) => (
+  requiredGoogleConnectSources.every((expectedSource) => (
+    hasExactCspSource(source, "connect-src", expectedSource)
+  ))
+))) {
   failures.push("Worker CSP must permit Google measurement requests emitted by the configured Google tag");
 }
 
