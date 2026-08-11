@@ -64,6 +64,10 @@ if (!/"binding"\s*:\s*"GMP_QUEUE"[\s\S]{0,160}?"queue"\s*:\s*"agentid-services-e
 if (!workerSource.includes("https://track.hubspot.com") || !siteSource.includes("https://track.hubspot.com")) {
   failures.push("Worker CSP must permit the configured HubSpot Zaraz tracking endpoint");
 }
+if (!workerSource.includes("connect-src 'self' https://analytics.google.com https://*.google-analytics.com https://www.google.com")
+    || !siteSource.includes("connect-src 'self' https://analytics.google.com https://*.google-analytics.com https://www.google.com")) {
+  failures.push("Worker CSP must permit Google measurement requests emitted by the configured Google tag");
+}
 
 if (
   !workerSource.includes('String(result.hostname || "").toLowerCase() === expectedHostname')
@@ -235,6 +239,31 @@ if (!workerSource.includes('if (!tagId && !analyticsId) return "";')) {
 }
 if (!workerSource.includes('googleAdsConversionSendTo(env, "generate_lead")') || !workerSource.includes('googleAdsConversionSendTo(env, "purchase")')) {
   failures.push("lead and purchase events must use separate Google Ads conversion destinations");
+}
+if (!workerSource.includes('gtag("set", "linker", { domains: ${JSON.stringify(GOOGLE_CROSS_DOMAIN_HOSTS)} })')
+    || !siteSource.includes('gtag("set", "linker", { domains: ${JSON.stringify(GOOGLE_CROSS_DOMAIN_HOSTS)} })')) {
+  failures.push("Google measurement must link journeys across the owned production domains");
+}
+if ((workerSource.match(/purchase: paypalPurchaseMeasurementPayload\(/g) || []).length < 2) {
+  failures.push("new and replayed completed PayPal captures must return the same GA4 purchase payload");
+}
+if (!siteSource.includes('window.agentidTrackEvent("begin_checkout"')
+    || !siteSource.includes('items: [{')) {
+  failures.push("PayPal checkout redirects must emit the GA4 begin_checkout ecommerce event");
+}
+
+for (const requiredPurchaseControl of [
+  'gtag("config", "${escapeJs(directTagId)}", { send_page_view: false })',
+  "window.agentidTrackVerifiedPurchase = function(purchase)",
+  'window.gtag("event", "purchase"',
+  "transaction_id:",
+  "items: [item]",
+  'result.purchase',
+  'purchaseConversionSendTo = googleAdsConversionSendTo(env, "purchase")',
+]) {
+  if (!workerSource.includes(requiredPurchaseControl)) {
+    failures.push(`verified PayPal completion is missing ${requiredPurchaseControl}`);
+  }
 }
 
 const securityResponse = await handleAgentIdSiteRequest(

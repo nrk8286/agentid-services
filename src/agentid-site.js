@@ -1,6 +1,6 @@
 const SECURITY_HEADERS = {
   "strict-transport-security": "max-age=31536000; includeSubDomains; preload",
-  "content-security-policy": "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self' https://www.paypal.com https://www.sandbox.paypal.com; script-src 'self' 'unsafe-inline' https://pagead2.googlesyndication.com https://*.google.com https://*.googleapis.com https://*.gstatic.com https://challenges.cloudflare.com https://static.cloudflareinsights.com https://*.adtrafficquality.google; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://analytics.google.com https://*.google-analytics.com https://stats.g.doubleclick.net https://*.adtrafficquality.google https://*.cloudflareinsights.com https://track.hubspot.com https://*.paypal.com; frame-src https://challenges.cloudflare.com https://*.adtrafficquality.google https://*.google.com https://*.googlesyndication.com https://*.doubleclick.net https://*.paypal.com; upgrade-insecure-requests",
+  "content-security-policy": "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self' https://www.paypal.com https://www.sandbox.paypal.com; script-src 'self' 'unsafe-inline' https://pagead2.googlesyndication.com https://*.google.com https://*.googleapis.com https://*.gstatic.com https://challenges.cloudflare.com https://static.cloudflareinsights.com https://*.adtrafficquality.google; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://analytics.google.com https://*.google-analytics.com https://www.google.com https://stats.g.doubleclick.net https://*.adtrafficquality.google https://*.cloudflareinsights.com https://track.hubspot.com https://*.paypal.com; frame-src https://challenges.cloudflare.com https://*.adtrafficquality.google https://*.google.com https://*.googlesyndication.com https://*.doubleclick.net https://*.paypal.com; upgrade-insecure-requests",
   "cross-origin-opener-policy": "same-origin-allow-popups",
   "cross-origin-resource-policy": "same-site",
   "origin-agent-cluster": "?1",
@@ -72,6 +72,14 @@ const BODY_TOO_LARGE = Symbol("body-too-large");
 const GOOGLE_SITE_VERIFICATION = "hxvcDl32V0BA5LSTQx-OfIUE6DAIR6TrRp2pUbE5XZo";
 const GOOGLE_SITE_VERIFICATION_FILE = "google9b1a14a98542c3e1.html";
 const GOOGLE_SITE_VERIFICATION_BODY = `google-site-verification: ${GOOGLE_SITE_VERIFICATION_FILE}`;
+const GOOGLE_CROSS_DOMAIN_HOSTS = [
+  "gptmarketplus.com",
+  "agentid.services",
+  "agentid.life",
+  "agentid.solutions",
+  "agentid.website",
+  "agentid.world",
+];
 
 let googleAccessTokenCache = {
   token: "",
@@ -5999,6 +6007,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 <script>
   window.dataLayer = window.dataLayer || [];
   function gtag(){dataLayer.push(arguments);}
+  gtag("set", "linker", { domains: ${JSON.stringify(GOOGLE_CROSS_DOMAIN_HOSTS)} });
   gtag("js", new Date());
   gtag("config", "${escapeJs(analyticsId)}");
 </script>`);
@@ -6670,6 +6679,19 @@ function renderFormsBootstrap(env) {
             }
             if (result.checkoutUrl) {
               if (window.agentidTrackEvent) {
+                const amount = Number(result.product?.amount || 0) / 100;
+                const currency = String(result.product?.currency || "USD").toUpperCase();
+                window.agentidTrackEvent("begin_checkout", {
+                  value: amount,
+                  currency,
+                  payment_provider: result.provider || "paypal",
+                  items: [{
+                    item_id: result.product?.id || payload.productId || payload.packageId || "",
+                    item_name: result.product?.name || result.product?.id || "Purchase",
+                    price: amount,
+                    quantity: 1,
+                  }],
+                });
                 window.agentidTrackEvent("checkout_click", {
                   productId: payload.productId || payload.packageId || "",
                   sourcePage: location.pathname,

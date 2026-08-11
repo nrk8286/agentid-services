@@ -36,7 +36,7 @@ const HTML_HEADERS = {
 
 const SECURITY_HEADERS = {
   "strict-transport-security": "max-age=31536000; includeSubDomains; preload",
-  "content-security-policy": "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self' https://www.paypal.com https://www.sandbox.paypal.com; script-src 'self' 'unsafe-inline' https://pagead2.googlesyndication.com https://*.google.com https://*.googleapis.com https://*.gstatic.com https://challenges.cloudflare.com https://static.cloudflareinsights.com https://*.adtrafficquality.google; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://analytics.google.com https://*.google-analytics.com https://stats.g.doubleclick.net https://*.adtrafficquality.google https://*.cloudflareinsights.com https://track.hubspot.com https://*.paypal.com; frame-src https://challenges.cloudflare.com https://*.adtrafficquality.google https://*.google.com https://*.googlesyndication.com https://*.doubleclick.net https://*.paypal.com; upgrade-insecure-requests",
+  "content-security-policy": "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self' https://www.paypal.com https://www.sandbox.paypal.com; script-src 'self' 'unsafe-inline' https://pagead2.googlesyndication.com https://*.google.com https://*.googleapis.com https://*.gstatic.com https://challenges.cloudflare.com https://static.cloudflareinsights.com https://*.adtrafficquality.google; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://analytics.google.com https://*.google-analytics.com https://www.google.com https://stats.g.doubleclick.net https://*.adtrafficquality.google https://*.cloudflareinsights.com https://track.hubspot.com https://*.paypal.com; frame-src https://challenges.cloudflare.com https://*.adtrafficquality.google https://*.google.com https://*.googlesyndication.com https://*.doubleclick.net https://*.paypal.com; upgrade-insecure-requests",
   "cross-origin-opener-policy": "same-origin-allow-popups",
   "cross-origin-resource-policy": "same-site",
   "origin-agent-cluster": "?1",
@@ -84,6 +84,14 @@ const AGENTID_SERVICES_HOSTS = new Set([
   "agentid.services",
   "www.agentid.services",
 ]);
+const GOOGLE_CROSS_DOMAIN_HOSTS = [
+  "gptmarketplus.com",
+  "agentid.services",
+  "agentid.life",
+  "agentid.solutions",
+  "agentid.website",
+  "agentid.world",
+];
 const LEGACY_PUBLIC_HOSTS = new Set([
   "gptmarketplus.org",
   "www.gptmarketplus.org",
@@ -707,7 +715,7 @@ export default {
       return handlePaypalDigitalProductDownload(request, env);
     }
     if (url.pathname === "/paypal/complete" && request.method === "GET") {
-      return privateHtmlResponse(renderPaypalOrderCompletionPage());
+      return privateHtmlResponse(renderPaypalOrderCompletionPage(env));
     }
     if (url.pathname === "/paypal/download/ai-agent-launch-kit" && request.method === "GET") {
       return renderPaypalDigitalProductPage(request, env);
@@ -2279,6 +2287,18 @@ function paypalCaptureFromOrder(order) {
   return { unit: null, capture: null };
 }
 
+function paypalPurchaseMeasurementPayload(order) {
+  const amountCents = Number(order?.amountCents || 0);
+  return {
+    transactionId: cleanText(order?.id || "", 80),
+    value: Number.isFinite(amountCents) ? amountCents / 100 : 0,
+    currency: cleanText(order?.currency || "USD", 12).toUpperCase() || "USD",
+    itemId: cleanText(order?.productId || "", 120),
+    itemName: cleanText(order?.productName || order?.productId || "Purchase", 160),
+    paymentProvider: "paypal",
+  };
+}
+
 async function handlePaypalOrderCapture(request, env, ctx) {
   if (!paypalCredentialsReady(env)) {
     return jsonResponse({ ok: false, error: "PayPal payments are not configured." }, 503);
@@ -2312,6 +2332,7 @@ async function handlePaypalOrderCapture(request, env, ctx) {
       captured: true,
       orderId,
       productId: completedOrder.productId,
+      purchase: paypalPurchaseMeasurementPayload(completedOrder),
       deliveryUrl: paypalOrderDeliveryUrl(env, completedOrder),
       emailSent: Boolean(completedOrder.emailDelivery?.delivered),
     });
@@ -2403,6 +2424,7 @@ async function handlePaypalOrderCapture(request, env, ctx) {
     captured: true,
     orderId,
     productId: fulfilledOrder.productId,
+    purchase: paypalPurchaseMeasurementPayload(fulfilledOrder),
     deliveryUrl: paypalOrderDeliveryUrl(env, fulfilledOrder),
     emailSent: Boolean(fulfilledOrder.emailDelivery?.delivered),
   });
@@ -2464,7 +2486,7 @@ async function renderPaypalDigitalProductPage(request, env) {
   ));
 }
 
-function renderPaypalOrderCompletionPage() {
+function renderPaypalOrderCompletionPage(env) {
   return renderPaypalResultShell(
     "PayPal checkout",
     "Confirming your payment",
@@ -2491,16 +2513,101 @@ function renderPaypalOrderCompletionPage() {
              throw new Error(result.error || "Payment confirmation failed.");
            }
            status.textContent = "Payment confirmed. Opening your next step…";
+           if (typeof window.agentidTrackVerifiedPurchase === "function" && result.purchase) {
+             await window.agentidTrackVerifiedPurchase(result.purchase);
+           }
            location.replace(result.deliveryUrl);
          } catch (error) {
            status.textContent = error.message || "Payment confirmation failed. Contact support with your PayPal order ID.";
          }
        })();
-     </script>`,
+    </script>`,
+    renderPaypalPurchaseMeasurementHead(env),
   );
 }
 
-function renderPaypalResultShell(eyebrow, title, description, actions) {
+function renderPaypalPurchaseMeasurementHead(env) {
+  const tagId = googleTagId(env);
+  const analyticsId = googleAnalyticsId(env);
+  const measurementPath = googleTagGatewayPath(env);
+  const useTagManager = tagId.startsWith("GTM-");
+  const directTagId = analyticsId.startsWith("G-")
+    ? analyticsId
+    : !useTagManager && tagId.startsWith("G-")
+      ? tagId
+      : "";
+  const purchaseConversionSendTo = googleAdsConversionSendTo(env, "purchase");
+  if (!useTagManager && !directTagId) return "";
+
+  const loader = useTagManager
+    ? `<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+'${measurementPath}/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+})(window,document,'script','dataLayer','${escapeJs(tagId)}');</script>`
+    : `<script async src="${measurementPath}/gtag/js?id=${encodeURIComponent(directTagId)}"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag("set", "linker", { domains: ${JSON.stringify(GOOGLE_CROSS_DOMAIN_HOSTS)} });
+  gtag("js", new Date());
+  gtag("config", "${escapeJs(directTagId)}", { send_page_view: false });
+</script>`;
+
+  return `${loader}
+<script>
+  window.agentidTrackVerifiedPurchase = function(purchase) {
+    if (!purchase || !purchase.transactionId || window.__agentidGooglePurchaseTracked) {
+      return Promise.resolve(false);
+    }
+    window.__agentidGooglePurchaseTracked = true;
+    var value = Number(purchase.value || 0);
+    var currency = String(purchase.currency || "USD").toUpperCase();
+    var item = {
+      item_id: String(purchase.itemId || ""),
+      item_name: String(purchase.itemName || purchase.itemId || "Purchase"),
+      affiliation: location.hostname,
+      price: value,
+      quantity: 1
+    };
+    var eventPayload = {
+      transaction_id: String(purchase.transactionId),
+      affiliation: location.hostname,
+      value: value,
+      currency: currency,
+      payment_type: String(purchase.paymentProvider || "paypal"),
+      items: [item]
+    };
+    return new Promise(function(resolve) {
+      var finished = false;
+      var finish = function(sent) {
+        if (finished) return;
+        finished = true;
+        resolve(sent);
+      };
+      window.setTimeout(function() { finish(true); }, 1200);
+      if (${JSON.stringify(useTagManager)}) {
+        window.dataLayer = window.dataLayer || [];
+        window.dataLayer.push(Object.assign({ event: "purchase", ecommerce: eventPayload }, eventPayload));
+        ${purchaseConversionSendTo ? `window.dataLayer.push(Object.assign({ event: "conversion", send_to: ${JSON.stringify(purchaseConversionSendTo)} }, eventPayload));` : ""}
+        window.setTimeout(function() { finish(true); }, 250);
+        return;
+      }
+      if (typeof window.gtag === "function") {
+        window.gtag("event", "purchase", Object.assign({}, eventPayload, {
+          event_callback: function() { finish(true); },
+          event_timeout: 1000
+        }));
+        ${purchaseConversionSendTo ? `window.gtag("event", "conversion", Object.assign({ send_to: ${JSON.stringify(purchaseConversionSendTo)} }, eventPayload));` : ""}
+        return;
+      }
+      finish(false);
+    });
+  };
+</script>`;
+}
+
+function renderPaypalResultShell(eyebrow, title, description, actions, extraHead = "") {
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -2509,6 +2616,7 @@ function renderPaypalResultShell(eyebrow, title, description, actions) {
   <meta name="robots" content="noindex,nofollow,noarchive">
   <meta name="referrer" content="no-referrer">
   <title>${escapeHtml(title)} | GPTMarketPlus</title>
+  ${extraHead}
   <style>
     :root{color-scheme:light;--ink:#14201c;--muted:#5d6862;--paper:#f7f6f1;--green:#0e7c66;--line:#d7ddd5}
     *{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:var(--paper);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
@@ -7168,6 +7276,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
   <script>
     window.dataLayer = window.dataLayer || [];
     function gtag(){dataLayer.push(arguments);}
+    gtag("set", "linker", { domains: ${JSON.stringify(GOOGLE_CROSS_DOMAIN_HOSTS)} });
     gtag("js", new Date());
     gtag("config", "${escapeJs(tagId)}");
   </script>`);
@@ -7178,6 +7287,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
   <script>
     window.dataLayer = window.dataLayer || [];
     function gtag(){dataLayer.push(arguments);}
+    gtag("set", "linker", { domains: ${JSON.stringify(GOOGLE_CROSS_DOMAIN_HOSTS)} });
     gtag("js", new Date());
     gtag("config", "${escapeJs(analyticsId)}");
   </script>`);

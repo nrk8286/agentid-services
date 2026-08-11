@@ -258,6 +258,8 @@ The subscription catalog bootstrap is idempotent through the stored product and 
 
 The public pages emit `scroll_depth` at 25%, 50%, 75%, and 90%, retain first-touch UTM/referrer data for site events and lead source pages, and emit `chat_open` only when a visitor actually opens chat. GA4 property `514250564` uses exactly two Key Events: `generate_lead` and the default `purchase`; no synthetic conversion was fired during verification.
 
+The same Google tag links the owned production domains so a visitor moving between `agentid.services` and `gptmarketplus.com` remains one measured journey. The four campaign domains redirect with source-specific UTM parameters. Eligible PayPal forms emit GA4 `begin_checkout`; the private PayPal completion page emits `purchase` only after the server verifies a completed capture, using the PayPal order ID as the non-PII transaction ID plus numeric value, currency, and item data. The completion page suppresses its automatic page view so the PayPal return token is never sent as a page URL.
+
 Each browser tab also receives an anonymous session ID in `sessionStorage`. Site events send that ID to D1 so the private admin dashboard can distinguish tagged sessions from direct or untagged sessions without storing cookies, names, email addresses, or other visitor identity in the attribution report.
 
 Open `/admin-dashboard` with `ADMIN_TOKEN` to view the rolling seven-day attribution health panel, or retrieve the aggregate-only JSON report with a 1-to-90-day window:
