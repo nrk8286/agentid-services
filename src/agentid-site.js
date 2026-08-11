@@ -1744,6 +1744,44 @@ function moneyWithCents(value) {
   return `$${(Number(value || 0) / 100).toFixed(2)}`;
 }
 
+function ecommercePayload(product, itemCategory = "Digital product") {
+  const price = Number(product?.price || 0) / 100;
+  return {
+    value: price,
+    currency: "USD",
+    items: [{
+      item_id: String(product?.id || ""),
+      item_name: String(product?.name || product?.id || "Product"),
+      item_category: itemCategory,
+      price,
+      quantity: 1,
+    }],
+  };
+}
+
+function ecommerceCheckoutAttributes(product, itemCategory = "Digital product") {
+  const payload = ecommercePayload(product, itemCategory);
+  const item = payload.items[0];
+  return [
+    `data-ecommerce-item-id="${escapeHtml(item.item_id)}"`,
+    `data-ecommerce-item-name="${escapeHtml(item.item_name)}"`,
+    `data-ecommerce-item-category="${escapeHtml(item.item_category)}"`,
+    `data-ecommerce-item-price="${escapeHtml(item.price.toFixed(2))}"`,
+    `data-ecommerce-currency="${escapeHtml(payload.currency)}"`,
+  ].join(" ");
+}
+
+function renderViewItemTracking(product, itemCategory = "Digital product") {
+  const payload = ecommercePayload(product, itemCategory);
+  return `<script>
+    document.addEventListener("DOMContentLoaded", function() {
+      if (typeof window.agentidTrackEvent === "function") {
+        window.agentidTrackEvent("view_item", ${JSON.stringify(payload)});
+      }
+    });
+  </script>`;
+}
+
 function businessTypeCatalog() {
   return [
     "Local service business",
@@ -3558,7 +3596,7 @@ function renderAgentsPage(env) {
 function renderPricingPage(env) {
   const paypalReady = paypalCheckoutReady(env);
   const makePayPalOrderForm = (product, cta = "Pay with PayPal") => `
-    <form class="checkout-form paypal-checkout-form" data-agentid-form="1" data-endpoint="/api/paypal/orders/create">
+    <form class="checkout-form paypal-checkout-form" data-agentid-form="1" data-endpoint="/api/paypal/orders/create" ${ecommerceCheckoutAttributes(product)}>
       <input type="hidden" name="productId" value="${escapeHtml(product.id)}">
       <input type="hidden" name="sourcePage" value="/pricing">
       <button class="button-secondary" type="submit">${escapeHtml(cta)}</button>
@@ -3658,6 +3696,7 @@ function renderPricingPage(env) {
         <a class="button-secondary" href="/ai-agent-launch-kit">See everything included</a>
       </div>
     </section>
+    ${renderViewItemTracking(DIGITAL_PRODUCTS[0])}
   `;
 
   return renderShell(env, {
@@ -4038,7 +4077,7 @@ function renderLaunchKitPage(env, requestUrl = null) {
   const checkout = `
     <div class="checkout-stack">
       ${paypalReady ? `
-        <form class="checkout-form paypal-checkout-form product-checkout-form" data-agentid-form="1" data-endpoint="/api/paypal/orders/create">
+        <form class="checkout-form paypal-checkout-form product-checkout-form" data-agentid-form="1" data-endpoint="/api/paypal/orders/create" ${ecommerceCheckoutAttributes(product)}>
           <input type="hidden" name="productId" value="${escapeHtml(product.id)}">
           <input type="hidden" name="sourcePage" value="/ai-agent-launch-kit">
           <button class="button-primary" type="submit">Buy with PayPal for ${moneyWithCents(product.price)}</button>
@@ -4083,7 +4122,8 @@ function renderLaunchKitPage(env, requestUrl = null) {
         ${checkout}
         <a class="button-secondary" href="/book-a-consultation">Have GPTMarketPlus build it with you</a>
       </div>
-    </section>`;
+    </section>
+    ${renderViewItemTracking(product)}`;
 
   return renderShell(env, {
     path: "/ai-agent-launch-kit",
@@ -6790,6 +6830,23 @@ function renderFormsBootstrap(env) {
           }
           delete payload.websiteCheck;
 
+          const ecommerceItemId = String(form.dataset.ecommerceItemId || "").trim();
+          if (ecommerceItemId && window.agentidTrackEvent) {
+            const price = Number(form.dataset.ecommerceItemPrice || 0);
+            const currency = String(form.dataset.ecommerceCurrency || "USD").toUpperCase();
+            window.agentidTrackEvent("add_to_cart", {
+              value: price,
+              currency,
+              items: [{
+                item_id: ecommerceItemId,
+                item_name: form.dataset.ecommerceItemName || ecommerceItemId,
+                item_category: form.dataset.ecommerceItemCategory || "",
+                price,
+                quantity: 1,
+              }],
+            });
+          }
+
           button.disabled = true;
           if (status) status.textContent = "Sending...";
           try {
@@ -6834,6 +6891,7 @@ function renderFormsBootstrap(env) {
                   items: [{
                     item_id: result.product?.id || payload.productId || payload.packageId || "",
                     item_name: result.product?.name || result.product?.id || "Purchase",
+                    item_category: form.dataset.ecommerceItemCategory || "",
                     price: amount,
                     quantity: 1,
                   }],

@@ -286,9 +286,13 @@ if (!workerSource.includes('gtag("set", "linker", { domains: ${JSON.stringify(GO
 if ((workerSource.match(/purchase: paypalPurchaseMeasurementPayload\(/g) || []).length < 2) {
   failures.push("new and replayed completed PayPal captures must return the same GA4 purchase payload");
 }
-if (!siteSource.includes('window.agentidTrackEvent("begin_checkout"')
-    || !siteSource.includes('items: [{')) {
-  failures.push("PayPal checkout redirects must emit the GA4 begin_checkout ecommerce event");
+for (const eventName of ["view_item", "add_to_cart", "begin_checkout"]) {
+  if (!siteSource.includes(`window.agentidTrackEvent("${eventName}"`)) {
+    failures.push(`PayPal purchase journey must emit the GA4 ${eventName} ecommerce event`);
+  }
+}
+if (!siteSource.includes('data-ecommerce-item-id=') || !siteSource.includes('items: [{')) {
+  failures.push("PayPal purchase journey events must include consistent GA4 item data");
 }
 
 for (const requiredPurchaseControl of [
@@ -356,6 +360,40 @@ const pricingResponse = await handleAgentIdSiteRequest(
 const pricingBody = await pricingResponse.text();
 if (pricingBody.includes("adsbygoogle") || pricingBody.includes('data-ad-slot="3045151068"')) {
   failures.push("high-conversion pricing page must remain free of publisher ads");
+}
+
+for (const [purchaseOrigin, purchaseBrand] of [
+  ["https://gptmarketplus.com", "GPTMarketPlus"],
+  ["https://agentid.services", "AgentID Services"],
+]) {
+  for (const purchasePath of ["/pricing", "/ai-agent-launch-kit"]) {
+    const purchaseJourneyResponse = await handleAgentIdSiteRequest(
+      new Request(`${purchaseOrigin}${purchasePath}`),
+      {
+        SITE_URL: purchaseOrigin,
+        SUPPORT_EMAIL: "admin@gptmarketplus.com",
+        BRAND_NAME: purchaseBrand,
+        GOOGLE_ANALYTICS_ID: "G-TEST123456",
+        PAYPAL_CLIENT_ID: "test-client-id",
+        PAYPAL_CLIENT_SECRET: "test-client-secret",
+      },
+      { waitUntil() {} },
+    );
+    const purchaseJourneyBody = await purchaseJourneyResponse.text();
+    for (const requiredControl of [
+      'window.agentidTrackEvent("view_item"',
+      'window.agentidTrackEvent("add_to_cart"',
+      'window.agentidTrackEvent("begin_checkout"',
+      'data-ecommerce-item-id="ai_agent_launch_kit"',
+      '"item_id":"ai_agent_launch_kit"',
+      '"price":29',
+      '"quantity":1',
+    ]) {
+      if (!purchaseJourneyBody.includes(requiredControl)) {
+        failures.push(`${purchaseOrigin}${purchasePath} is missing GA4 purchase journey control ${requiredControl}`);
+      }
+    }
+  }
 }
 
 const cancelledCheckoutResponse = await handleAgentIdSiteRequest(
