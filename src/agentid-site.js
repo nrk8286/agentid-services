@@ -2763,6 +2763,27 @@ async function maybeSendOwnerEmail(env, subject, text, html, replyTo = "") {
   return sendOwnerTransactionalEmail(env, subject, text, html, replyTo);
 }
 
+async function notifyOwnerOfLead(env, lead) {
+  const alert = buildOwnerLeadEmail(lead);
+  const result = await maybeSendOwnerEmail(env, alert.subject, alert.text, alert.html, lead.email || "");
+  const followUpStatus = result.delivered
+    ? "owner_notified"
+    : `notification_failed:${cleanText(result.code || "unknown", 20)}`;
+  if (env.GMP_DB && lead.id) {
+    await env.GMP_DB.prepare(
+      "UPDATE agentid_leads SET follow_up_status = ?, updated_at = ? WHERE id = ?",
+    ).bind(followUpStatus, new Date().toISOString(), lead.id).run();
+  }
+  if (!result.delivered) {
+    console.warn("gptmarketplus owner lead alert not delivered", {
+      provider: result.provider,
+      code: result.code,
+      leadId: lead.id,
+    });
+  }
+  return result;
+}
+
 async function maybeSendCustomerEmail(env, to, subject, text, html) {
   const result = await sendCustomerTransactionalEmail(env, to, subject, text, html);
   if (!result.delivered) {
@@ -2811,7 +2832,13 @@ async function sendResendEmail(env, recipients, subject, text, html, replyTo = "
 }
 
 function buildOwnerLeadEmail(lead) {
-  const subject = `HOT AI Services Lead from GPTMarketPlus`;
+  const subject = lead.booked_call
+    ? "New strategy call request from GPTMarketPlus"
+    : lead.quote_requested
+      ? "New quote request from GPTMarketPlus"
+      : lead.purchase_intent
+        ? "New purchase inquiry from GPTMarketPlus"
+        : "HOT AI Services Lead from GPTMarketPlus";
   const text = [
     `Name: ${lead.name || ""}`,
     `Business: ${lead.business_name || ""}`,
@@ -2827,7 +2854,7 @@ function buildOwnerLeadEmail(lead) {
   ].join("\n");
   const html = `
     <div style="font-family:ui-sans-serif,system-ui,sans-serif;color:#e5eef8;background:#06111d;padding:24px;border-radius:16px">
-      <h2 style="margin-top:0;color:#8fd3ff">HOT AI Services Lead from GPTMarketPlus</h2>
+      <h2 style="margin-top:0;color:#8fd3ff">${escapeHtml(subject)}</h2>
       <p><strong>Name:</strong> ${escapeHtml(lead.name || "")}</p>
       <p><strong>Business:</strong> ${escapeHtml(lead.business_name || "")}</p>
       <p><strong>Phone:</strong> ${escapeHtml(lead.phone || "")}</p>
@@ -3200,7 +3227,7 @@ async function handleChat(request, env, ctx) {
     const savedLead = await dbUpsertLead(env, qualifiedLead);
     state.leadId = savedLead.id;
     state.dashboardToken = savedLead.dashboard_token || state.dashboardToken || crypto.randomUUID().replace(/-/g, "");
-    if (leadTag === "HOT") {
+    if (leadTag === "HOT" || savedLead.booked_call || savedLead.quote_requested || savedLead.purchase_intent) {
       cta = { label: "Book My Free AI Strategy Call", href: "/book-a-consultation" };
     } else if (leadTag === "WARM") {
       cta = { label: "Get My AI Agent Recommendation", href: "/contact" };
@@ -3215,10 +3242,9 @@ async function handleChat(request, env, ctx) {
     }, env);
     await dbInsertFollowups(env, savedLead.id, followUps);
 
-    if (leadTag === "HOT") {
-      const alert = buildOwnerLeadEmail(savedLead);
+    if (leadTag === "HOT" || savedLead.booked_call || savedLead.quote_requested || savedLead.purchase_intent) {
       ctx && ctx.waitUntil && ctx.waitUntil(sendWebhook(env, "hot_lead", { ...savedLead, summary: state.transcriptSummary }));
-      ctx && ctx.waitUntil && ctx.waitUntil(maybeSendOwnerEmail(env, alert.subject, alert.text, alert.html, savedLead.email || ""));
+      ctx && ctx.waitUntil && ctx.waitUntil(notifyOwnerOfLead(env, savedLead));
     } else if (savedLead.email && state.marketingConsent) {
       const template = buildCustomerFollowUpEmail(env, savedLead);
       ctx && ctx.waitUntil && ctx.waitUntil(maybeSendCustomerEmail(env, savedLead.email, template.subject, template.text, template.html));
@@ -3515,6 +3541,10 @@ function renderServicesPage(env) {
   const body = `
     <section class="page-hero">
       ${renderPageTitle("Services", "AI services that solve real business work", "Custom agent builds, automation setup, website AI assistants, and ongoing management.")}
+      <div class="cta-row">
+        <a class="button-primary" href="/book-a-consultation?source=services" data-track-event="cta_click" data-track-label="Services Book Strategy Call">Book a free strategy call</a>
+        <a class="button-secondary" href="/pricing" data-track-event="cta_click" data-track-label="Services View Pricing">See plans &amp; pricing</a>
+      </div>
     </section>
     <section class="section">
       ${renderCardGrid(SERVICE_CARDS.map((item) => ({
@@ -3522,8 +3552,10 @@ function renderServicesPage(env) {
         title: item.title,
         description: item.description,
         href: "/contact",
+        trackEvent: "service_interest",
       })), "Request this service")}
     </section>
+    ${renderConversionBridge("services")}
   `;
   return renderShell(env, {
     path: "/services",
@@ -3540,12 +3572,14 @@ function renderAgentsPage(env) {
     <section class="page-hero">
       ${renderPageTitle("AI Agents", "Choose the bottleneck you want an AI agent to remove", "Start with missed leads, slow follow-up, scheduling, customer questions, CRM handoff, or repetitive operations work.")}
       <div class="cta-row">
-        <a class="button-primary" href="/pricing" data-track-event="cta_click" data-track-label="Compare AI Agent Plans">Compare plans &amp; pricing</a>
+        <a class="button-primary" href="/book-a-consultation?source=ai-agents" data-track-event="cta_click" data-track-label="AI Agents Book Strategy Call">Book a free strategy call</a>
+        <a class="button-secondary" href="/pricing" data-track-event="cta_click" data-track-label="Compare AI Agent Plans">Compare plans &amp; pricing</a>
         <button class="button-secondary" type="button" data-open-agent-chat>Ask which agent fits</button>
       </div>
       <div class="selector-card">
         <label><span>Business type</span>
           <select id="business-type-select">
+            <option value="">Choose your business type</option>
             ${businessTypeCatalog().map((type) => `<option value="${escapeHtml(type)}">${escapeHtml(type)}</option>`).join("")}
           </select>
         </label>
@@ -3561,6 +3595,7 @@ function renderAgentsPage(env) {
         title: agent.title,
         description: `${agent.whatItDoes} ${agent.whoItIsFor} ${agent.benefit}`,
         href: `/contact?agent=${encodeURIComponent(agent.slug)}`,
+        trackEvent: "agent_interest",
       })), "Request this agent")}
     </section>
     <script>
@@ -3569,6 +3604,10 @@ function renderAgentsPage(env) {
         const target = document.getElementById("agent-recommendation");
         function update() {
           const value = String(select.value || "").toLowerCase();
+          if (!value) {
+            target.innerHTML = "<strong>Recommended agent</strong><p>Choose a business type to see the best fit.</p>";
+            return;
+          }
           const mapping = ${JSON.stringify(BUSINESS_RECOMMENDATIONS)};
           const match = mapping.find((item) => value.includes(item.match));
           const agentType = match ? match.agentType : "Website Sales Agent";
@@ -3579,9 +3618,9 @@ function renderAgentsPage(env) {
           }
         }
         select.addEventListener("change", update);
-        update();
       });
     </script>
+    ${renderConversionBridge("ai-agents")}
   `;
   return renderShell(env, {
     path: "/ai-agents",
@@ -3713,14 +3752,21 @@ function renderUseCasesPage(env) {
   const body = `
     <section class="page-hero">
       ${renderPageTitle("Use Cases", "Realistic AI workflows for common business problems", "No fake case studies. Just realistic ways the system can work.")}
+      <div class="cta-row">
+        <a class="button-primary" href="/book-a-consultation?source=use-cases" data-track-event="cta_click" data-track-label="Use Cases Book Strategy Call">Map my first workflow</a>
+        <button class="button-secondary" type="button" data-open-agent-chat>Ask which workflow fits</button>
+      </div>
     </section>
     <section class="section">
       ${renderCardGrid(USE_CASES.map((item) => ({
         kicker: "Use case",
         title: item.title,
         description: item.description,
-      })))}
+        href: `/contact?use_case=${encodeURIComponent(item.title)}`,
+        trackEvent: "use_case_interest",
+      })), "Plan this workflow")}
     </section>
+    ${renderConversionBridge("use-cases")}
   `;
   return renderShell(env, {
     path: "/use-cases",
@@ -4755,10 +4801,9 @@ async function captureLead(env, ctx, body, options = {}) {
     user_agent: options.request?.headers?.get?.("user-agent") || "",
   });
 
-  if (leadTag === "HOT") {
-    const alert = buildOwnerLeadEmail(saved);
+  if (leadTag === "HOT" || saved.booked_call || saved.quote_requested || saved.purchase_intent) {
     ctx && ctx.waitUntil && ctx.waitUntil(sendWebhook(env, "hot_lead", { ...saved, summary: saved.transcript_summary }));
-    ctx && ctx.waitUntil && ctx.waitUntil(maybeSendOwnerEmail(env, alert.subject, alert.text, alert.html, saved.email || ""));
+    ctx && ctx.waitUntil && ctx.waitUntil(notifyOwnerOfLead(env, saved));
   }
 
   const response = buildLeadResponse(saved, {
@@ -6083,10 +6128,26 @@ function renderCardGrid(items, ctaLabel = "") {
           <h3>${escapeHtml(item.title)}</h3>
           <p>${escapeHtml(item.description || item.summary || "")}</p>
           ${item.points ? `<ul>${item.points.map((point) => `<li>${escapeHtml(point)}</li>`).join("")}</ul>` : ""}
-          ${ctaLabel && item.href ? `<a class="card-link" href="${escapeHtml(item.href)}" data-track-event="resource_click" data-track-label="${escapeHtml(item.title)}">${escapeHtml(ctaLabel)}</a>` : ""}
+          ${ctaLabel && item.href ? `<a class="card-link" href="${escapeHtml(item.href)}" data-track-event="${escapeHtml(item.trackEvent || "resource_click")}" data-track-label="${escapeHtml(item.title)}">${escapeHtml(ctaLabel)}</a>` : ""}
         </article>
       `).join("")}
     </div>`;
+}
+
+function renderConversionBridge(source) {
+  const sourceValue = encodeURIComponent(source);
+  return `
+    <section class="section split-section final-cta" data-conversion-bridge="${escapeHtml(source)}">
+      <div>
+        ${renderSectionTitle("Best next step", "Turn the page you just viewed into one scoped workflow", "The consultation path is the clearest way to match the business problem, handoff rules, integrations, budget, and launch plan before you buy.")}
+      </div>
+      <div class="cta-box">
+        <strong>Free AI strategy call</strong>
+        <p>Bring one bottleneck. Leave with a recommended first workflow and a clear next step.</p>
+        <a class="button-primary" href="/book-a-consultation?source=${sourceValue}-bridge" data-track-event="cta_click" data-track-label="${escapeHtml(source)} Conversion Bridge">Book my strategy call</a>
+        <a class="button-secondary" href="/pricing" data-track-event="cta_click" data-track-label="${escapeHtml(source)} Bridge Pricing">Compare pricing first</a>
+      </div>
+    </section>`;
 }
 
 function renderTurnstileWidget(env) {
@@ -6481,9 +6542,14 @@ function renderAnalyticsBootstrap(env) {
           }
           const eventName = target.getAttribute("data-track-event");
           if (eventName) {
+            const trackingRegion = target.closest("[data-conversion-bridge],section,nav,footer");
             window.agentidTrackEvent(eventName, {
               label: target.getAttribute("data-track-label") || target.textContent.trim(),
               href: target.getAttribute("href") || "",
+              cta_location: trackingRegion?.getAttribute("data-conversion-bridge")
+                || trackingRegion?.id
+                || String(trackingRegion?.className || "").split(/\\s+/).filter(Boolean).slice(0, 2).join("_")
+                || "page",
             });
           }
         });
@@ -6511,11 +6577,38 @@ function renderAnalyticsBootstrap(env) {
         });
       }
 
+      function trackEngagedVisit() {
+        let interactionSeen = false;
+        let timeThresholdReached = false;
+        let recorded = false;
+        const maybeRecord = () => {
+          if (recorded || !interactionSeen || !timeThresholdReached || document.visibilityState !== "visible") return;
+          recorded = true;
+          window.agentidTrackEvent("engaged_visit", {
+            page_path: location.pathname,
+            engagement_seconds: 10,
+            engagement_signal: "time_and_interaction",
+          });
+        };
+        const recordInteraction = () => {
+          interactionSeen = true;
+          maybeRecord();
+        };
+        window.addEventListener("scroll", recordInteraction, { passive: true, once: true });
+        window.addEventListener("pointerdown", recordInteraction, { passive: true, once: true });
+        window.addEventListener("keydown", recordInteraction, { once: true });
+        setTimeout(() => {
+          timeThresholdReached = true;
+          maybeRecord();
+        }, 10000);
+      }
+
       document.addEventListener("DOMContentLoaded", () => {
         window.agentidTrackEvent("site_view", { page_path: location.pathname });
         trackScrollDepth();
         trackFaqOpen();
         trackClicks();
+        trackEngagedVisit();
       });
     </script>`;
 }

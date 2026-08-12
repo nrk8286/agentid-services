@@ -158,6 +158,22 @@ if (
   failures.push("completed PayPal orders must invoke and report the customer transactional-email adapter");
 }
 
+for (const requiredLeadHandoffControl of [
+  "notifyOwnerOfLead(env, saved)",
+  "notifyOwnerOfLead(env, savedLead)",
+  "saved.booked_call || saved.quote_requested || saved.purchase_intent",
+  "savedLead.booked_call || savedLead.quote_requested || savedLead.purchase_intent",
+  "follow_up_status = ?, updated_at = ?",
+  '"owner_notified"',
+  '"New strategy call request from GPTMarketPlus"',
+  '"New quote request from GPTMarketPlus"',
+  '"New purchase inquiry from GPTMarketPlus"',
+]) {
+  if (!siteSource.includes(requiredLeadHandoffControl)) {
+    failures.push(`sales-ready lead handoff is missing ${requiredLeadHandoffControl}`);
+  }
+}
+
 if (!/"name"\s*:\s*"FORM_RATE_LIMITER"[\s\S]{0,180}?"limit"\s*:\s*5[\s\S]{0,80}?"period"\s*:\s*60/.test(raw)) {
   failures.push("FORM_RATE_LIMITER native binding is missing or has the wrong limit");
 }
@@ -294,6 +310,18 @@ for (const eventName of ["view_item", "add_to_cart", "begin_checkout"]) {
 if (!siteSource.includes('data-ecommerce-item-id=') || !siteSource.includes('items: [{')) {
   failures.push("PayPal purchase journey events must include consistent GA4 item data");
 }
+for (const requiredAnalyticsControl of [
+  'window.agentidTrackEvent("engaged_visit"',
+  'engagement_signal: "time_and_interaction"',
+  "cta_location:",
+  'trackEvent: "service_interest"',
+  'trackEvent: "agent_interest"',
+  'trackEvent: "use_case_interest"',
+]) {
+  if (!siteSource.includes(requiredAnalyticsControl)) {
+    failures.push(`analytics-led conversion measurement is missing ${requiredAnalyticsControl}`);
+  }
+}
 
 for (const requiredPurchaseControl of [
   'gtag("config", "${escapeJs(directTagId)}", { send_page_view: false })',
@@ -360,6 +388,22 @@ const pricingResponse = await handleAgentIdSiteRequest(
 const pricingBody = await pricingResponse.text();
 if (pricingBody.includes("adsbygoogle") || pricingBody.includes('data-ad-slot="3045151068"')) {
   failures.push("high-conversion pricing page must remain free of publisher ads");
+}
+
+for (const conversionPath of ["/services", "/ai-agents", "/use-cases"]) {
+  const conversionResponse = await handleAgentIdSiteRequest(
+    new Request(`https://gptmarketplus.com${conversionPath}`),
+    {
+      SITE_URL: "https://gptmarketplus.com",
+      SUPPORT_EMAIL: "admin@gptmarketplus.com",
+      BRAND_NAME: "GPTMarketPlus",
+    },
+    { waitUntil() {} },
+  );
+  const conversionBody = await conversionResponse.text();
+  if (!conversionBody.includes("data-conversion-bridge=") || !conversionBody.includes("Book my strategy call")) {
+    failures.push(`${conversionPath} must include the analytics-led consultation bridge`);
+  }
 }
 
 for (const [purchaseOrigin, purchaseBrand] of [
