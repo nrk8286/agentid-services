@@ -1379,6 +1379,25 @@ function cleanEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email.slice(0, 160) : "";
 }
 
+export function classifyLeadRecord(env, record = {}) {
+  const email = cleanEmail(record.email || record.customer_email || "");
+  const domain = email.includes("@") ? email.split("@").pop() : "";
+  if (["example.com", "example.org", "example.net", "example.invalid"].includes(domain) || domain.endsWith(".invalid")) {
+    return { excluded: true, reason: "synthetic_email_domain" };
+  }
+  const internalEmails = new Set([
+    env.OWNER_NOTIFICATION_EMAIL,
+    env.OWNER_EMAIL,
+    env.SUPPORT_EMAIL,
+    env.CONTACT_EMAIL,
+    env.GMAIL_SENDER_EMAIL,
+  ].map(cleanEmail).filter(Boolean));
+  if (email && internalEmails.has(email)) {
+    return { excluded: true, reason: "internal_email" };
+  }
+  return { excluded: false, reason: "" };
+}
+
 function cleanUrl(value) {
   const raw = String(value ?? "").trim();
   if (!raw) return "";
@@ -2794,6 +2813,8 @@ export async function notifyQueuedSalesReadyLeads(env, options = {}) {
     SELECT * FROM agentid_leads
     WHERE contact_consent = 1
       AND follow_up_status = 'queued'
+      AND crm_stage <> 'test_record'
+      AND lead_status <> 'TEST'
       AND (
         booked_call = 1
         OR quote_requested = 1
@@ -3287,6 +3308,19 @@ async function handleChat(request, env, ctx) {
       id: currentLead.id || crypto.randomUUID(),
       notes: objection ? objection.reply : "",
     };
+    const classification = classifyLeadRecord(env, qualifiedLead);
+    if (classification.excluded) {
+      state.leadTag = "TEST";
+      state.crmStage = "test_record";
+      qualifiedLead.crm_stage = "test_record";
+      qualifiedLead.lead_status = "TEST";
+      qualifiedLead.follow_up_status = "excluded_test";
+      qualifiedLead.next_action = "Internal or synthetic record excluded from sales follow-up.";
+      qualifiedLead.notes = cleanText([
+        qualifiedLead.notes,
+        `classification:${classification.reason}`,
+      ].filter(Boolean).join(" | "), 1200);
+    }
 
     const savedLead = await dbUpsertLead(env, qualifiedLead);
     state.leadId = savedLead.id;
@@ -3299,28 +3333,30 @@ async function handleChat(request, env, ctx) {
       cta = { label: "Get the Free Checklist", href: "/free-ai-automation-audit-checklist" };
     }
 
-    const followUps = generateFollowUpSequence({
-      ...savedLead,
-      recommendedPackage,
-      leadTag,
-    }, env);
-    await dbInsertFollowups(env, savedLead.id, followUps);
+    if (!classification.excluded) {
+      const followUps = generateFollowUpSequence({
+        ...savedLead,
+        recommendedPackage,
+        leadTag,
+      }, env);
+      await dbInsertFollowups(env, savedLead.id, followUps);
+    }
 
-    if (leadTag === "HOT" || savedLead.booked_call || savedLead.quote_requested || savedLead.purchase_intent) {
+    if (!classification.excluded && (leadTag === "HOT" || savedLead.booked_call || savedLead.quote_requested || savedLead.purchase_intent)) {
       ctx && ctx.waitUntil && ctx.waitUntil(sendWebhook(env, "hot_lead", { ...savedLead, summary: state.transcriptSummary }));
       ctx && ctx.waitUntil && ctx.waitUntil(notifyOwnerOfLead(env, savedLead));
-    } else if (savedLead.email && state.marketingConsent) {
+    } else if (!classification.excluded && savedLead.email && state.marketingConsent) {
       const template = buildCustomerFollowUpEmail(env, savedLead);
       ctx && ctx.waitUntil && ctx.waitUntil(maybeSendCustomerEmail(env, savedLead.email, template.subject, template.text, template.html));
     }
 
     await dbInsertEvent(env, {
-      event_name: "chat_complete",
+      event_name: classification.excluded ? "test_submission" : "chat_complete",
       source_page: sourcePage,
       conversation_id: conversationId,
       lead_id: savedLead.id,
       properties_json: {
-        leadTag,
+        leadTag: classification.excluded ? "TEST" : leadTag,
         recommendedPackage,
         recommendedAgentType: state.recommendedAgentType,
       },
@@ -3344,8 +3380,8 @@ async function handleChat(request, env, ctx) {
       conversationId,
       reply,
       state,
-      leadCaptured: Boolean(state.email || state.phone),
-      leadTag,
+      leadCaptured: !classification.excluded && Boolean(state.email || state.phone),
+      leadTag: classification.excluded ? "TEST" : leadTag,
       leadScore: score,
       recommendedPackage,
       recommendedAgentType: state.recommendedAgentType,
@@ -4733,14 +4769,17 @@ function validateRequiredFields(body, fields) {
 }
 
 function buildLeadResponse(savedLead, options = {}) {
-  const followUpSequence = generateFollowUpSequence({
+  const excludedTest = savedLead.crm_stage === "test_record" || savedLead.lead_status === "TEST";
+  const followUpSequence = excludedTest ? [] : generateFollowUpSequence({
     ...savedLead,
     recommendedPackage: savedLead.recommended_package,
     leadTag: savedLead.lead_status,
   }, options.env || null);
-  const dashboardUrl = savedLead.dashboard_token
-    ? `/customer-dashboard?token=${encodeURIComponent(savedLead.dashboard_token)}`
-    : `/customer-dashboard?lead=${encodeURIComponent(savedLead.id)}`;
+  const dashboardUrl = excludedTest
+    ? ""
+    : savedLead.dashboard_token
+      ? `/customer-dashboard?token=${encodeURIComponent(savedLead.dashboard_token)}`
+      : `/customer-dashboard?lead=${encodeURIComponent(savedLead.id)}`;
   return {
     ok: true,
     message: options.message || "Received. We’ll follow up with the next step.",
@@ -4789,6 +4828,7 @@ async function captureLead(env, ctx, body, options = {}) {
     timeline: cleanText(body.timeline || "", 80),
   });
   const agentRecommendation = recommendedAgentForBusinessType(businessType);
+  const classification = classifyLeadRecord(env, body);
   const leadScore = scoreLead({
     name: cleanText(body.name || "", 120),
     email: cleanEmail(body.email || ""),
@@ -4802,12 +4842,13 @@ async function captureLead(env, ctx, body, options = {}) {
     timeline: cleanText(body.timeline || "", 80),
   });
   const leadTag = leadScoreLabel(leadScore);
+  const effectiveLeadTag = classification.excluded ? "TEST" : leadTag;
   const lead = {
     id: cleanText(body.leadId || body.id || "", 120) || crypto.randomUUID(),
     source_page: sourcePage,
     conversation_id: cleanText(body.conversationId || "", 120),
-    crm_stage: options.crmStage || defaultLeadStage(leadTag),
-    lead_status: leadTag,
+    crm_stage: classification.excluded ? "test_record" : options.crmStage || defaultLeadStage(leadTag),
+    lead_status: effectiveLeadTag,
     lead_score: leadScore,
     name: cleanText(body.name || "", 120),
     email: cleanEmail(body.email || ""),
@@ -4835,29 +4876,36 @@ async function captureLead(env, ctx, body, options = {}) {
       timeline: cleanText(body.timeline || "", 80),
     }),
     full_transcript: cleanText(body.fullTranscript || body.transcript || "", 12000),
-    next_action: leadTag === "HOT"
-      ? hotLeadMessage()
-      : leadTag === "WARM"
-        ? warmLeadMessage(packageName)
-        : coldLeadMessage(),
-    follow_up_status: "queued",
+    next_action: classification.excluded
+      ? "Internal or synthetic record excluded from sales follow-up."
+      : leadTag === "HOT"
+        ? hotLeadMessage()
+        : leadTag === "WARM"
+          ? warmLeadMessage(packageName)
+          : coldLeadMessage(),
+    follow_up_status: classification.excluded ? "excluded_test" : "queued",
     contact_consent: body.contactConsent === true || body.contactConsent === "1" || body.contactConsent === 1,
     marketing_consent: body.marketingConsent === true || body.marketingConsent === "1" || body.marketingConsent === 1,
     booked_call: options.bookedCall ? 1 : 0,
     quote_requested: options.quoteRequested ? 1 : 0,
     purchase_intent: cleanText(body.purchaseIntent || "", 80),
     dashboard_token: cleanText(body.dashboardToken || "", 120) || crypto.randomUUID().replace(/-/g, ""),
-    notes: cleanText(body.notes || "", 1200),
+    notes: cleanText([
+      body.notes || "",
+      classification.excluded ? `classification:${classification.reason}` : "",
+    ].filter(Boolean).join(" | "), 1200),
   };
   const saved = await dbUpsertLead(env, lead);
-  await dbInsertFollowups(env, saved.id, generateFollowUpSequence(saved, env));
+  if (!classification.excluded) {
+    await dbInsertFollowups(env, saved.id, generateFollowUpSequence(saved, env));
+  }
   await dbInsertEvent(env, {
-    event_name: `${submissionType}_submit`,
+    event_name: classification.excluded ? "test_submission" : `${submissionType}_submit`,
     source_page: sourcePage,
     lead_id: saved.id,
     conversation_id: saved.conversation_id,
     properties_json: {
-      leadTag,
+      leadTag: effectiveLeadTag,
       packageName,
       agentType: agentRecommendation.agentType,
       submissionType,
@@ -4865,15 +4913,17 @@ async function captureLead(env, ctx, body, options = {}) {
     user_agent: options.request?.headers?.get?.("user-agent") || "",
   });
 
-  if (leadTag === "HOT" || saved.booked_call || saved.quote_requested || saved.purchase_intent) {
+  if (!classification.excluded && (leadTag === "HOT" || saved.booked_call || saved.quote_requested || saved.purchase_intent)) {
     ctx && ctx.waitUntil && ctx.waitUntil(sendWebhook(env, "hot_lead", { ...saved, summary: saved.transcript_summary }));
     ctx && ctx.waitUntil && ctx.waitUntil(notifyOwnerOfLead(env, saved));
   }
 
   const response = buildLeadResponse(saved, {
     env,
-    message: options.message || "Received. We’ll follow up with the next step.",
-    trackEvent: options.trackEvent || "lead_captured",
+    message: classification.excluded
+      ? "Internal or test submission recorded without a sales notification."
+      : options.message || "Received. We’ll follow up with the next step.",
+    trackEvent: classification.excluded ? "test_submission" : options.trackEvent || "lead_captured",
     customerBlueprintHtml: options.customerBlueprintHtml || "",
     internalBlueprintJson: options.internalBlueprintJson || null,
   });
@@ -5522,10 +5572,10 @@ async function loadAgentIdStats(env) {
     onboarding,
     events,
   ] = await Promise.all([
-    queryD1First(env, "SELECT COUNT(*) AS value FROM agentid_leads"),
-    queryD1First(env, "SELECT COUNT(*) AS value FROM agentid_leads WHERE lead_status = 'HOT'"),
-    queryD1First(env, "SELECT COUNT(*) AS value FROM agentid_leads WHERE booked_call = 1 OR crm_stage = 'strategy_call_booked'"),
-    queryD1First(env, "SELECT COUNT(*) AS value FROM agentid_leads WHERE quote_requested = 1 OR crm_stage = 'proposal_sent'"),
+    queryD1First(env, "SELECT COUNT(*) AS value FROM agentid_leads WHERE crm_stage <> 'test_record'"),
+    queryD1First(env, "SELECT COUNT(*) AS value FROM agentid_leads WHERE crm_stage <> 'test_record' AND lead_status = 'HOT'"),
+    queryD1First(env, "SELECT COUNT(*) AS value FROM agentid_leads WHERE crm_stage <> 'test_record' AND (booked_call = 1 OR crm_stage = 'strategy_call_booked')"),
+    queryD1First(env, "SELECT COUNT(*) AS value FROM agentid_leads WHERE crm_stage <> 'test_record' AND (quote_requested = 1 OR crm_stage = 'proposal_sent')"),
     queryD1First(env, "SELECT COUNT(*) AS value FROM agentid_purchases WHERE status = 'paid' AND checkout_type = 'deposit'"),
     queryD1First(
       env,
@@ -5550,13 +5600,14 @@ async function loadAgentIdStats(env) {
         END
       ) AS value
       FROM agentid_leads
-      WHERE crm_stage NOT IN ('won', 'lost')`
+      WHERE crm_stage NOT IN ('won', 'lost', 'test_record')`
     ),
     queryD1All(
       env,
       `SELECT automation_theme AS label, COUNT(*) AS value
        FROM agentid_leads
-       WHERE automation_theme IS NOT NULL AND automation_theme != ''
+       WHERE crm_stage <> 'test_record'
+         AND automation_theme IS NOT NULL AND automation_theme != ''
        GROUP BY automation_theme
        ORDER BY value DESC
        LIMIT 5`
@@ -5565,7 +5616,8 @@ async function loadAgentIdStats(env) {
       env,
       `SELECT common_objection AS label, COUNT(*) AS value
        FROM agentid_leads
-       WHERE common_objection IS NOT NULL AND common_objection != ''
+       WHERE crm_stage <> 'test_record'
+         AND common_objection IS NOT NULL AND common_objection != ''
        GROUP BY common_objection
        ORDER BY value DESC
        LIMIT 5`
