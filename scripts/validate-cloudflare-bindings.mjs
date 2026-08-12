@@ -10,6 +10,7 @@ import {
   googlePropertyCandidates,
   summarizeGoogleIndexInspection,
   summarizeGoogleSearchAnalytics,
+  summarizeGoogleSearchPages,
 } from "../src/google-search-console.js";
 import { normalizePaypalInvoiceId, summarizePaypalInvoice } from "../src/paypal-invoice.js";
 
@@ -621,6 +622,21 @@ if (inspectionSummary.verdict !== "PASS" || inspectionSummary.lastCrawlTime !== 
 }
 if (JSON.stringify(inspectionSummary).includes("private.example")) {
   failures.push("Search Console diagnostics must not expose provider-only discovery URLs");
+}
+const searchPages = summarizeGoogleSearchPages({
+  rows: [
+    { keys: ["https://gptmarketplus.com/ai-agent-launch-kit"], clicks: 2, impressions: 40, ctr: 0.05, position: 8.123456 },
+    { keys: ["https://private.example/customer-record"], clicks: 20, impressions: 40, ctr: 0.5, position: 1 },
+    { keys: ["not-a-url"], clicks: 10, impressions: 30, ctr: 0.3, position: 2 },
+  ],
+}, "https://gptmarketplus.com");
+if (
+  searchPages.length !== 1
+  || searchPages[0].page !== "/ai-agent-launch-kit"
+  || searchPages[0].impressions !== 40
+  || JSON.stringify(searchPages).includes("private.example")
+) {
+  failures.push("Search Console page diagnostics must retain only aggregate metrics for canonical public pages");
 }
 
 const ownerMessages = [];
