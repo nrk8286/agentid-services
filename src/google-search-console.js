@@ -45,7 +45,7 @@ function isoDate(date) {
 }
 
 function cacheKey(hostname) {
-  return `google-search-console:status:v2:${hostname}`;
+  return `google-search-console:status:v3:${hostname}`;
 }
 
 function serviceAccountPrincipal(env) {
@@ -193,6 +193,67 @@ export function summarizeGoogleSearchPages(payload, origin) {
     .slice(0, 10);
 }
 
+const SEARCH_INTENTS = [
+  { intent: "branded", label: "Brand searches", pattern: /\b(gptmarketplus|agentid)\b/i },
+  { intent: "small_business_ai", label: "Small-business AI", pattern: /\bsmall business(?:es)?\b/i },
+  { intent: "ai_receptionist", label: "AI receptionist", pattern: /\b(receptionist|call answering|answering service|phone agent)\b/i },
+  { intent: "lead_automation", label: "Lead automation", pattern: /\b(lead|prospect)(?:s|ing)?\b|follow[ -]?up/i },
+  { intent: "sales_automation", label: "Sales automation", pattern: /\b(sales|funnel|conversion)\b/i },
+  { intent: "marketing_automation", label: "Marketing automation", pattern: /\b(marketing|content|social media|campaign)\b/i },
+  { intent: "roi_planning", label: "ROI and payback", pattern: /\b(roi|return on investment|payback|savings|calculator)\b/i },
+  { intent: "comparison", label: "Product comparison", pattern: /\b(vs\.?|versus|compare|comparison|alternative)\b/i },
+  { intent: "pricing_research", label: "Pricing research", pattern: /\b(cost|price|pricing|fee|fees|how much|affordable)\b/i },
+  { intent: "diy_resources", label: "Templates and DIY", pattern: /\b(template|checklist|workbook|launch kit|guide|script)\b/i },
+];
+
+function searchIntentForQuery(query) {
+  return SEARCH_INTENTS.find((entry) => entry.pattern.test(query))
+    || { intent: "other", label: "Other AI automation searches" };
+}
+
+export function summarizeGoogleSearchIntents(payload) {
+  const aggregates = new Map();
+  for (const row of Array.isArray(payload?.rows) ? payload.rows : []) {
+    const query = String(row?.keys?.[0] || "").trim();
+    if (!query) continue;
+    const category = searchIntentForQuery(query);
+    const impressions = integer(row.impressions);
+    const clicks = integer(row.clicks);
+    const position = decimal(row.position);
+    const current = aggregates.get(category.intent) || {
+      intent: category.intent,
+      label: category.label,
+      clicks: 0,
+      impressions: 0,
+      weightedPosition: 0,
+      queryCount: 0,
+    };
+    current.clicks += clicks;
+    current.impressions += impressions;
+    current.weightedPosition += position * impressions;
+    current.queryCount += 1;
+    aggregates.set(category.intent, current);
+  }
+
+  return [...aggregates.values()]
+    .filter((entry) => entry.impressions > 0)
+    .map((entry) => ({
+      intent: entry.intent,
+      label: entry.label,
+      clicks: entry.clicks,
+      impressions: entry.impressions,
+      ctr: entry.impressions ? decimal(entry.clicks / entry.impressions) : 0,
+      position: entry.impressions ? decimal(entry.weightedPosition / entry.impressions) : 0,
+      queryCount: entry.queryCount,
+    }))
+    .sort((left, right) => (
+      right.impressions - left.impressions
+      || right.clicks - left.clicks
+      || left.position - right.position
+      || left.intent.localeCompare(right.intent)
+    ));
+}
+
 function summarizeSitemap(payload, sitemapUrl) {
   const entries = Array.isArray(payload?.sitemap) ? payload.sitemap : [];
   const sitemap = entries.find((item) => String(item.path || "") === sitemapUrl);
@@ -283,7 +344,7 @@ export async function googleSearchConsoleStatus(env, { force = false } = {}) {
   start.setUTCDate(start.getUTCDate() - 27);
   const startDate = isoDate(start);
   const endDate = isoDate(end);
-  const [sitemapsResponse, inspectionResponse, analyticsResponse, pagesResponse] = await Promise.all([
+  const [sitemapsResponse, inspectionResponse, analyticsResponse, pagesResponse, intentsResponse] = await Promise.all([
     googleJson(`${SEARCH_CONSOLE_API}/sites/${encodedProperty}/sitemaps`, accessToken),
     googleJson(URL_INSPECTION_API, accessToken, {
       method: "POST",
@@ -300,6 +361,16 @@ export async function googleSearchConsoleStatus(env, { force = false } = {}) {
         endDate,
         dimensions: ["page"],
         rowLimit: 250,
+        dataState: "final",
+      },
+    }),
+    googleJson(`${SEARCH_CONSOLE_API}/sites/${encodedProperty}/searchAnalytics/query`, accessToken, {
+      method: "POST",
+      body: {
+        startDate,
+        endDate,
+        dimensions: ["query"],
+        rowLimit: 1000,
         dataState: "final",
       },
     }),
@@ -323,6 +394,9 @@ export async function googleSearchConsoleStatus(env, { force = false } = {}) {
       : { startDate, endDate, providerStatus: analyticsResponse.status },
     topPages: pagesResponse.ok
       ? summarizeGoogleSearchPages(pagesResponse.payload, origin)
+      : [],
+    searchIntents: intentsResponse.ok
+      ? summarizeGoogleSearchIntents(intentsResponse.payload)
       : [],
   };
   await writeCachedStatus(env, key, status, STATUS_CACHE_SECONDS);
