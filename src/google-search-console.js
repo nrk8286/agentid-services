@@ -182,9 +182,15 @@ export function summarizeGoogleSearchPages(payload, origin) {
       ctr: decimal(row.ctr),
       position: decimal(row.position),
     });
-    if (pages.length >= 10) break;
   }
-  return pages;
+  return pages
+    .sort((left, right) => (
+      right.impressions - left.impressions
+      || right.clicks - left.clicks
+      || left.position - right.position
+      || left.page.localeCompare(right.page)
+    ))
+    .slice(0, 10);
 }
 
 function summarizeSitemap(payload, sitemapUrl) {
@@ -293,7 +299,7 @@ export async function googleSearchConsoleStatus(env, { force = false } = {}) {
         startDate,
         endDate,
         dimensions: ["page"],
-        rowLimit: 10,
+        rowLimit: 250,
         dataState: "final",
       },
     }),
