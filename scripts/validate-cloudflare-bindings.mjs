@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import {
+  classifyLeadRecord,
   handleAgentIdSiteRequest,
   notifyQueuedSalesReadyLeads,
   sendCustomerTransactionalEmail,
@@ -156,6 +157,8 @@ for (const requiredGenericLeadControl of [
   "sendOwnerTransactionalEmail(",
   '"owner_notified"',
   "notification_status = ?, notification_updated_at = ?",
+  "conversionEligible: !classification.excluded",
+  "result.conversionEligible !== false",
 ]) {
   if (!workerSource.includes(requiredGenericLeadControl)) {
     failures.push(`generic lead owner handoff is missing ${requiredGenericLeadControl}`);
@@ -164,6 +167,17 @@ for (const requiredGenericLeadControl of [
 for (const requiredGenericLeadColumn of ["contact_consent", "notification_status", "notification_updated_at"]) {
   if (!genericLeadNotificationMigration.includes(requiredGenericLeadColumn)) {
     failures.push(`generic lead notification migration is missing ${requiredGenericLeadColumn}`);
+  }
+}
+for (const requiredTestLeadControl of [
+  'crm_stage: classification.excluded ? "test_record"',
+  'lead_status: effectiveLeadTag',
+  'follow_up_status: classification.excluded ? "excluded_test" : "queued"',
+  'event_name: classification.excluded ? "test_submission"',
+  'crm_stage <> \'test_record\'',
+]) {
+  if (!siteSource.includes(requiredTestLeadControl)) {
+    failures.push(`test lead exclusion is missing ${requiredTestLeadControl}`);
   }
 }
 
@@ -621,6 +635,18 @@ const emailTestEnv = {
     },
   },
 };
+const internalLeadClassification = classifyLeadRecord(emailTestEnv, { email: "nrk8286@gmail.com" });
+const syntheticLeadClassification = classifyLeadRecord(emailTestEnv, { email: "fixture@example.com" });
+const customerLeadClassification = classifyLeadRecord(emailTestEnv, { email: "buyer@customer-business.com" });
+if (
+  !internalLeadClassification.excluded
+  || internalLeadClassification.reason !== "internal_email"
+  || !syntheticLeadClassification.excluded
+  || syntheticLeadClassification.reason !== "synthetic_email_domain"
+  || customerLeadClassification.excluded
+) {
+  failures.push("lead classification must exclude internal and synthetic records without excluding real customer domains");
+}
 const ownerDelivery = await sendOwnerTransactionalEmail(
   emailTestEnv,
   "Owner notification test",
@@ -661,7 +687,7 @@ const backlogLead = {
   lead_status: "WARM",
   lead_score: 60,
   name: "Release Test",
-  email: "customer@example.com",
+  email: "buyer@customer-business.com",
   business_name: "Example Business",
 };
 const backlogResult = await notifyQueuedSalesReadyLeads({

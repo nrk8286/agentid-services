@@ -3,6 +3,7 @@ import {
   activeSponsorPlacement,
   agentIdIndexablePaths,
   agentIdOneTimeProducts,
+  classifyLeadRecord,
   handleAgentIdSiteRequest,
   notifyQueuedSalesReadyLeads,
   renderLaunchKitMarkdown,
@@ -1267,21 +1268,42 @@ async function handleLead(request, env, ctx) {
     return jsonResponse({ ok: false, error: "Email is required." }, 400);
   }
 
+  const classification = classifyLeadRecord(env, lead);
   lead.score = scoreLead(lead);
-  lead.stage = lead.score >= 75 ? "hot" : lead.score >= 45 ? "warm" : "nurture";
-  const task = leadTask(lead);
+  lead.stage = classification.excluded
+    ? "test"
+    : lead.score >= 75
+      ? "hot"
+      : lead.score >= 45
+        ? "warm"
+        : "nurture";
+  lead.notificationStatus = classification.excluded ? "excluded_test" : "queued";
+  const task = classification.excluded
+    ? {
+        ...leadTask(lead),
+        owner: "qa",
+        title: "Internal or synthetic lead excluded from sales handoff",
+        priority: 0,
+        status: "excluded",
+      }
+    : leadTask(lead);
 
   await persistLead(env, lead, task);
-  await appendTask(env, task);
-  await bumpMetric(env, "leads_total");
-  queueBackgroundWork(env, ctx, "lead", { ...lead, task }, notifyOwnerOfGenericLead(env, lead));
+  if (!classification.excluded) {
+    await appendTask(env, task);
+    await bumpMetric(env, "leads_total");
+    queueBackgroundWork(env, ctx, "lead", { ...lead, task }, notifyOwnerOfGenericLead(env, lead));
+  }
 
   return jsonResponse({
     ok: true,
-    message: "Details received. The agents scored the lead and queued the next follow-up task.",
+    message: classification.excluded
+      ? "Internal or test submission recorded without a sales notification."
+      : "Details received. The agents scored the lead and queued the next follow-up task.",
     lead: redactLead(lead),
     task,
-    ownerNotification: "queued",
+    ownerNotification: classification.excluded ? "excluded_test" : "queued",
+    conversionEligible: !classification.excluded,
   });
 }
 
@@ -5517,9 +5539,9 @@ ${googleTagGatewayBody(env)}
         body: JSON.stringify(Object.fromEntries(new FormData(leadForm)))
       });
       const result = await response.json();
-      leadStatus.textContent = result.ok ? "Received. Follow-up task queued." : result.error || "Lead capture failed.";
+      leadStatus.textContent = result.ok ? result.message || "Received. Follow-up task queued." : result.error || "Lead capture failed.";
       submit.disabled = false;
-      if (result.ok) {
+      if (result.ok && result.conversionEligible !== false) {
         if (typeof window.agentidTrackGoogleEvent === "function") {
           window.agentidTrackGoogleEvent("generate_lead", { value: 1, currency: "USD", lead_source: "agent_dashboard" });
         }
@@ -6794,8 +6816,8 @@ function renderPaymentRequestScript(turnstile) {
             body: JSON.stringify(payload),
           });
           const result = await response.json();
-          paymentStatus.textContent = result.ok ? "Received. Follow-up task queued." : result.error || "Payment request failed.";
-          if (result.ok) {
+          paymentStatus.textContent = result.ok ? result.message || "Received. Follow-up task queued." : result.error || "Payment request failed.";
+          if (result.ok && result.conversionEligible !== false) {
             if (typeof window.agentidTrackGoogleEvent === "function") {
               window.agentidTrackGoogleEvent("generate_lead", { value: 1, currency: "USD", lead_source: "pricing_payment_request", payment_offer: offerValue, payment_method: methodValue });
             }
