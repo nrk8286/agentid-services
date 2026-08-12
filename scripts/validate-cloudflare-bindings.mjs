@@ -13,6 +13,7 @@ import { normalizePaypalInvoiceId, summarizePaypalInvoice } from "../src/paypal-
 
 const raw = readFileSync(new URL("../wrangler.jsonc", import.meta.url), "utf8");
 const runtimeMigration = readFileSync(new URL("../migrations/0004_agent_runtime.sql", import.meta.url), "utf8");
+const genericLeadNotificationMigration = readFileSync(new URL("../migrations/0008_generic_lead_notifications.sql", import.meta.url), "utf8");
 const workerSource = readFileSync(new URL("../src/index.js", import.meta.url), "utf8");
 const siteSource = readFileSync(new URL("../src/agentid-site.js", import.meta.url), "utf8");
 const failures = [];
@@ -145,6 +146,24 @@ if (!/"send_email"\s*:\s*\[[\s\S]{0,260}?"name"\s*:\s*"TRANSACTIONAL_EMAIL"[\s\S
 
 if (!/"OWNER_NOTIFICATION_EMAIL"\s*:\s*"nrk8286@gmail\.com"/.test(raw)) {
   failures.push("OWNER_NOTIFICATION_EMAIL must match the verified Cloudflare Email Routing destination");
+}
+
+for (const requiredGenericLeadControl of [
+  'name="contactConsent" type="checkbox" value="1" required',
+  'error: "Contact consent is required."',
+  "notifyOwnerOfGenericLead(env, lead)",
+  "sendOwnerTransactionalEmail(",
+  '"owner_notified"',
+  "notification_status = ?, notification_updated_at = ?",
+]) {
+  if (!workerSource.includes(requiredGenericLeadControl)) {
+    failures.push(`generic lead owner handoff is missing ${requiredGenericLeadControl}`);
+  }
+}
+for (const requiredGenericLeadColumn of ["contact_consent", "notification_status", "notification_updated_at"]) {
+  if (!genericLeadNotificationMigration.includes(requiredGenericLeadColumn)) {
+    failures.push(`generic lead notification migration is missing ${requiredGenericLeadColumn}`);
+  }
 }
 
 if (!/"GMAIL_SENDER_EMAIL"\s*:\s*"nrk8286@gmail\.com"/.test(raw)) {

@@ -6,6 +6,7 @@ import {
   handleAgentIdSiteRequest,
   renderLaunchKitMarkdown,
   sendCustomerTransactionalEmail,
+  sendOwnerTransactionalEmail,
 } from "./agentid-site.js";
 import { googleSearchConsoleStatus } from "./google-search-console.js";
 import { normalizePaypalInvoiceId, summarizePaypalInvoice } from "./paypal-invoice.js";
@@ -1241,6 +1242,11 @@ async function handleLead(request, env, ctx) {
     return jsonResponse({ ok: false, error: "Turnstile verification failed." }, 403);
   }
 
+  const contactConsent = body.contactConsent === true || body.contactConsent === "1" || body.contactConsent === 1;
+  if (!contactConsent) {
+    return jsonResponse({ ok: false, error: "Contact consent is required." }, 400);
+  }
+
   const lead = {
     id: crypto.randomUUID(),
     createdAt: new Date().toISOString(),
@@ -1251,6 +1257,9 @@ async function handleLead(request, env, ctx) {
     budget: cleanText(body.budget, 60),
     intent: cleanText(body.intent, 80),
     source: cleanText(body.source, 140) || `${new URL(siteUrl(env)).host}/agents`,
+    contactConsent,
+    notificationStatus: "queued",
+    notificationUpdatedAt: null,
   };
 
   if (!lead.email) {
@@ -1264,14 +1273,83 @@ async function handleLead(request, env, ctx) {
   await persistLead(env, lead, task);
   await appendTask(env, task);
   await bumpMetric(env, "leads_total");
-  queueBackgroundWork(env, ctx, "lead", { ...lead, task });
+  queueBackgroundWork(env, ctx, "lead", { ...lead, task }, notifyOwnerOfGenericLead(env, lead));
 
   return jsonResponse({
     ok: true,
     message: "Details received. The agents scored the lead and queued the next follow-up task.",
     lead: redactLead(lead),
     task,
+    ownerNotification: "queued",
   });
+}
+
+function genericLeadOwnerEmail(lead) {
+  const intent = cleanText(lead.intent || "sales", 80) || "sales";
+  const subject = `New ${intent} inquiry from GPTMarketPlus`;
+  const details = [
+    ["Lead stage", lead.stage],
+    ["Lead score", lead.score],
+    ["Name", lead.name],
+    ["Email", lead.email],
+    ["Business", lead.business],
+    ["Intent", lead.intent],
+    ["Budget", lead.budget],
+    ["Goal", lead.goal],
+    ["Source", lead.source],
+  ].filter(([, value]) => value !== undefined && value !== null && String(value).trim());
+  const text = [
+    "A prospect submitted a consented GPTMarketPlus inquiry.",
+    "",
+    ...details.map(([label, value]) => `${label}: ${value}`),
+    "",
+    "Reply directly to this email to contact the prospect.",
+  ].join("\n");
+  const html = `
+    <h1>New GPTMarketPlus inquiry</h1>
+    <p>A prospect submitted a consented inquiry.</p>
+    <table>${details.map(([label, value]) => `<tr><th align="left">${escapeHtml(label)}</th><td>${escapeHtml(value)}</td></tr>`).join("")}</table>
+    <p>Reply directly to this email to contact the prospect.</p>`;
+  return { subject, text, html };
+}
+
+async function notifyOwnerOfGenericLead(env, lead) {
+  const message = genericLeadOwnerEmail(lead);
+  const result = await sendOwnerTransactionalEmail(
+    env,
+    message.subject,
+    message.text,
+    message.html,
+    lead.email,
+  );
+  const updatedAt = new Date().toISOString();
+  const status = result.delivered
+    ? "owner_notified"
+    : `notification_failed:${cleanText(result.code || "unknown", 40)}`;
+  const writes = [
+    putJson(env, `lead:${lead.id}`, {
+      ...lead,
+      notificationStatus: status,
+      notificationUpdatedAt: updatedAt,
+    }, 60 * 60 * 24 * 180),
+  ];
+  if (env.GMP_DB) {
+    writes.push(env.GMP_DB.prepare(
+      "UPDATE leads SET notification_status = ?, notification_updated_at = ? WHERE id = ?",
+    ).bind(status, updatedAt, lead.id).run());
+  }
+  const writeResults = await Promise.allSettled(writes);
+  if (writeResults.some((write) => write.status === "rejected")) {
+    console.warn("gptmarketplus generic lead notification state update failed", { leadId: lead.id });
+  }
+  if (!result.delivered) {
+    console.warn("gptmarketplus generic lead alert not delivered", {
+      provider: result.provider,
+      code: result.code,
+      leadId: lead.id,
+    });
+  }
+  return result;
 }
 
 function paypalMode(env) {
@@ -4332,8 +4410,8 @@ async function persistLead(env, lead, task) {
   await putJson(env, `lead:${lead.id}`, lead, 60 * 60 * 24 * 180);
   await putJson(env, `lead_task:${lead.id}`, task, 60 * 60 * 24 * 180);
   if (env.GMP_DB) {
-    await env.GMP_DB.prepare(`INSERT OR REPLACE INTO leads (id, created_at, name, email, business, goal, budget, intent, source, score, stage)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(
+    await env.GMP_DB.prepare(`INSERT OR REPLACE INTO leads (id, created_at, name, email, business, goal, budget, intent, source, score, stage, contact_consent, notification_status, notification_updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(
       lead.id,
       lead.createdAt,
       lead.name,
@@ -4345,6 +4423,9 @@ async function persistLead(env, lead, task) {
       lead.source,
       lead.score,
       lead.stage,
+      lead.contactConsent ? 1 : 0,
+      lead.notificationStatus || "queued",
+      lead.notificationUpdatedAt || null,
     ).run();
     await env.GMP_DB.prepare(`INSERT OR REPLACE INTO lead_tasks (lead_id, title, priority, status, source, url, cta_url, created_at, owner)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(
@@ -5389,6 +5470,7 @@ ${googleTagGatewayBody(env)}
         </select></label>
         <label><span>Goal</span><textarea name="goal" rows="4" placeholder="Tell us what you want to sell, automate, list, or sponsor."></textarea></label>
         <label><span>Budget</span><input name="budget" placeholder="$49/mo, $149/mo, project budget, or timing"></label>
+        <label class="consent-field"><input name="contactConsent" type="checkbox" value="1" required><span>I agree to be contacted about this request.</span></label>
         ${turnstile.widget}
         <button class="button" type="submit">Send me next steps</button>
         <p id="lead-status"></p>
@@ -6458,6 +6540,7 @@ function renderTrafficSpecialSection(env, page) {
         <input type="hidden" name="intent" value="PayPal invoice request">
         <label><span>Budget</span><input name="budget" placeholder="$49/mo, invoice amount, or PO number"></label>
         <label><span>Notes</span><textarea name="goal" rows="4" placeholder="Billing contact, payment preference, or special terms."></textarea></label>
+        <label class="consent-field"><input name="contactConsent" type="checkbox" value="1" required><span>I agree to be contacted about this payment request.</span></label>
         ${turnstile.widget}
         <button class="button" type="submit">Request payment option</button>
         <p id="payment-status"></p>
@@ -7650,7 +7733,7 @@ nav{max-width:1180px;margin:0 auto 88px;display:flex;justify-content:space-betwe
 .task-list{display:grid;gap:12px;margin-top:28px}.task-list article{align-items:flex-start}.task-list span{color:var(--muted);font-weight:800;white-space:nowrap}
 .prospect-list{display:grid;gap:12px}.prospect-list article{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:18px;padding:18px;border:1px solid var(--line);border-radius:8px;background:#fff}.prospect-list strong{font-size:20px}.prospect-list p{margin:8px 0;color:var(--muted)}.prospect-list span{display:block;font-size:13px;font-weight:800;color:var(--green)}
 .page-list{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-top:28px}.page-list article{border:1px solid var(--line);border-radius:8px;background:#fff;padding:20px}.page-list a{text-decoration:none}.page-list strong{font-size:20px}.page-list p{color:var(--muted)}.page-list span{display:block;font-size:13px;font-weight:800;color:var(--green)}
-.lead-form{display:grid;gap:14px;border:1px solid var(--line);border-radius:8px;background:#fff;padding:22px}.lead-form label{display:grid;gap:7px;font-weight:800}.lead-form span{font-size:13px;text-transform:uppercase;color:var(--muted)}.lead-form input,.lead-form select,.lead-form textarea{width:100%;border:1px solid var(--line);border-radius:6px;padding:12px 13px;font:inherit;color:var(--ink);background:#fff}.lead-form textarea{resize:vertical}.lead-form button:disabled,.buy-button:disabled{opacity:.6;cursor:wait}#lead-status,#run-status{font-weight:800;color:var(--green)}
+.lead-form{display:grid;gap:14px;border:1px solid var(--line);border-radius:8px;background:#fff;padding:22px}.lead-form label{display:grid;gap:7px;font-weight:800}.lead-form span{font-size:13px;text-transform:uppercase;color:var(--muted)}.lead-form input,.lead-form select,.lead-form textarea{width:100%;border:1px solid var(--line);border-radius:6px;padding:12px 13px;font:inherit;color:var(--ink);background:#fff}.lead-form textarea{resize:vertical}.lead-form .consent-field{grid-template-columns:auto 1fr;align-items:start;gap:10px}.lead-form .consent-field input{width:auto;margin-top:2px}.lead-form .consent-field span{text-transform:none;line-height:1.4}.lead-form button:disabled,.buy-button:disabled{opacity:.6;cursor:wait}#lead-status,#run-status{font-weight:800;color:var(--green)}
 @media(max-width:900px){.hero-grid,.split{grid-template-columns:1fr}.grid-3{grid-template-columns:1fr 1fr}.task-list article,.check,.prospect-list article{display:grid;grid-template-columns:1fr}.task-list span{white-space:normal}}
 @media(max-width:560px){nav{flex-direction:column;margin-bottom:48px}.hero{min-height:auto;padding-bottom:48px}.hero h1{font-size:clamp(40px,13vw,56px);line-height:.96}.lede{font-size:18px}.grid-3,.page-list{grid-template-columns:1fr}}
 `;
