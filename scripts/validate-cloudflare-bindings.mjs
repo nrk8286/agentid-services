@@ -425,6 +425,27 @@ if (pricingBody.includes("adsbygoogle") || pricingBody.includes('data-ad-slot="3
   failures.push("high-conversion pricing page must remain free of publisher ads");
 }
 
+const smallBusinessGuideResponse = await handleAgentIdSiteRequest(
+  new Request("https://gptmarketplus.com/guides/ai-agent-for-small-business"),
+  {
+    SITE_URL: "https://gptmarketplus.com",
+    SUPPORT_EMAIL: "admin@gptmarketplus.com",
+    BRAND_NAME: "GPTMarketPlus",
+  },
+  { waitUntil() {} },
+);
+const smallBusinessGuideBody = await smallBusinessGuideResponse.text();
+for (const requiredGuideControl of [
+  "AI Agents for Small Business: Costs &amp; 30-Day Plan",
+  'data-conversion-bridge="Small Business AI Guide"',
+  "/book-a-consultation?source=Small%20Business%20AI%20Guide-bridge",
+  'href="/pricing"',
+]) {
+  if (!smallBusinessGuideBody.includes(requiredGuideControl)) {
+    failures.push(`highest-impression small-business guide is missing ${requiredGuideControl}`);
+  }
+}
+
 for (const conversionPath of ["/services", "/ai-agents", "/use-cases"]) {
   const conversionResponse = await handleAgentIdSiteRequest(
     new Request(`https://gptmarketplus.com${conversionPath}`),

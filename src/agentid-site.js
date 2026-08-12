@@ -687,12 +687,12 @@ const RESOURCE_PAGES = [
   {
     path: "/guides/ai-agent-for-small-business",
     category: "Guide",
-    title: "AI Agent for Small Business: Costs, Use Cases, and 30-Day Plan",
-    description: "Choose a practical AI agent for a small business, compare first-workflow use cases and cost drivers, estimate payback, and follow a measurable 30-day rollout plan.",
+    title: "AI Agents for Small Business: Costs & 30-Day Plan",
+    description: "Compare small-business AI agent costs and use cases, choose your first workflow, estimate payback, and follow a practical 30-day rollout plan.",
     summary: "Start with one measurable bottleneck, connect it to a real handoff, and expand only after the first workflow is reliable.",
     publishedAt: "2026-07-30",
-    updatedAt: "2026-08-07",
-    updatedLabel: "August 7, 2026",
+    updatedAt: "2026-08-12",
+    updatedLabel: "August 12, 2026",
     faqKicker: "Buyer questions",
     faqTitle: "Small-business AI agent FAQ",
     faqDescription: "Use these answers to choose a first workflow, budget conservatively, and keep a person accountable for the result.",
@@ -4018,6 +4018,7 @@ function renderResourceArticlePage(env, page) {
         </div>
       </header>
       ${renderResourceEvidenceSection(page)}
+      ${page.path === "/guides/ai-agent-for-small-business" ? renderConversionBridge("Small Business AI Guide") : ""}
       <div class="resource-layout">
         <div class="resource-content">
           ${page.sections.map((section, index) => `
