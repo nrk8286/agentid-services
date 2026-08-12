@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import {
   handleAgentIdSiteRequest,
+  notifyQueuedSalesReadyLeads,
   sendCustomerTransactionalEmail,
   sendOwnerTransactionalEmail,
 } from "../src/agentid-site.js";
@@ -645,6 +646,54 @@ const customerDelivery = await sendCustomerTransactionalEmail(
 );
 if (customerDelivery.delivered || customerDelivery.code !== "provider_not_configured" || ownerMessages.length !== 1) {
   failures.push("owner-only Cloudflare email must never report or perform customer transactional delivery");
+}
+
+const backlogUpdates = [];
+const backlogLead = {
+  id: "consented-booking-test",
+  created_at: "2026-08-08T18:15:25.902Z",
+  updated_at: "2026-08-08T18:15:25.902Z",
+  contact_consent: 1,
+  follow_up_status: "queued",
+  booked_call: 1,
+  quote_requested: 0,
+  purchase_intent: "",
+  lead_status: "WARM",
+  lead_score: 60,
+  name: "Release Test",
+  email: "customer@example.com",
+  business_name: "Example Business",
+};
+const backlogResult = await notifyQueuedSalesReadyLeads({
+  ...emailTestEnv,
+  GMP_DB: {
+    prepare(sql) {
+      return {
+        bind(...args) {
+          return {
+            async all() {
+              return { success: true, results: [backlogLead] };
+            },
+            async run() {
+              backlogUpdates.push({ sql, args });
+              return { success: true, meta: { changes: 1 } };
+            },
+          };
+        },
+      };
+    },
+  },
+});
+if (
+  !backlogResult.ok
+  || backlogResult.eligible !== 1
+  || backlogResult.claimed !== 1
+  || backlogResult.notified !== 1
+  || backlogResult.failed !== 0
+  || ownerMessages.length !== 2
+  || !backlogUpdates.some((update) => update.args[0] === "owner_notified")
+) {
+  failures.push("consented queued sales-ready leads must be claimed once, delivered to the owner, and recorded");
 }
 
 const oauthKeyBytes = crypto.getRandomValues(new Uint8Array(32));

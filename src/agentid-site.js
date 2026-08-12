@@ -2784,6 +2784,65 @@ async function notifyOwnerOfLead(env, lead) {
   return result;
 }
 
+export async function notifyQueuedSalesReadyLeads(env, options = {}) {
+  if (!env.GMP_DB) {
+    return { ok: true, eligible: 0, claimed: 0, notified: 0, failed: 0, storage: "unavailable" };
+  }
+  const requestedLimit = Number(options.limit || 5);
+  const limit = Number.isFinite(requestedLimit) ? Math.max(1, Math.min(10, requestedLimit)) : 5;
+  const result = await env.GMP_DB.prepare(`
+    SELECT * FROM agentid_leads
+    WHERE contact_consent = 1
+      AND follow_up_status = 'queued'
+      AND (
+        booked_call = 1
+        OR quote_requested = 1
+        OR COALESCE(purchase_intent, '') <> ''
+        OR lead_status = 'HOT'
+      )
+    ORDER BY booked_call DESC, quote_requested DESC, lead_score DESC, created_at DESC
+    LIMIT ?
+  `).bind(limit).all();
+  const leads = Array.isArray(result.results) ? result.results : [];
+  let claimed = 0;
+  let notified = 0;
+  let failed = 0;
+
+  for (const lead of leads) {
+    const claimedAt = new Date().toISOString();
+    const claim = await env.GMP_DB.prepare(`
+      UPDATE agentid_leads
+      SET follow_up_status = 'notification_processing', updated_at = ?
+      WHERE id = ? AND follow_up_status = 'queued'
+    `).bind(claimedAt, lead.id).run();
+    if (Number(claim.meta?.changes || 0) !== 1) continue;
+    claimed += 1;
+    try {
+      const delivery = await notifyOwnerOfLead(env, { ...lead, notification_context: "backlog" });
+      if (delivery.delivered) notified += 1;
+      else failed += 1;
+    } catch (error) {
+      failed += 1;
+      await env.GMP_DB.prepare(
+        "UPDATE agentid_leads SET follow_up_status = ?, updated_at = ? WHERE id = ?",
+      ).bind("notification_failed:exception", new Date().toISOString(), lead.id).run();
+      console.warn("gptmarketplus queued sales lead alert failed", {
+        leadId: lead.id,
+        message: cleanText(error instanceof Error ? error.message : error, 160),
+      });
+    }
+  }
+
+  return {
+    ok: failed === 0,
+    eligible: leads.length,
+    claimed,
+    notified,
+    failed,
+    storage: "d1",
+  };
+}
+
 async function maybeSendCustomerEmail(env, to, subject, text, html) {
   const result = await sendCustomerTransactionalEmail(env, to, subject, text, html);
   if (!result.delivered) {
@@ -2832,14 +2891,18 @@ async function sendResendEmail(env, recipients, subject, text, html, replyTo = "
 }
 
 function buildOwnerLeadEmail(lead) {
-  const subject = lead.booked_call
+  const baseSubject = lead.booked_call
     ? "New strategy call request from GPTMarketPlus"
     : lead.quote_requested
       ? "New quote request from GPTMarketPlus"
       : lead.purchase_intent
         ? "New purchase inquiry from GPTMarketPlus"
         : "HOT AI Services Lead from GPTMarketPlus";
+  const subject = lead.notification_context === "backlog"
+    ? `Sales backlog: ${baseSubject.replace(/^New /, "")}`
+    : baseSubject;
   const text = [
+    `Submitted: ${lead.created_at || ""}`,
     `Name: ${lead.name || ""}`,
     `Business: ${lead.business_name || ""}`,
     `Phone: ${lead.phone || ""}`,
@@ -2855,6 +2918,7 @@ function buildOwnerLeadEmail(lead) {
   const html = `
     <div style="font-family:ui-sans-serif,system-ui,sans-serif;color:#e5eef8;background:#06111d;padding:24px;border-radius:16px">
       <h2 style="margin-top:0;color:#8fd3ff">${escapeHtml(subject)}</h2>
+      <p><strong>Submitted:</strong> ${escapeHtml(lead.created_at || "")}</p>
       <p><strong>Name:</strong> ${escapeHtml(lead.name || "")}</p>
       <p><strong>Business:</strong> ${escapeHtml(lead.business_name || "")}</p>
       <p><strong>Phone:</strong> ${escapeHtml(lead.phone || "")}</p>
