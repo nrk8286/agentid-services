@@ -45,7 +45,7 @@ function isoDate(date) {
 }
 
 function cacheKey(hostname) {
-  return `google-search-console:status:v1:${hostname}`;
+  return `google-search-console:status:v2:${hostname}`;
 }
 
 function serviceAccountPrincipal(env) {
@@ -162,6 +162,31 @@ export function summarizeGoogleSearchAnalytics(payload, startDate, endDate) {
   };
 }
 
+export function summarizeGoogleSearchPages(payload, origin) {
+  const canonicalOrigin = new URL(origin).origin;
+  const pages = [];
+  for (const row of Array.isArray(payload?.rows) ? payload.rows : []) {
+    const pageUrl = String(row?.keys?.[0] || "");
+    let page;
+    try {
+      const parsed = new URL(pageUrl);
+      if (parsed.origin !== canonicalOrigin) continue;
+      page = `${parsed.pathname}${parsed.search}`;
+    } catch {
+      continue;
+    }
+    pages.push({
+      page,
+      clicks: integer(row.clicks),
+      impressions: integer(row.impressions),
+      ctr: decimal(row.ctr),
+      position: decimal(row.position),
+    });
+    if (pages.length >= 10) break;
+  }
+  return pages;
+}
+
 function summarizeSitemap(payload, sitemapUrl) {
   const entries = Array.isArray(payload?.sitemap) ? payload.sitemap : [];
   const sitemap = entries.find((item) => String(item.path || "") === sitemapUrl);
@@ -252,7 +277,7 @@ export async function googleSearchConsoleStatus(env, { force = false } = {}) {
   start.setUTCDate(start.getUTCDate() - 27);
   const startDate = isoDate(start);
   const endDate = isoDate(end);
-  const [sitemapsResponse, inspectionResponse, analyticsResponse] = await Promise.all([
+  const [sitemapsResponse, inspectionResponse, analyticsResponse, pagesResponse] = await Promise.all([
     googleJson(`${SEARCH_CONSOLE_API}/sites/${encodedProperty}/sitemaps`, accessToken),
     googleJson(URL_INSPECTION_API, accessToken, {
       method: "POST",
@@ -261,6 +286,16 @@ export async function googleSearchConsoleStatus(env, { force = false } = {}) {
     googleJson(`${SEARCH_CONSOLE_API}/sites/${encodedProperty}/searchAnalytics/query`, accessToken, {
       method: "POST",
       body: { startDate, endDate, rowLimit: 1 },
+    }),
+    googleJson(`${SEARCH_CONSOLE_API}/sites/${encodedProperty}/searchAnalytics/query`, accessToken, {
+      method: "POST",
+      body: {
+        startDate,
+        endDate,
+        dimensions: ["page"],
+        rowLimit: 10,
+        dataState: "final",
+      },
     }),
   ]);
 
@@ -280,6 +315,9 @@ export async function googleSearchConsoleStatus(env, { force = false } = {}) {
     searchAnalytics: analyticsResponse.ok
       ? summarizeGoogleSearchAnalytics(analyticsResponse.payload, startDate, endDate)
       : { startDate, endDate, providerStatus: analyticsResponse.status },
+    topPages: pagesResponse.ok
+      ? summarizeGoogleSearchPages(pagesResponse.payload, origin)
+      : [],
   };
   await writeCachedStatus(env, key, status, STATUS_CACHE_SECONDS);
   return status;
