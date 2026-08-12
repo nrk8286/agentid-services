@@ -10,6 +10,7 @@ import {
   googlePropertyCandidates,
   summarizeGoogleIndexInspection,
   summarizeGoogleSearchAnalytics,
+  summarizeGoogleSearchIntents,
   summarizeGoogleSearchPages,
 } from "../src/google-search-console.js";
 import { normalizePaypalInvoiceId, summarizePaypalInvoice } from "../src/paypal-invoice.js";
@@ -660,6 +661,24 @@ if (
   || JSON.stringify(searchPages).includes("private.example")
 ) {
   failures.push("Search Console page diagnostics must rank canonical public pages by aggregate impressions");
+}
+const searchIntents = summarizeGoogleSearchIntents({
+  rows: [
+    { keys: ["private small business workflow phrase"], clicks: 1, impressions: 20, ctr: 0.05, position: 12 },
+    { keys: ["private receptionist pricing phrase"], clicks: 0, impressions: 10, ctr: 0, position: 30 },
+    { keys: ["private unmatched automation phrase"], clicks: 0, impressions: 5, ctr: 0, position: 40 },
+  ],
+});
+if (
+  searchIntents.length !== 3
+  || searchIntents[0].intent !== "small_business_ai"
+  || searchIntents[0].impressions !== 20
+  || searchIntents[0].position !== 12
+  || !searchIntents.some((entry) => entry.intent === "ai_receptionist" && entry.impressions === 10)
+  || !searchIntents.some((entry) => entry.intent === "other" && entry.impressions === 5)
+  || JSON.stringify(searchIntents).includes("private")
+) {
+  failures.push("Search Console intent diagnostics must aggregate demand without exposing raw queries");
 }
 
 const ownerMessages = [];
