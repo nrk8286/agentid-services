@@ -872,6 +872,7 @@ const campaignLinks = campaignLinksBody.links || {};
 const launchKitCampaigns = [
   campaignLinks.email?.newsletter_pricing,
   ...(Object.values(campaignLinks.social_bios || {})),
+  campaignLinks.partners?.community_post,
   campaignLinks.documents?.launch_kit_one_pager,
 ];
 if (campaignLinksResponse.status !== 200 || launchKitCampaigns.some((value) => {
@@ -894,6 +895,19 @@ for (const socialSource of ["linkedin", "facebook", "instagram", "tiktok", "x", 
   }
   if (workerSource.includes(`utmCampaignUrl(env, "/pricing", { source: "${socialSource}"`)) {
     failures.push(`social share hub must not route ${socialSource} to the old pricing path`);
+  }
+}
+for (const requiredPartnerDistributionControl of [
+  'partners: {',
+  'community_post: campaignUrl(env, "/ai-agent-launch-kit"',
+  'source: "partner"',
+  'medium: "referral"',
+  'campaign: "agentid_partner_distribution"',
+  'content: "launch_kit"',
+  '"Partner or community post"',
+]) {
+  if (!`${workerSource}\n${siteSource}`.includes(requiredPartnerDistributionControl)) {
+    failures.push(`partner distribution is missing attributed Launch Kit control ${requiredPartnerDistributionControl}`);
   }
 }
 

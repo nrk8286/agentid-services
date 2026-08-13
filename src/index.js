@@ -6134,6 +6134,7 @@ function renderSocialPage(env) {
     ["TikTok bio", utmCampaignUrl(env, "/ai-agent-launch-kit", { source: "tiktok", medium: "social", campaign: "agentid_social_bio", content: "launch_kit" })],
     ["X bio", utmCampaignUrl(env, "/ai-agent-launch-kit", { source: "x", medium: "social", campaign: "agentid_social_bio", content: "launch_kit" })],
     ["Newsletter", utmCampaignUrl(env, "/ai-agent-launch-kit", { source: "newsletter", medium: "email", campaign: "agentid_newsletter", content: "launch_kit" })],
+    ["Partner or community post", utmCampaignUrl(env, "/ai-agent-launch-kit", { source: "partner", medium: "referral", campaign: "agentid_partner_distribution", content: "launch_kit" })],
     ["Proposal or PDF", utmCampaignUrl(env, "/pricing", { source: "proposal", medium: "document", campaign: "agentid_sales_materials", content: "pricing" })],
   ];
   const primaryShareUrl = utmCampaignUrl(env, "/ai-agent-launch-kit", {

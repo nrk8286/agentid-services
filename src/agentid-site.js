@@ -1295,6 +1295,14 @@ function campaignLinkCatalog(env) {
         content: "launch_kit",
       }),
     },
+    partners: {
+      community_post: campaignUrl(env, "/ai-agent-launch-kit", {
+        source: "partner",
+        medium: "referral",
+        campaign: "agentid_partner_distribution",
+        content: "launch_kit",
+      }),
+    },
     documents: {
       lead_magnet: campaignUrl(env, "/free-ai-automation-audit-checklist", {
         source: "sales_materials",
