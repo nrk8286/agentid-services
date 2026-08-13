@@ -7556,8 +7556,8 @@ function renderChatBootstrap(env) {
             '      <button type="button" class="chat-send">Send</button>',
             '    </div>',
             '    <div class="agentid-chat-ctas">',
-            '      <a class="button-primary" href="/book-a-consultation">Book My Free AI Strategy Call</a>',
-            '      <a class="button-secondary" href="/contact">Request a Custom Quote</a>',
+            '      <a class="button-primary" href="/ai-agent-launch-kit?source=chat" data-track-event="product_view" data-track-label="Chat Launch Kit CTA">Build My $29 Starter System</a>',
+            '      <a class="button-secondary" href="/book-a-consultation?source=chat" data-track-event="cta_click" data-track-label="Chat Strategy Call CTA">Book My Free AI Strategy Call</a>',
             '    </div>',
             '  </section>',
             '</div>'

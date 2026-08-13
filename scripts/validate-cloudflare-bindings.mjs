@@ -80,6 +80,15 @@ for (const requiredCustomerFollowupControl of [
 if (siteSource.includes('data-endpoint="/api/checkout"') || siteSource.includes("Pay by card")) {
   failures.push("public product pages must not expose a non-PayPal checkout path");
 }
+for (const requiredChatCtaControl of [
+  'href="/ai-agent-launch-kit?source=chat"',
+  'data-track-event="product_view"',
+  'Chat Strategy Call CTA',
+]) {
+  if (!siteSource.includes(requiredChatCtaControl)) {
+    failures.push(`chat conversion path is missing ${requiredChatCtaControl}`);
+  }
+}
 
 if (!/"durable_objects"\s*:\s*\{[\s\S]{0,220}?"name"\s*:\s*"AGENT_SCHEDULER"[\s\S]{0,120}?"class_name"\s*:\s*"AgentScheduler"/.test(raw)) {
   failures.push("AGENT_SCHEDULER Durable Object binding is missing");
