@@ -618,6 +618,28 @@ for (const [purchaseOrigin, purchaseBrand] of [
   }
 }
 
+if (!siteSource.includes("function renderLaunchKitSamplePreview()")
+  || !siteSource.includes("Illustrative sample")
+  || !siteSource.includes("This is an illustrative product sample, not a customer result, testimonial, or performance guarantee.")) {
+  failures.push("Launch Kit public page must show an honest fictional deliverable sample without fabricated proof");
+}
+for (const requiredIntentAttributionControl of [
+  'const trafficSource = `traffic-${trafficSlug}`',
+  'data-launch-kit-cta=',
+  'eventName: "product_view"',
+  'fetch("/api/events"',
+  'source: search.get("source") || ""',
+  'source: cleanText(submittedAttribution.source || "", 160)',
+  'source: cleanText(attribution.source || "", 160)',
+]) {
+  if (!`${workerSource}\n${siteSource}`.includes(requiredIntentAttributionControl)) {
+    failures.push(`buyer-intent attribution is missing ${requiredIntentAttributionControl}`);
+  }
+}
+if (!workerSource.includes("const PUBLIC_CACHE_KEY_VERSION =") || !workerSource.includes("url.searchParams.set(\"__cache_version\"")) {
+  failures.push("public cache keys must be versioned so deployed funnel changes are served to visitors");
+}
+
 const cancelledCheckoutResponse = await handleAgentIdSiteRequest(
   new Request("https://gptmarketplus.com/ai-agent-launch-kit?paypal=cancel&product=ai_agent_launch_kit"),
   {

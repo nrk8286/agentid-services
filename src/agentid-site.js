@@ -2490,6 +2490,7 @@ export async function recordVerifiedPurchaseAnalytics(env, order) {
       utm_campaign: cleanText(attribution.utm_campaign || "", 160),
       utm_content: cleanText(attribution.utm_content || "", 160),
       utm_term: cleanText(attribution.utm_term || "", 160),
+      source: cleanText(attribution.source || "", 160),
       traffic_type: cleanText(attribution.traffic_type || "", 80),
     },
     user_agent: "server-verified-paypal-capture",
@@ -4307,6 +4308,7 @@ function renderLaunchKitPage(env, requestUrl = null) {
         { kicker: "Measurement", title: "Prove whether it helps", description: "Track response time, workflow completion, qualified handoffs, bookings, errors, opt-outs, and operating cost for 30 days." },
       ])}
     </section>
+    ${renderLaunchKitSamplePreview()}
     <section class="section split-section">
       <div>
         ${renderSectionTitle("Who it is for", "Owners and operators who want something they can use now", "Use the workspace yourself, give the generated pack to your team, or use it as the exact starting point for a custom GPTMarketPlus implementation.")}
@@ -4335,6 +4337,46 @@ function renderLaunchKitPage(env, requestUrl = null) {
     ],
     bodyClass: "page-launch-kit",
   });
+}
+
+function renderLaunchKitSamplePreview() {
+  const samplePack = `FIRST WORKFLOW BRIEF
+Goal: Respond to new quote requests and route qualified requests to a human.
+Trigger: A website form, chat message, or missed-call follow-up.
+Collect: Service needed, location, timing, contact method, and consent.
+Handoff: Send a short summary to the owner when the request is qualified or unclear.
+
+STARTER SYSTEM PROMPT
+You are the assistant for [BUSINESS NAME]. Help [TARGET CUSTOMER] with [MAIN OFFER].
+Use only approved facts. Ask for the minimum missing detail. Never invent pricing,
+availability, guarantees, or policies. Identify yourself as an automated assistant
+when appropriate. Escalate sensitive, regulated, urgent, or uncertain requests to
+[HUMAN OWNER] with the captured details and the next recommended action.
+
+LAUNCH QA
+[ ] Test a normal request
+[ ] Test missing contact details
+[ ] Test an unknown question
+[ ] Test consent and opt-out language
+[ ] Test human handoff and failure recovery
+
+30-DAY SCORECARD
+Workflow starts: ____   Qualified handoffs: ____   Bookings or quotes: ____
+Wrong answers or misroutes: ____   Opt-outs or complaints: ____   Hours saved: ____`;
+  return `<section class="section launch-kit-sample">
+      ${renderSectionTitle("Illustrative sample", "See the deliverable before you buy", "This fictional example shows the structure of the starter pack. Your private workspace replaces the placeholders with your business details after verified PayPal capture.")}
+      <div class="blueprint-grid">
+        <article class="blueprint-card"><p class="card-kicker">Workflow brief</p><h3>One measurable first job</h3><p>Respond to new quote requests, collect the right details, and route qualified requests to a human.</p></article>
+        <article class="blueprint-card"><p class="card-kicker">Starter prompt</p><h3>Bounded business behavior</h3><p>Approved facts, minimum necessary questions, honest uncertainty, and explicit escalation rules.</p></article>
+        <article class="blueprint-card"><p class="card-kicker">Measurement</p><h3>Proof before expansion</h3><p>Track workflow starts, handoffs, bookings, errors, opt-outs, and hours saved for 30 days.</p></article>
+      </div>
+      <details class="review-panel">
+        <summary>Open the fictional sample starter pack</summary>
+        <pre class="code-block">${escapeHtml(samplePack)}</pre>
+      </details>
+      <p class="form-note">This is an illustrative product sample, not a customer result, testimonial, or performance guarantee.</p>
+      <div class="cta-row"><a class="button-primary" href="/ai-agent-launch-kit?source=sample-preview" data-track-event="product_view" data-track-label="Launch Kit Sample Preview CTA">Build my private starter system</a></div>
+    </section>`;
 }
 
 export function renderLaunchKitMarkdown() {
@@ -6015,6 +6057,7 @@ async function loadAttributionHealth(env, requestedDays = 7) {
     OR NULLIF(TRIM(json_extract(properties_json, '$.utm_medium')), '') IS NOT NULL
     OR NULLIF(TRIM(json_extract(properties_json, '$.utm_campaign')), '') IS NOT NULL
   )`;
+  const internalSourceExpression = "NULLIF(TRIM(json_extract(properties_json, '$.source')), '')";
   const productionPredicate = `COALESCE(LOWER(TRIM(json_extract(properties_json, '$.utm_medium'))), '') <> 'qa'
     AND COALESCE(LOWER(TRIM(json_extract(properties_json, '$.traffic_type'))), '') <> 'internal'`;
   const [
@@ -6052,9 +6095,9 @@ async function loadAttributionHealth(env, requestedDays = 7) {
     queryD1All(
       env,
       `SELECT
-        COALESCE(NULLIF(TRIM(json_extract(properties_json, '$.utm_source')), ''), '(direct / untagged)') AS source,
-        COALESCE(NULLIF(TRIM(json_extract(properties_json, '$.utm_medium')), ''), '(none)') AS medium,
-        COALESCE(NULLIF(TRIM(json_extract(properties_json, '$.utm_campaign')), ''), '(none)') AS campaign,
+        COALESCE(NULLIF(TRIM(json_extract(properties_json, '$.utm_source')), ''), ${internalSourceExpression}, '(direct / untagged)') AS source,
+        COALESCE(NULLIF(TRIM(json_extract(properties_json, '$.utm_medium')), ''), CASE WHEN ${internalSourceExpression} IS NOT NULL THEN 'internal' ELSE '(none)' END) AS medium,
+        COALESCE(NULLIF(TRIM(json_extract(properties_json, '$.utm_campaign')), ''), CASE WHEN ${internalSourceExpression} IS NOT NULL THEN 'internal-navigation' ELSE '(none)' END) AS campaign,
         COUNT(*) AS events,
         COUNT(DISTINCT NULLIF(session_id, '')) AS sessions,
         SUM(CASE WHEN event_name = 'chat_open' THEN 1 ELSE 0 END) AS chat_opens,
@@ -6902,6 +6945,7 @@ function renderAnalyticsBootstrap(env) {
           utm_campaign: search.get("utm_campaign") || "",
           utm_content: search.get("utm_content") || "",
           utm_term: search.get("utm_term") || "",
+          source: search.get("source") || "",
           traffic_type: window.__agentidTrafficType || "",
         };
         const hasCampaign = Boolean(incoming.utm_source || incoming.utm_medium || incoming.utm_campaign);
@@ -6915,7 +6959,9 @@ function renderAnalyticsBootstrap(env) {
         } catch {
           stored = incoming;
         }
-        return stored || incoming;
+        const attribution = stored || incoming;
+        if (incoming.source) attribution.source = incoming.source;
+        return attribution;
       })();
       window.dataLayer = window.dataLayer || [];
       window.dataLayer.push(Object.assign({

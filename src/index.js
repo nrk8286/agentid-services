@@ -2385,6 +2385,7 @@ async function handlePaypalOrderCreate(request, env) {
       utm_campaign: cleanText(submittedAttribution.utm_campaign || "", 160),
       utm_content: cleanText(submittedAttribution.utm_content || "", 160),
       utm_term: cleanText(submittedAttribution.utm_term || "", 160),
+      source: cleanText(submittedAttribution.source || "", 160),
       traffic_type: cleanText(submittedAttribution.traffic_type || "", 80),
     },
     status: cleanText(result.status || "PAYER_ACTION_REQUIRED", 40),
@@ -2435,6 +2436,7 @@ function paypalPurchaseMeasurementPayload(order) {
       utm_campaign: cleanText(attribution.utm_campaign || "", 160),
       utm_content: cleanText(attribution.utm_content || "", 160),
       utm_term: cleanText(attribution.utm_term || "", 160),
+      source: cleanText(attribution.source || "", 160),
       traffic_type: cleanText(attribution.traffic_type || "", 80),
     },
   };
