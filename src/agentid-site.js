@@ -4992,6 +4992,32 @@ export function renderLaunchKitWorkspacePage(env, context = {}) {
     return `<label class="field"><span>${escapeHtml(label)}</span><input type="${escapeHtml(type)}" name="${escapeHtml(name)}" value="${value}" placeholder="${escapeHtml(placeholder)}" ${required ? "required" : ""}></label>`;
   }).join("");
   const initialOutput = workspace ? renderLaunchKitWorkspaceOutput(workspace) : `<div class="review-panel"><p>Your generated starter system will appear here after you save your answers.</p><p>Start with one workflow and use plain language. You can edit and regenerate this pack whenever your plan changes.</p></div>`;
+  const starterScenarios = {
+    lead_intake: {
+      businessType: "Local service business or professional service",
+      mainOffer: "Our main offer is [service or product] for [best-fit customer]. The next action is to request a quote or schedule a call.",
+      targetCustomer: "People who need [offer] in [service area] and are ready to discuss timing and fit.",
+      primaryGoal: "Capture a new inquiry, collect consent and the minimum qualification details, then send a concise handoff to a human.",
+      approvedKnowledge: "Add approved services, prices, hours, service area, policies, and response window before launch.",
+      handoff: "Send qualified or uncertain requests to [owner or team] through [channel] within [response window].",
+    },
+    missed_call: {
+      businessType: "Appointment-based or call-driven business",
+      mainOffer: "We help [best-fit customer] with [service]. A missed call should lead to a helpful reply and a clear next step.",
+      targetCustomer: "People who called about [service] and need a response, qualification, or booking option.",
+      primaryGoal: "Recover a missed inquiry, ask what the caller needs and whether it is urgent, record contact consent, then route the request to a human.",
+      tools: "Add the approved phone, SMS, email, CRM, calendar, and task tools used for missed-call follow-up.",
+      handoff: "Urgent, sensitive, uncertain, or qualified requests go to [owner or team] through [channel] within [response window].",
+    },
+    faq_booking: {
+      businessType: "Business with repeat questions and scheduled consultations",
+      mainOffer: "We provide [service or product] for [best-fit customer]. Approved answers should help a customer decide whether to take the next step.",
+      targetCustomer: "People asking about [services, fit, timing, location, or booking] who may need a human decision.",
+      primaryGoal: "Answer approved common questions, offer the next step to book or request information, and escalate uncertainty to a human.",
+      customerQuestions: "List the five most common questions and the approved answer for each one.",
+      approvedKnowledge: "Add approved prices, availability, policies, service area, booking rules, and claims before launch.",
+    },
+  };
 
   const body = `
     <section class="page-hero split-section">
@@ -5007,6 +5033,8 @@ export function renderLaunchKitWorkspacePage(env, context = {}) {
           <input type="hidden" name="orderId" value="${escapeHtml(orderId)}">
           <input type="hidden" name="accessToken" value="${escapeHtml(accessToken)}">
           ${formFields}
+          <label class="field full"><span>Optional starting scenario</span><select id="launch-kit-starter-scenario"><option value="">Choose an example to prefill empty fields</option><option value="lead_intake">New lead intake and human handoff</option><option value="missed_call">Missed-call recovery</option><option value="faq_booking">FAQ and booking assistant</option></select></label>
+          <p class="form-note">Scenarios only fill blank fields with editable examples. Review every bracketed value and replace it with your approved business information.</p>
           <button class="button-primary" type="submit">Generate My Starter System</button>
           <p class="form-note">Only the business name, offer, best-fit customer, and first workflow are required to start. The other fields are optional context you can add now or later.</p>
           <p class="form-note">Your workspace is private to this verified purchase. Do not paste passwords, payment details, or regulated personal data.</p>
@@ -5030,7 +5058,18 @@ export function renderLaunchKitWorkspacePage(env, context = {}) {
         const output = document.getElementById("launch-kit-workspace-output");
         const actions = document.getElementById("launch-kit-workspace-actions");
         const copy = document.getElementById("launch-kit-copy");
+        const starterScenarioSelect = document.getElementById("launch-kit-starter-scenario");
+        const starterScenarios = ${JSON.stringify(starterScenarios).replace(/</g, "\\u003c")};
         let packText = ${JSON.stringify(workspace ? launchKitWorkspacePack(workspace) : "") .replace(/</g, "\\u003c")};
+        starterScenarioSelect.addEventListener("change", function () {
+          const scenario = starterScenarios[starterScenarioSelect.value];
+          if (!scenario) return;
+          Object.entries(scenario).forEach(function ([name, value]) {
+            const field = form.elements.namedItem(name);
+            if (field && !String(field.value || "").trim()) field.value = value;
+          });
+          status.textContent = "Starter scenario added to empty fields. Review and edit the examples before generating.";
+        });
         async function copyStarterPack(value) {
           if (navigator.clipboard && navigator.clipboard.writeText) {
             await navigator.clipboard.writeText(value);

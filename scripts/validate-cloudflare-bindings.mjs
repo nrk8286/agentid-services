@@ -1009,6 +1009,13 @@ for (const requiredLaunchKitConsentControl of [
   "async function copyStarterPack(value)",
   'document.execCommand("copy")',
   'id="launch-kit-download"',
+  'id="launch-kit-starter-scenario"',
+  'const starterScenarios =',
+  'Object.entries(scenario).forEach',
+  "Starter scenario added to empty fields",
+  "New lead intake and human handoff",
+  "Missed-call recovery",
+  "FAQ and booking assistant",
 ]) {
   if (!siteSource.includes(requiredLaunchKitConsentControl)) {
     failures.push(`Launch Kit starter pack is missing explicit consent control ${requiredLaunchKitConsentControl}`);
