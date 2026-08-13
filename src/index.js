@@ -6,6 +6,7 @@ import {
   classifyLeadRecord,
   handleAgentIdSiteRequest,
   notifyQueuedSalesReadyLeads,
+  recordVerifiedPurchaseAnalytics,
   renderLaunchKitMarkdown,
   sendCustomerTransactionalEmail,
   sendOwnerTransactionalEmail,
@@ -2348,6 +2349,7 @@ async function handlePaypalOrderCreate(request, env) {
     return jsonResponse({ ok: false, error: "PayPal did not return an approval URL." }, 502);
   }
 
+  const submittedAttribution = body.attribution && typeof body.attribution === "object" ? body.attribution : {};
   const pendingOrder = {
     id: orderId,
     provider: "paypal",
@@ -2359,6 +2361,17 @@ async function handlePaypalOrderCreate(request, env) {
     amountCents: Number(product.price),
     currency: "USD",
     sourcePage: cleanText(body.sourcePage || new URL(request.url).pathname, 240),
+    attribution: {
+      page_hostname: cleanText(submittedAttribution.page_hostname || "", 160),
+      landing_host: cleanText(submittedAttribution.landing_host || submittedAttribution.page_hostname || "", 160),
+      landing_page: cleanText(submittedAttribution.landing_page || body.sourcePage || "", 240),
+      utm_source: cleanText(submittedAttribution.utm_source || "", 120),
+      utm_medium: cleanText(submittedAttribution.utm_medium || "", 120),
+      utm_campaign: cleanText(submittedAttribution.utm_campaign || "", 160),
+      utm_content: cleanText(submittedAttribution.utm_content || "", 160),
+      utm_term: cleanText(submittedAttribution.utm_term || "", 160),
+      traffic_type: cleanText(submittedAttribution.traffic_type || "", 80),
+    },
     status: cleanText(result.status || "PAYER_ACTION_REQUIRED", 40),
     createdAt: cleanText(result.create_time || new Date().toISOString(), 80),
   };
@@ -2390,6 +2403,7 @@ function paypalCaptureFromOrder(order) {
 
 function paypalPurchaseMeasurementPayload(order) {
   const amountCents = Number(order?.amountCents || 0);
+  const attribution = order?.attribution && typeof order.attribution === "object" ? order.attribution : {};
   return {
     transactionId: cleanText(order?.id || "", 80),
     value: Number.isFinite(amountCents) ? amountCents / 100 : 0,
@@ -2397,6 +2411,17 @@ function paypalPurchaseMeasurementPayload(order) {
     itemId: cleanText(order?.productId || "", 120),
     itemName: cleanText(order?.productName || order?.productId || "Purchase", 160),
     paymentProvider: "paypal",
+    attribution: {
+      page_hostname: cleanText(attribution.page_hostname || attribution.landing_host || "", 160),
+      landing_host: cleanText(attribution.landing_host || attribution.page_hostname || "", 160),
+      landing_page: cleanText(attribution.landing_page || order?.sourcePage || "", 240),
+      utm_source: cleanText(attribution.utm_source || "", 120),
+      utm_medium: cleanText(attribution.utm_medium || "", 120),
+      utm_campaign: cleanText(attribution.utm_campaign || "", 160),
+      utm_content: cleanText(attribution.utm_content || "", 160),
+      utm_term: cleanText(attribution.utm_term || "", 160),
+      traffic_type: cleanText(attribution.traffic_type || "", 80),
+    },
   };
 }
 
@@ -2420,6 +2445,11 @@ async function handlePaypalOrderCapture(request, env, ctx) {
   }
   if (pending.status === "COMPLETED" && pending.accessToken) {
     const completedOrder = await deliverAndRecordPaypalCustomerEmail(env, pending);
+    await recordVerifiedPurchaseAnalytics(env, completedOrder).catch((error) => {
+      console.error("verified purchase analytics recovery failed", {
+        message: cleanText(error instanceof Error ? error.message : error, 240),
+      });
+    });
     if (!completedOrder.emailDelivery?.delivered && env.GMP_QUEUE && typeof env.GMP_QUEUE.send === "function") {
       await env.GMP_QUEUE.send({
         type: "paypal_purchase_fulfillment",
@@ -2507,6 +2537,11 @@ async function handlePaypalOrderCapture(request, env, ctx) {
     mode: "payment",
   };
   const recorded = await recordRevenueEvent(env, revenueEvent);
+  await recordVerifiedPurchaseAnalytics(env, paidOrder).catch((error) => {
+    console.error("verified purchase analytics recording failed", {
+      message: cleanText(error instanceof Error ? error.message : error, 240),
+    });
+  });
   if (recorded.recorded) {
     queueBackgroundWork(env, ctx, "paid_checkout", revenueEvent, appendTask(env, paidCustomerTask(revenueEvent)));
   }
@@ -2679,7 +2714,7 @@ ${googleStorageConsentDefaultScript("  ")}
       price: value,
       quantity: 1
     };
-    var eventPayload = {
+    var eventPayload = Object.assign({}, purchase.attribution || {}, {
       transaction_id: transactionId,
       affiliation: location.hostname,
       value: value,
@@ -2687,22 +2722,7 @@ ${googleStorageConsentDefaultScript("  ")}
       payment_type: String(purchase.paymentProvider || "paypal"),
       capture_verified: true,
       items: [item]
-    };
-    fetch("/api/events", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      keepalive: true,
-      body: JSON.stringify({
-        eventName: "purchase",
-        sourcePage: location.pathname + location.search,
-        sessionId: transactionId,
-        properties: Object.assign({
-          page_hostname: location.hostname,
-          landing_host: location.hostname,
-          provider_verified: true
-        }, eventPayload)
-      })
-    }).catch(function() {});
+    });
     return new Promise(function(resolve) {
       var finished = false;
       var finish = function(sent) {

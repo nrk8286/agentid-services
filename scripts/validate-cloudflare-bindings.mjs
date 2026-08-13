@@ -20,6 +20,7 @@ const runtimeMigration = readFileSync(new URL("../migrations/0004_agent_runtime.
 const genericLeadNotificationMigration = readFileSync(new URL("../migrations/0008_generic_lead_notifications.sql", import.meta.url), "utf8");
 const workerSource = readFileSync(new URL("../src/index.js", import.meta.url), "utf8");
 const siteSource = readFileSync(new URL("../src/agentid-site.js", import.meta.url), "utf8");
+const searchConsoleSource = readFileSync(new URL("../src/google-search-console.js", import.meta.url), "utf8");
 const failures = [];
 
 function cspDirectiveSources(source, directiveName) {
@@ -366,8 +367,9 @@ for (const requiredOutcomeControl of [
   'window.__agentidOutcomeEventSeen = function(eventName, properties)',
   'sessionStorage.setItem(storageKey, "1")',
   'capture_verified: true',
-  'eventName: "purchase"',
+  'event_name: "purchase"',
   'provider_verified: true',
+  'Verified purchase events are recorded by the server after payment capture.',
   'event: "google_ads_" + eventName',
   'event: "google_ads_purchase"',
 ]) {
@@ -427,6 +429,23 @@ for (const header of ["strict-transport-security", "permissions-policy", "x-cont
 }
 if (!securityBody.includes("Canonical: https://gptmarketplus.com/.well-known/security.txt")) {
   failures.push("security.txt must use its well-known URL as Canonical");
+}
+
+const rejectedPublicPurchase = await handleAgentIdSiteRequest(
+  new Request("https://gptmarketplus.com/api/events", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      eventName: "purchase",
+      properties: { provider_verified: true, capture_verified: true },
+    }),
+  }),
+  { SITE_URL: "https://gptmarketplus.com" },
+  { waitUntil() {} },
+);
+const rejectedPublicPurchaseBody = await rejectedPublicPurchase.json();
+if (rejectedPublicPurchase.status !== 403 || rejectedPublicPurchaseBody.recorded !== false) {
+  failures.push("the public analytics collector must reject client-asserted purchase events");
 }
 
 const homeResponse = await handleAgentIdSiteRequest(
@@ -717,11 +736,13 @@ if (
 }
 const searchIntents = summarizeGoogleSearchIntents({
   rows: [
-    { keys: ["private small business workflow phrase"], clicks: 1, impressions: 20, ctr: 0.05, position: 12 },
-    { keys: ["private receptionist pricing phrase"], clicks: 0, impressions: 10, ctr: 0, position: 30 },
-    { keys: ["private unmatched automation phrase"], clicks: 0, impressions: 5, ctr: 0, position: 40 },
+    { keys: ["private small business workflow phrase", "https://gptmarketplus.com/services"], clicks: 1, impressions: 20, ctr: 0.05, position: 12 },
+    { keys: ["private receptionist pricing phrase", "https://gptmarketplus.com/ai-agents"], clicks: 0, impressions: 10, ctr: 0, position: 30 },
+    { keys: ["private unmatched automation phrase", "https://gptmarketplus.com/resources"], clicks: 0, impressions: 5, ctr: 0, position: 40 },
+    { keys: ["private small business workflow phrase", "https://www.gptmarketplus.com/services"], clicks: 50, impressions: 500, ctr: 0.1, position: 1 },
+    { keys: ["private receptionist pricing phrase", "https://other.example/"], clicks: 50, impressions: 500, ctr: 0.1, position: 1 },
   ],
-});
+}, "https://gptmarketplus.com");
 if (
   searchIntents.length !== 3
   || searchIntents[0].intent !== "small_business_ai"
@@ -732,6 +753,17 @@ if (
   || JSON.stringify(searchIntents).includes("private")
 ) {
   failures.push("Search Console intent diagnostics must aggregate demand without exposing raw queries");
+}
+
+for (const requiredSearchIntentControl of [
+  'dimensions: ["query", "page"]',
+  "rowLimit = 25_000",
+  "startRow += rowLimit",
+  "summarizeGoogleSearchIntents(intentsResponse.payload, origin)",
+]) {
+  if (!searchConsoleSource.includes(requiredSearchIntentControl)) {
+    failures.push(`Search Console intent collection is missing ${requiredSearchIntentControl}`);
+  }
 }
 
 const ownerMessages = [];

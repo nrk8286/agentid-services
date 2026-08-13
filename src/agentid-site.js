@@ -2414,7 +2414,7 @@ function writeAttributionAnalytics(env, payload, properties = {}) {
   });
 }
 
-async function dbInsertEvent(env, event) {
+async function dbInsertEvent(env, event, { ignoreDuplicate = false } = {}) {
   const properties = event.properties_json && typeof event.properties_json === "object"
     ? event.properties_json
     : {};
@@ -2429,13 +2429,15 @@ async function dbInsertEvent(env, event) {
     properties_json: JSON.stringify(properties),
     user_agent: cleanText(event.user_agent || "", 300),
   };
-  writeAttributionAnalytics(env, payload, properties);
-  if (!env.GMP_DB) return payload;
+  if (!env.GMP_DB) {
+    writeAttributionAnalytics(env, payload, properties);
+    return { ...payload, recorded: true };
+  }
   await ensureAgentIdSchema(env);
-  await env.GMP_DB.prepare(
+  const result = await env.GMP_DB.prepare(
     `INSERT INTO agentid_events (id, created_at, event_name, source_page, conversation_id, lead_id, session_id, properties_json, user_agent)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-     ON CONFLICT(id) DO UPDATE SET
+     ${ignoreDuplicate ? "ON CONFLICT(id) DO NOTHING" : `ON CONFLICT(id) DO UPDATE SET
        created_at=excluded.created_at,
        event_name=excluded.event_name,
        source_page=excluded.source_page,
@@ -2443,7 +2445,7 @@ async function dbInsertEvent(env, event) {
        lead_id=excluded.lead_id,
        session_id=excluded.session_id,
        properties_json=excluded.properties_json,
-       user_agent=excluded.user_agent`
+       user_agent=excluded.user_agent`}`
   ).bind(
     payload.id,
     payload.created_at,
@@ -2455,7 +2457,43 @@ async function dbInsertEvent(env, event) {
     payload.properties_json,
     payload.user_agent || null,
   ).run();
-  return payload;
+  const recorded = !ignoreDuplicate || Number(result?.meta?.changes || 0) > 0;
+  if (recorded) writeAttributionAnalytics(env, payload, properties);
+  return { ...payload, recorded };
+}
+
+export async function recordVerifiedPurchaseAnalytics(env, order) {
+  const captureId = cleanText(order?.captureId || "", 120);
+  const orderId = cleanText(order?.id || "", 80);
+  if (!captureId || !orderId) return null;
+  const attribution = order?.attribution && typeof order.attribution === "object" ? order.attribution : {};
+  return dbInsertEvent(env, {
+    id: `paypal:capture:${captureId}`,
+    created_at: cleanText(order?.completedAt || new Date().toISOString(), 80),
+    event_name: "purchase",
+    source_page: cleanText(order?.sourcePage || "/paypal/complete", 200),
+    session_id: orderId,
+    properties_json: {
+      transaction_id: orderId,
+      capture_id: captureId,
+      provider_verified: true,
+      capture_verified: true,
+      payment_type: "paypal",
+      value: Number(order?.amountCents || 0) / 100,
+      currency: cleanText(order?.currency || "USD", 12).toUpperCase() || "USD",
+      product_id: cleanText(order?.productId || "", 120),
+      page_hostname: cleanText(attribution.page_hostname || attribution.landing_host || "", 160),
+      landing_host: cleanText(attribution.landing_host || attribution.page_hostname || "", 160),
+      landing_page: cleanText(attribution.landing_page || order?.sourcePage || "", 240),
+      utm_source: cleanText(attribution.utm_source || "", 120),
+      utm_medium: cleanText(attribution.utm_medium || "", 120),
+      utm_campaign: cleanText(attribution.utm_campaign || "", 160),
+      utm_content: cleanText(attribution.utm_content || "", 160),
+      utm_term: cleanText(attribution.utm_term || "", 160),
+      traffic_type: cleanText(attribution.traffic_type || "", 80),
+    },
+    user_agent: "server-verified-paypal-capture",
+  }, { ignoreDuplicate: true });
 }
 
 async function queryD1First(env, sql, bindings = []) {
@@ -5749,7 +5787,11 @@ async function loadAttributionHealth(env, requestedDays = 7) {
         SUM(CASE WHEN event_name = 'generate_lead' THEN 1 ELSE 0 END) AS lead_events,
         SUM(CASE WHEN event_name = 'form_start' THEN 1 ELSE 0 END) AS form_starts,
         SUM(CASE WHEN event_name = 'begin_checkout' THEN 1 ELSE 0 END) AS checkout_starts,
-        SUM(CASE WHEN event_name = 'purchase' THEN 1 ELSE 0 END) AS purchases,
+        SUM(CASE WHEN event_name = 'purchase'
+          AND id LIKE 'paypal:capture:%'
+          AND json_extract(properties_json, '$.provider_verified') = 1
+          AND json_extract(properties_json, '$.capture_verified') = 1
+          THEN 1 ELSE 0 END) AS purchases,
         MIN(created_at) AS first_seen_at,
         MAX(created_at) AS latest_seen_at
        FROM agentid_events
@@ -7150,6 +7192,10 @@ function renderFormsBootstrap(env) {
             form_type: formType,
             page_hostname: location.hostname,
           }, window.__agentidAttribution || {});
+          if (typeof window.agentidTrackEvent === "function") {
+            window.agentidTrackEvent("form_start", properties);
+            return;
+          }
           fetch("/api/events", {
             method: "POST",
             headers: { "content-type": "application/json" },
@@ -7183,6 +7229,10 @@ function renderFormsBootstrap(env) {
             window.__agentidAttribution?.utm_medium || "",
             window.__agentidAttribution?.utm_campaign || "",
           ].filter(Boolean).join(" / ");
+          payload.attribution = Object.assign({}, window.__agentidAttribution || {}, {
+            page_hostname: location.hostname,
+            traffic_type: window.__agentidTrafficType || "",
+          });
 
           if (String(payload.websiteCheck || "").trim()) {
             if (status) status.textContent = "Submission blocked.";
@@ -7289,6 +7339,8 @@ function renderFormsBootstrap(env) {
               }
             }
             form.reset();
+            delete form.dataset.submissionId;
+            delete form.dataset.formStartRecorded;
           } catch (error) {
             if (status) status.textContent = error.message || "Submission failed.";
           } finally {
@@ -7302,8 +7354,8 @@ function renderFormsBootstrap(env) {
         document.addEventListener("DOMContentLoaded", () => {
           document.querySelectorAll("form[data-agentid-form]").forEach((form) => {
             if (isLeadForm(form)) {
-              form.addEventListener("focusin", () => recordFormStart(form), { once: true });
-              form.addEventListener("change", () => recordFormStart(form), { once: true });
+              form.addEventListener("focusin", () => recordFormStart(form));
+              form.addEventListener("change", () => recordFormStart(form));
             }
             form.addEventListener("submit", (event) => {
               event.preventDefault();
@@ -10697,12 +10749,18 @@ async function handleAnalyticsEventSubmission(request, env, ctx) {
     return jsonResponse({ ok: false, error: "Invalid JSON." }, 400);
   }
 
+  const eventName = cleanText(body.eventName || body.event || "event", 120);
+  if (eventName === "purchase") {
+    return jsonResponse({
+      ok: false,
+      recorded: false,
+      error: "Verified purchase events are recorded by the server after payment capture.",
+    }, 403);
+  }
   const rate = await rateLimit(env, request, "event");
   if (!rate.ok) {
     return jsonResponse({ ok: false, error: "Rate limited.", retryAfter: rate.retryAfter }, 429);
   }
-
-  const eventName = cleanText(body.eventName || body.event || "event", 120);
   const sourcePage = cleanText(body.sourcePage || new URL(request.url).pathname, 200);
   const leadId = cleanText(body.leadId || "", 120);
   const conversationId = cleanText(body.conversationId || "", 120);

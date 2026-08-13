@@ -45,7 +45,7 @@ function isoDate(date) {
 }
 
 function cacheKey(hostname) {
-  return `google-search-console:status:v3:${hostname}`;
+  return `google-search-console:status:v4:${hostname}`;
 }
 
 function serviceAccountPrincipal(env) {
@@ -211,11 +211,17 @@ function searchIntentForQuery(query) {
     || { intent: "other", label: "Other AI automation searches" };
 }
 
-export function summarizeGoogleSearchIntents(payload) {
+export function summarizeGoogleSearchIntents(payload, origin) {
+  const canonicalOrigin = new URL(origin).origin;
   const aggregates = new Map();
   for (const row of Array.isArray(payload?.rows) ? payload.rows : []) {
     const query = String(row?.keys?.[0] || "").trim();
     if (!query) continue;
+    try {
+      if (new URL(String(row?.keys?.[1] || "")).origin !== canonicalOrigin) continue;
+    } catch {
+      continue;
+    }
     const category = searchIntentForQuery(query);
     const impressions = integer(row.impressions);
     const clicks = integer(row.clicks);
@@ -226,12 +232,12 @@ export function summarizeGoogleSearchIntents(payload) {
       clicks: 0,
       impressions: 0,
       weightedPosition: 0,
-      queryCount: 0,
+      queries: new Set(),
     };
     current.clicks += clicks;
     current.impressions += impressions;
     current.weightedPosition += position * impressions;
-    current.queryCount += 1;
+    current.queries.add(query);
     aggregates.set(category.intent, current);
   }
 
@@ -244,7 +250,7 @@ export function summarizeGoogleSearchIntents(payload) {
       impressions: entry.impressions,
       ctr: entry.impressions ? decimal(entry.clicks / entry.impressions) : 0,
       position: entry.impressions ? decimal(entry.weightedPosition / entry.impressions) : 0,
-      queryCount: entry.queryCount,
+      queryCount: entry.queries.size,
     }))
     .sort((left, right) => (
       right.impressions - left.impressions
@@ -252,6 +258,25 @@ export function summarizeGoogleSearchIntents(payload) {
       || left.position - right.position
       || left.intent.localeCompare(right.intent)
     ));
+}
+
+async function googleSearchAnalyticsAllRows(url, accessToken, body) {
+  const rowLimit = 25_000;
+  const rows = [];
+  let startRow = 0;
+  while (true) {
+    const response = await googleJson(url, accessToken, {
+      method: "POST",
+      body: { ...body, rowLimit, startRow },
+    });
+    if (!response.ok) return response;
+    const pageRows = Array.isArray(response.payload?.rows) ? response.payload.rows : [];
+    rows.push(...pageRows);
+    if (pageRows.length < rowLimit) {
+      return { ...response, payload: { ...response.payload, rows } };
+    }
+    startRow += rowLimit;
+  }
 }
 
 function summarizeSitemap(payload, sitemapUrl) {
@@ -364,16 +389,16 @@ export async function googleSearchConsoleStatus(env, { force = false } = {}) {
         dataState: "final",
       },
     }),
-    googleJson(`${SEARCH_CONSOLE_API}/sites/${encodedProperty}/searchAnalytics/query`, accessToken, {
-      method: "POST",
-      body: {
+    googleSearchAnalyticsAllRows(
+      `${SEARCH_CONSOLE_API}/sites/${encodedProperty}/searchAnalytics/query`,
+      accessToken,
+      {
         startDate,
         endDate,
-        dimensions: ["query"],
-        rowLimit: 1000,
+        dimensions: ["query", "page"],
         dataState: "final",
       },
-    }),
+    ),
   ]);
 
   const status = {
@@ -396,7 +421,7 @@ export async function googleSearchConsoleStatus(env, { force = false } = {}) {
       ? summarizeGoogleSearchPages(pagesResponse.payload, origin)
       : [],
     searchIntents: intentsResponse.ok
-      ? summarizeGoogleSearchIntents(intentsResponse.payload)
+      ? summarizeGoogleSearchIntents(intentsResponse.payload, origin)
       : [],
   };
   await writeCachedStatus(env, key, status, STATUS_CACHE_SECONDS);
