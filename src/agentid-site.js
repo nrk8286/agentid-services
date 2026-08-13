@@ -3645,6 +3645,7 @@ function renderHomePage(env, state) {
     : {
       eyebrow: "GPTMarketPlus",
       title: "Custom AI Agents That Help Your Business Sell, Respond, and Operate Faster",
+      seoTitle: "AI Agents for Small Business",
       lede: "Turn missed leads, slow follow-up, repetitive customer questions, and manual admin into one AI workflow your business can use every day.",
       primaryPath: "/ai-agent-launch-kit?source=homepage",
       primaryLabel: "Get the $29 Launch Kit",
@@ -3658,7 +3659,7 @@ function renderHomePage(env, state) {
       finalLabel: "Get the $29 Launch Kit",
       finalSecondaryPath: "/book-a-consultation?source=homepage-final",
       finalSecondaryLabel: "Book a Free AI Strategy Call",
-      description: "GPTMarketPlus builds AI-powered assistants, automation systems, and lead-capture tools that handle repetitive work, improve response time, and help businesses turn more visitors into customers.",
+      description: "Start with a $29 AI Agent Launch Kit for a usable first workflow, or request a scoped custom AI agent plan for lead capture, follow-up, and operations.",
     };
   const body = `
     <section class="hero">
@@ -3788,7 +3789,7 @@ function renderHomePage(env, state) {
 
   return renderShell(env, {
     path: "/",
-    title: hero.title,
+    title: hero.seoTitle || hero.title,
     description: hero.description,
     body,
     schema: [
@@ -4929,11 +4930,12 @@ function renderFaqPage(env) {
         </details>
       `).join("")}
     </section>
+    ${renderConversionBridge("FAQ")}
   `;
   return renderShell(env, {
     path: "/faq",
-    title: "FAQ",
-    description: "Practical answers about AI agents, pricing, security, and setup time.",
+    title: "AI Agent FAQ: Pricing, Security & Setup",
+    description: "Answers about AI agents, the $29 Launch Kit, custom scope, PayPal delivery, privacy, human handoff, and setup.",
     body,
     schema: [organizationSchema(env), faqSchema(env)],
     bodyClass: "page-faq",
@@ -6438,7 +6440,7 @@ async function publicAgentState(env) {
 }
 
 const AGENTID_PUBLIC_PAGES = [
-  { path: "/", title: "Home", description: "Custom AI agents built to help your business sell, respond, and operate faster." },
+  { path: "/", title: "AI Agents for Small Business", description: "Start with a $29 AI Agent Launch Kit for a usable first workflow, or request a scoped custom AI agent plan for lead capture, follow-up, and operations." },
   { path: "/services", title: "Services", description: "Custom AI agent services, workflow automation, and AI website buildout." },
   { path: "/ai-agents", title: "AI Agents", description: "The agent types GPTMarketPlus can build for your business." },
   { path: "/pricing", title: "Pricing", description: "Starter, Growth, and Business Automation pricing tiers with deposit options." },
@@ -6450,7 +6452,7 @@ const AGENTID_PUBLIC_PAGES = [
   { path: "/about", title: "About", description: "Practical AI implementation for real businesses." },
   { path: "/contact", title: "Contact", description: "Request your AI agent plan with a validated lead form." },
   { path: "/book-a-consultation", title: "Book a Consultation", description: "Book a free AI strategy call." },
-  { path: "/faq", title: "FAQ", description: "Practical answers about AI agents, pricing, security, and setup time." },
+  { path: "/faq", title: "AI Agent FAQ: Pricing, Security & Setup", description: "Answers about AI agents, the $29 Launch Kit, custom scope, PayPal delivery, privacy, human handoff, and setup." },
   { path: "/onboarding", title: "Client Onboarding", description: "Collect the business details needed to design the exact AI agent workflow." },
   { path: "/customer-dashboard", title: "Customer Dashboard", description: "Track onboarding, blueprint generation, and build progress." },
   { path: "/admin-dashboard", title: "Admin Dashboard", description: "Monitor leads, bookings, purchases, onboarding, and build status." },

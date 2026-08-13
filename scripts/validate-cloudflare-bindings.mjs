@@ -558,6 +558,12 @@ for (const requiredHomeCta of [
 if (!homeBody.includes('<meta name="google-site-verification" content="hxvcDl32V0BA5LSTQx-OfIUE6DAIR6TrRp2pUbE5XZo">')) {
   failures.push("homepage must expose the exact Google Search Console verification tag");
 }
+if (!homeBody.includes("<title>AI Agents for Small Business | GPTMarketPlus</title>")) {
+  failures.push("homepage search title must describe the small-business AI-agent offer");
+}
+if (!homeBody.includes('meta name="description" content="Start with a $29 AI Agent Launch Kit for a usable first workflow, or request a scoped custom AI agent plan for lead capture, follow-up, and operations."')) {
+  failures.push("homepage search description must expose the truthful $29 self-serve and scoped-service paths");
+}
 if ((homeBody.match(/pagead2\.googlesyndication\.com\/pagead\/js\/adsbygoogle\.js/g) || []).length !== 1) {
   failures.push("eligible public pages must load the Google AdSense script exactly once");
 }
@@ -580,6 +586,25 @@ const pricingResponse = await handleAgentIdSiteRequest(
 const pricingBody = await pricingResponse.text();
 if (pricingBody.includes("adsbygoogle") || pricingBody.includes('data-ad-slot="3045151068"')) {
   failures.push("high-conversion pricing page must remain free of publisher ads");
+}
+
+const faqResponse = await handleAgentIdSiteRequest(
+  new Request("https://gptmarketplus.com/faq"),
+  {
+    SITE_URL: "https://gptmarketplus.com",
+    SUPPORT_EMAIL: "admin@gptmarketplus.com",
+    BRAND_NAME: "GPTMarketPlus",
+  },
+  { waitUntil() {} },
+);
+const faqBody = await faqResponse.text();
+for (const requiredFaqControl of [
+  "<title>AI Agent FAQ: Pricing, Security &amp; Setup | GPTMarketPlus</title>",
+  'meta name="description" content="Answers about AI agents, the $29 Launch Kit, custom scope, PayPal delivery, privacy, human handoff, and setup."',
+  'data-conversion-bridge="FAQ"',
+  'href="/ai-agent-launch-kit?source=FAQ-bridge"',
+]) {
+  if (!faqBody.includes(requiredFaqControl)) failures.push(`FAQ acquisition path is missing ${requiredFaqControl}`);
 }
 
 const smallBusinessGuideResponse = await handleAgentIdSiteRequest(
