@@ -686,6 +686,17 @@ if (!siteSource.includes("function renderLaunchKitSamplePreview()")
   || !siteSource.includes("This is an illustrative product sample, not a customer result, testimonial, or performance guarantee.")) {
   failures.push("Launch Kit public page must show an honest fictional deliverable sample without fabricated proof");
 }
+for (const requiredLaunchKitSearchControl of [
+  "AI Agent Launch Kit: Build Your First AI Workflow for $29",
+  "Build a usable first AI workflow for $29: private PayPal-gated workspace",
+  "function launchKitFaqSchema(env)",
+  "What do I receive after I buy the $29 Launch Kit?",
+  "Does the Launch Kit guarantee leads, revenue, or savings?",
+]) {
+  if (!siteSource.includes(requiredLaunchKitSearchControl)) {
+    failures.push(`Launch Kit search and buyer-confidence content is missing ${requiredLaunchKitSearchControl}`);
+  }
+}
 for (const requiredIntentAttributionControl of [
   'const trafficSource = `traffic-${trafficSlug}`',
   'data-launch-kit-cta=',
@@ -760,6 +771,8 @@ for (const requiredLaunchKitDeliveryCopy of [
   "Your private workspace opens after PayPal confirms the completed capture",
   "Separate written scope",
   "production testing",
+  "Before you buy",
+  "Clear answers about the $29 Launch Kit",
   'href="/refund-policy"',
 ]) {
   if (!launchKitDeliveryBody.includes(requiredLaunchKitDeliveryCopy)) {

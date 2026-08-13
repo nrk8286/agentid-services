@@ -555,6 +555,25 @@ const DIGITAL_PRODUCTS = [
   },
 ];
 
+const LAUNCH_KIT_FAQS = [
+  {
+    question: "What do I receive after I buy the $29 Launch Kit?",
+    answer: "After PayPal confirms the completed capture, you receive access to a private workspace. Your answers become a first workflow brief, tailored starter system prompt, lead-intake and consent plan, handoff rules, follow-up messages, launch QA tests, and a 30-day scorecard that you can copy or download.",
+  },
+  {
+    question: "Can I use the Launch Kit without hiring GPTMarketPlus?",
+    answer: "Yes. The generated starter pack is designed for self-serve use, for handing to your team, or for giving to an implementation partner. Website installation, credentials, custom integrations, production testing, and ongoing support are separate work.",
+  },
+  {
+    question: "Does the Launch Kit guarantee leads, revenue, or savings?",
+    answer: "No. It gives you a practical plan and starter materials. Results depend on your traffic, offer, workflow quality, tools, human follow-through, and adoption. Use the scorecard to replace planning assumptions with measured results.",
+  },
+  {
+    question: "How is my Launch Kit workspace protected?",
+    answer: "The workspace and downloads require a completed PayPal order plus a separate random access token. Private pages are not indexed or publicly cached. Do not enter passwords, payment details, or regulated personal data into the workspace.",
+  },
+];
+
 const DEPOSITS = [
   {
     id: "starter_agent_setup_deposit",
@@ -4404,7 +4423,7 @@ function renderLaunchKitPage(env, requestUrl = null) {
   const body = `
     <section class="page-hero split-section">
       <div>
-        ${renderPageTitle("Interactive launch workspace", "Build a usable AI agent starter system", product.summary)}
+        ${renderPageTitle("AI Agent Launch Kit · $29 one-time", "Build a usable AI agent starter system", product.summary)}
         ${paymentNotice}
         <div class="cta-row">${checkout}<a class="button-secondary" href="/resources">Read the free guides first</a></div>
         <p class="trust-line">One-time PayPal payment. Your private workspace opens after PayPal confirms the completed capture, and you can download the generated starter pack. <a href="/refund-policy">Review the refund policy.</a> No revenue or performance guarantees.</p>
@@ -4447,6 +4466,17 @@ function renderLaunchKitPage(env, requestUrl = null) {
       ])}
     </section>
     ${renderLaunchKitSamplePreview()}
+    <section class="section launch-kit-faq">
+      ${renderSectionTitle("Before you buy", "Clear answers about the $29 Launch Kit", "Know what arrives after payment, what you can use immediately, and where a separately scoped implementation begins.")}
+      <div class="faq-list">
+        ${LAUNCH_KIT_FAQS.map((item) => `
+          <details>
+            <summary>${escapeHtml(item.question)} <span>+</span></summary>
+            <div class="faq-answer">${escapeHtml(item.answer)}</div>
+          </details>
+        `).join("")}
+      </div>
+    </section>
     <section class="section split-section">
       <div>
         ${renderSectionTitle("Who it is for", "Owners and operators who want something they can use now", "Use the workspace yourself, give the generated pack to your team, or use it as the exact starting point for a custom GPTMarketPlus implementation.")}
@@ -4461,12 +4491,13 @@ function renderLaunchKitPage(env, requestUrl = null) {
 
   return renderShell(env, {
     path: "/ai-agent-launch-kit",
-    title: "AI Agent Launch Kit",
-    description: "A private guided workspace that generates a tailored starter prompt, workflow map, lead-intake plan, follow-up sequence, launch checklist, and 30-day scorecard for your first business AI agent.",
+    title: "AI Agent Launch Kit: Build Your First AI Workflow for $29",
+    description: "Build a usable first AI workflow for $29: private PayPal-gated workspace, tailored starter prompt, workflow brief, lead intake, follow-up, QA, and 30-day scorecard.",
     body,
     schema: [
       organizationSchema(env),
       productSchema(env, product),
+      launchKitFaqSchema(env),
       breadcrumbSchema(env, [
         { name: "Home", path: "/" },
         { name: "Resources", path: "/resources" },
@@ -6448,7 +6479,7 @@ const AGENTID_PUBLIC_PAGES = [
   { path: "/resources", title: "AI Agent Resources", description: "Practical guides, templates, comparisons, and tools for planning useful business AI agents." },
   ...RESOURCE_PAGES.map((page) => ({ path: page.path, title: page.title, description: page.description })),
   { path: "/tools/ai-automation-roi-calculator", title: "AI Automation ROI Calculator: Estimate Payback and Savings", description: "Estimate monthly time savings, recovered contribution value, operating cost, payback period, and first-year ROI for a proposed AI automation workflow." },
-  { path: "/ai-agent-launch-kit", title: "AI Agent Launch Kit", description: "A private guided workspace that generates a tailored starter prompt, workflow map, lead-intake plan, follow-up sequence, launch checklist, and 30-day scorecard for your first business AI agent." },
+  { path: "/ai-agent-launch-kit", title: "AI Agent Launch Kit: Build Your First AI Workflow for $29", description: "Build a usable first AI workflow for $29: private PayPal-gated workspace, tailored starter prompt, workflow brief, lead intake, follow-up, QA, and 30-day scorecard." },
   { path: "/about", title: "About", description: "Practical AI implementation for real businesses." },
   { path: "/contact", title: "Contact", description: "Request your AI agent plan with a validated lead form." },
   { path: "/book-a-consultation", title: "Book a Consultation", description: "Book a free AI strategy call." },
@@ -10124,6 +10155,22 @@ function productSchema(env, product) {
       availability: "https://schema.org/InStock",
       url: `${siteUrl(env)}/ai-agent-launch-kit`,
     },
+  };
+}
+
+function launchKitFaqSchema(env) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: LAUNCH_KIT_FAQS.map((item) => ({
+      "@type": "Question",
+      name: item.question,
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: item.answer,
+      },
+    })),
+    provider: organizationSchema(env),
   };
 }
 
