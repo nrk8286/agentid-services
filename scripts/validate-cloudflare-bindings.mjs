@@ -810,6 +810,18 @@ for (const requiredIntentAttributionControl of [
     failures.push(`buyer-intent attribution is missing ${requiredIntentAttributionControl}`);
   }
 }
+for (const requiredAcquisitionRoutingControl of [
+  'primaryCta: utmCampaignUrl(env, "/ai-agent-launch-kit"',
+  'consultationCta: utmCampaignUrl(env, "/book-a-consultation"',
+  'sponsorCta: utmCampaignUrl(env, "/advertise"',
+  'const selfServeCta = utmCampaignUrl(env, "/ai-agent-launch-kit"',
+  'selfServe: "Use the Launch Kit when the buyer wants a usable first workflow without implementation help."',
+  'custom: "Use the consultation link when the buyer needs installation, integrations, or ongoing support; do not request payment before written scope."',
+]) {
+  if (!workerSource.includes(requiredAcquisitionRoutingControl)) {
+    failures.push(`acquisition routing is missing ${requiredAcquisitionRoutingControl}`);
+  }
+}
 if (!workerSource.includes("const PUBLIC_CACHE_KEY_VERSION =") || !workerSource.includes("url.searchParams.set(\"__cache_version\"")) {
   failures.push("public cache keys must be versioned so deployed funnel changes are served to visitors");
 }

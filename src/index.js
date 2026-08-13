@@ -4044,6 +4044,24 @@ function trafficPages(env) {
     description: page.description,
     keywords: page.keywords,
     intent: page.intent,
+    primaryCta: utmCampaignUrl(env, "/ai-agent-launch-kit", {
+      source: `traffic_${page.path.replace(/[^a-z0-9]+/gi, "_").replace(/^_+|_+$/g, "") || "home"}`,
+      medium: "owned",
+      campaign: "agentid_buyer_intent",
+      content: "launch_kit",
+    }),
+    consultationCta: utmCampaignUrl(env, "/book-a-consultation", {
+      source: `traffic_${page.path.replace(/[^a-z0-9]+/gi, "_").replace(/^_+|_+$/g, "") || "home"}`,
+      medium: "owned",
+      campaign: "agentid_buyer_intent",
+      content: "consultation",
+    }),
+    sponsorCta: utmCampaignUrl(env, "/advertise", {
+      source: `traffic_${page.path.replace(/[^a-z0-9]+/gi, "_").replace(/^_+|_+$/g, "") || "home"}`,
+      medium: "owned",
+      campaign: "agentid_buyer_intent",
+      content: "sponsor_review",
+    }),
   }));
 }
 
@@ -4071,15 +4089,36 @@ function softwareBuilds(env) {
 }
 
 function outreachBrief(env) {
+  const selfServeCta = utmCampaignUrl(env, "/ai-agent-launch-kit", {
+    source: "partner_outreach",
+    medium: "email",
+    campaign: "agentid_partnerships",
+    content: "launch_kit",
+  });
+  const consultationCta = utmCampaignUrl(env, "/book-a-consultation", {
+    source: "partner_outreach",
+    medium: "email",
+    campaign: "agentid_partnerships",
+    content: "consultation",
+  });
+  const sponsorCta = utmCampaignUrl(env, "/advertise", {
+    source: "partner_outreach",
+    medium: "email",
+    campaign: "agentid_partnerships",
+    content: "sponsor_review",
+  });
   return {
     subject: `${brandName(env)} partnership or sponsor placement`,
-    offer: "AI revenue-system audit, agent identity service placement, or monthly sponsor slot.",
-    cta: utmCampaignUrl(env, "/pricing", {
-      source: "partner_outreach",
-      medium: "email",
-      campaign: "agentid_partnerships",
-      content: "pricing",
-    }),
+    offer: "A $29 self-serve AI workflow starter system, a separately scoped implementation, or a reviewed sponsor placement.",
+    cta: selfServeCta,
+    selfServeCta,
+    consultationCta,
+    sponsorCta,
+    routing: {
+      selfServe: "Use the Launch Kit when the buyer wants a usable first workflow without implementation help.",
+      custom: "Use the consultation link when the buyer needs installation, integrations, or ongoing support; do not request payment before written scope.",
+      sponsor: "Use the sponsor review link for vendors seeking placement; billing begins only after relevance, inventory, and fulfillment terms are approved.",
+    },
     note: "Use targeted submissions and direct partner pitches only. No fake traffic, scraped spam, or click inflation.",
     channels: prospectChannels(env).map((channel) => ({
       name: channel.name,
