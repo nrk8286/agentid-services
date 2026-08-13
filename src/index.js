@@ -2262,7 +2262,7 @@ function paypalEmailRetryAllowed(order) {
 }
 
 async function deliverAndRecordPaypalCustomerEmail(env, order, force = false) {
-  if (!order.payerEmail || (!force && !paypalEmailRetryAllowed(order))) return order;
+  if (order?.emailDelivery?.delivered || !order.payerEmail || (!force && !paypalEmailRetryAllowed(order))) return order;
   try {
     const email = paypalCustomerEmail(env, order);
     const result = await sendCustomerTransactionalEmail(
