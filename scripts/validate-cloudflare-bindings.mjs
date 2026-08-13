@@ -114,6 +114,12 @@ if (![workerSource, siteSource].every((source) => (
   failures.push("Worker CSP must permit Google measurement requests emitted by the configured Google tag");
 }
 
+if (![workerSource, siteSource].every((source) => (
+  hasExactCspSource(source, "script-src", "https://www.googletagmanager.com")
+))) {
+  failures.push("Worker CSP must permit the Google Tag Assistant debug bootstrap");
+}
+
 if (
   !workerSource.includes('String(result.hostname || "").toLowerCase() === expectedHostname')
   || !siteSource.includes('String(result.hostname || "").toLowerCase() === expectedHostname')
