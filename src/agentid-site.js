@@ -1228,7 +1228,7 @@ function campaignUrl(env, pathname, {
 
 function campaignLinkCatalog(env) {
   return {
-    policy: "Use these tagged URLs in external emails, social bios, posts, PDFs, slide decks, and downloadable documents. Keep internal site navigation untagged so it does not overwrite the original session source.",
+    policy: "Use these tagged URLs in external emails, social bios, posts, PDFs, slide decks, and downloadable documents. The Launch Kit links are the primary self-serve path; use proposal and consultation links only when custom scope is the intended next step. Keep internal site navigation untagged so it does not overwrite the original session source.",
     email: {
       newsletter_home: campaignUrl(env, "/", {
         source: "newsletter",
@@ -1236,46 +1236,52 @@ function campaignLinkCatalog(env) {
         campaign: "agentid_newsletter",
         content: "home",
       }),
-      newsletter_pricing: campaignUrl(env, "/pricing", {
+      newsletter_pricing: campaignUrl(env, "/ai-agent-launch-kit", {
         source: "newsletter",
         medium: "email",
         campaign: "agentid_newsletter",
-        content: "pricing",
+        content: "launch_kit",
       }),
     },
     social_bios: {
-      linkedin: campaignUrl(env, "/pricing", {
+      linkedin: campaignUrl(env, "/ai-agent-launch-kit", {
         source: "linkedin",
         medium: "social",
         campaign: "agentid_social_bio",
-        content: "pricing",
+        content: "launch_kit",
       }),
-      facebook: campaignUrl(env, "/pricing", {
+      facebook: campaignUrl(env, "/ai-agent-launch-kit", {
         source: "facebook",
         medium: "social",
         campaign: "agentid_social_bio",
-        content: "pricing",
+        content: "launch_kit",
       }),
-      instagram: campaignUrl(env, "/pricing", {
+      instagram: campaignUrl(env, "/ai-agent-launch-kit", {
         source: "instagram",
         medium: "social",
         campaign: "agentid_social_bio",
-        content: "pricing",
+        content: "launch_kit",
       }),
-      tiktok: campaignUrl(env, "/pricing", {
+      tiktok: campaignUrl(env, "/ai-agent-launch-kit", {
         source: "tiktok",
         medium: "social",
         campaign: "agentid_social_bio",
-        content: "pricing",
+        content: "launch_kit",
       }),
-      x: campaignUrl(env, "/pricing", {
+      x: campaignUrl(env, "/ai-agent-launch-kit", {
         source: "x",
         medium: "social",
         campaign: "agentid_social_bio",
-        content: "pricing",
+        content: "launch_kit",
       }),
     },
     documents: {
+      launch_kit_one_pager: campaignUrl(env, "/ai-agent-launch-kit", {
+        source: "sales_materials",
+        medium: "document",
+        campaign: "agentid_sales_materials",
+        content: "launch_kit_one_pager",
+      }),
       proposal: campaignUrl(env, "/pricing", {
         source: "proposal",
         medium: "document",

@@ -640,6 +640,31 @@ if (!workerSource.includes("const PUBLIC_CACHE_KEY_VERSION =") || !workerSource.
   failures.push("public cache keys must be versioned so deployed funnel changes are served to visitors");
 }
 
+const campaignLinksResponse = await handleAgentIdSiteRequest(
+  new Request("https://gptmarketplus.com/api/campaign-links"),
+  { SITE_URL: "https://gptmarketplus.com", BRAND_NAME: "GPTMarketPlus" },
+  { waitUntil() {} },
+);
+const campaignLinksBody = await campaignLinksResponse.json();
+const campaignLinks = campaignLinksBody.links || {};
+const launchKitCampaigns = [
+  campaignLinks.email?.newsletter_pricing,
+  ...(Object.values(campaignLinks.social_bios || {})),
+  campaignLinks.documents?.launch_kit_one_pager,
+];
+if (campaignLinksResponse.status !== 200 || launchKitCampaigns.some((value) => {
+  try {
+    const url = new URL(value);
+    return url.pathname !== "/ai-agent-launch-kit"
+      || url.searchParams.get("utm_campaign") === ""
+      || url.searchParams.get("utm_content") === "";
+  } catch {
+    return true;
+  }
+})) {
+  failures.push("external campaign links must send the primary self-serve distribution paths to the Launch Kit with attribution");
+}
+
 const cancelledCheckoutResponse = await handleAgentIdSiteRequest(
   new Request("https://gptmarketplus.com/ai-agent-launch-kit?paypal=cancel&product=ai_agent_launch_kit"),
   {
