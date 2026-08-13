@@ -13,6 +13,16 @@ Improve GPTMarketPlus as a real business, not only as a marketing site:
 
 Never claim that a copy change guarantees a sale. Use the live funnel metrics to identify whether the constraint is traffic, message, checkout, fulfillment, or follow-up.
 
+## Revenue objective
+
+Work toward `$10,000` in verified, collected revenue. Count only completed PayPal captures or other provider-verified payments after refunds and disputes are handled; do not count checkout starts, invoices, proposals, or internal estimates as revenue.
+
+Use the target as a measurement constraint, not as a reason to overpromise:
+
+- The `$29 Launch Kit` alone would require 345 completed purchases to reach `$10,005`.
+- Higher-priced implementation work may contribute only after a written scope, owner approval, and a realistic fulfillment plan exist.
+- Report the current verified total, the gap to `$10,000`, and the next measurable acquisition or conversion action every cycle.
+
 ## Required first steps
 
 Work from the `agentid-services` repository, not the legacy Pages repository.
@@ -106,4 +116,3 @@ At the end of each improvement cycle, report:
 - Live URLs verified.
 - Current live counts for traffic/lead/purchase metrics.
 - Remaining owner actions, especially real purchase acceptance testing, calendar configuration, support, and traffic distribution.
-

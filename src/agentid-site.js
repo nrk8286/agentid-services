@@ -4628,12 +4628,14 @@ export function renderLaunchKitWorkspacePage(env, context = {}) {
   const orderId = cleanWorkspaceText(context.orderId || "", 80);
   const accessToken = cleanWorkspaceText(context.accessToken || "", 180);
   const workspace = context.workspace && typeof context.workspace === "object" ? context.workspace : null;
+  const requiredWorkspaceFields = new Set(["businessName", "mainOffer", "targetCustomer", "primaryGoal"]);
   const formFields = LAUNCH_KIT_WORKSPACE_FIELDS.map(([name, label, type, placeholder]) => {
     const value = escapeHtml(workspace?.[name] || "");
+    const required = requiredWorkspaceFields.has(name);
     if (type === "textarea") {
-      return `<label class="field full"><span>${escapeHtml(label)}</span><textarea name="${escapeHtml(name)}" rows="4" placeholder="${escapeHtml(placeholder)}" required>${value}</textarea></label>`;
+      return `<label class="field full"><span>${escapeHtml(label)}</span><textarea name="${escapeHtml(name)}" rows="4" placeholder="${escapeHtml(placeholder)}" ${required ? "required" : ""}>${value}</textarea></label>`;
     }
-    return `<label class="field"><span>${escapeHtml(label)}</span><input type="${escapeHtml(type)}" name="${escapeHtml(name)}" value="${value}" placeholder="${escapeHtml(placeholder)}" required></label>`;
+    return `<label class="field"><span>${escapeHtml(label)}</span><input type="${escapeHtml(type)}" name="${escapeHtml(name)}" value="${value}" placeholder="${escapeHtml(placeholder)}" ${required ? "required" : ""}></label>`;
   }).join("");
   const initialOutput = workspace ? renderLaunchKitWorkspaceOutput(workspace) : `<div class="review-panel"><p>Your generated starter system will appear here after you save your answers.</p><p>Start with one workflow and use plain language. You can edit and regenerate this pack whenever your plan changes.</p></div>`;
 
@@ -4652,6 +4654,7 @@ export function renderLaunchKitWorkspacePage(env, context = {}) {
           <input type="hidden" name="accessToken" value="${escapeHtml(accessToken)}">
           ${formFields}
           <button class="button-primary" type="submit">Generate My Starter System</button>
+          <p class="form-note">Only the business name, offer, best-fit customer, and first workflow are required to start. The other fields are optional context you can add now or later.</p>
           <p class="form-note">Your workspace is private to this verified purchase. Do not paste passwords, payment details, or regulated personal data.</p>
           <p class="form-status" id="launch-kit-workspace-status" aria-live="polite"></p>
         </form>
