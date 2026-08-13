@@ -1004,6 +1004,9 @@ for (const requiredLaunchKitConsentControl of [
   "Qualified handoff:",
   "Marketing or reactivation (marketing consent required separately):",
   "7. 30-DAY SCORECARD",
+  "async function copyStarterPack(value)",
+  'document.execCommand("copy")',
+  'id="launch-kit-download"',
 ]) {
   if (!siteSource.includes(requiredLaunchKitConsentControl)) {
     failures.push(`Launch Kit starter pack is missing explicit consent control ${requiredLaunchKitConsentControl}`);

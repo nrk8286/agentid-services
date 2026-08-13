@@ -5031,6 +5031,23 @@ export function renderLaunchKitWorkspacePage(env, context = {}) {
         const actions = document.getElementById("launch-kit-workspace-actions");
         const copy = document.getElementById("launch-kit-copy");
         let packText = ${JSON.stringify(workspace ? launchKitWorkspacePack(workspace) : "") .replace(/</g, "\\u003c")};
+        async function copyStarterPack(value) {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(value);
+            return;
+          }
+          const fallback = document.createElement("textarea");
+          fallback.value = value;
+          fallback.setAttribute("readonly", "");
+          fallback.style.position = "fixed";
+          fallback.style.opacity = "0";
+          document.body.appendChild(fallback);
+          fallback.focus();
+          fallback.select();
+          const copied = document.execCommand("copy");
+          fallback.remove();
+          if (!copied) throw new Error("Clipboard unavailable");
+        }
         form.addEventListener("submit", async function (event) {
           event.preventDefault();
           status.textContent = "Generating your starter system…";
@@ -5050,7 +5067,7 @@ export function renderLaunchKitWorkspacePage(env, context = {}) {
         });
         copy.addEventListener("click", async function () {
           if (!packText) return;
-          try { await navigator.clipboard.writeText(packText); copy.textContent = "Copied"; setTimeout(() => { copy.textContent = "Copy starter pack"; }, 1800); }
+          try { await copyStarterPack(packText); copy.textContent = "Copied"; setTimeout(() => { copy.textContent = "Copy starter pack"; }, 1800); }
           catch { status.textContent = "Copy was blocked by the browser. Use Download starter pack instead."; }
         });
       });
