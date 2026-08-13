@@ -4963,6 +4963,7 @@ function renderBookingPage(env) {
       { name: "budgetRange", label: "Budget range", type: "select", required: true, options: ["Under $500", "$500-$1,500", "$1,500-$3,500", "$3,500+", "Not sure yet"] },
       { name: "timeline", label: "Timeline", type: "select", required: true, options: ["Immediately", "This week", "This month", "Just researching"] },
       { name: "preferredContactMethod", label: "Preferred contact method", type: "select", required: true, options: ["Email", "Phone", "Text"] },
+      { name: "bestTimeToContact", label: "Best time to contact", placeholder: "Morning, afternoon, or evening", required: false },
       { name: "contactConsent", label: "I agree to be contacted about this strategy call.", type: "checkbox", required: true },
     ],
   });
@@ -4982,6 +4983,9 @@ function renderBookingPage(env) {
       <div class="side-note">
         <p class="card-kicker">Good fit for</p>
         <p>Businesses that want a practical AI workflow, a clear recommendation, and a next step that does not waste time.</p>
+        <p class="card-kicker">Prefer to start now?</p>
+        <p>Build the first usable starter system yourself in the $29 Launch Kit Workspace.</p>
+        <a class="button-secondary" href="/ai-agent-launch-kit?source=consultation-alternative">Build the $29 starter system</a>
       </div>
     </section>
   `;
