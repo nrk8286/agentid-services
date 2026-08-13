@@ -4308,8 +4308,8 @@ function renderRoiCalculatorPage(env) {
         <div class="recommendation" data-result="recommendation">Enter conservative inputs and calculate the workflow.</div>
         <p class="form-note">The recovery estimate applies your contribution margin so gross sales are not treated as profit. It still excludes taxes, financing, implementation delay, risk, refunds, and benefits or costs not entered above. Validate with actual operational data.</p>
         <div class="cta-row">
-          <a class="button-primary" href="/book-a-consultation" data-track-event="calculator_cta" data-track-label="Review My Estimate">Review my estimate</a>
-          <a class="button-secondary" href="/ai-agent-launch-kit" data-track-event="product_view" data-track-label="Plan It Myself">Plan it myself for $29</a>
+          <a class="button-primary" href="/ai-agent-launch-kit?source=roi-calculator" data-track-event="product_view" data-track-label="ROI Calculator Launch Kit">Build the $29 Launch Kit</a>
+          <a class="button-secondary" href="/book-a-consultation?source=roi-calculator" data-track-event="cta_click" data-track-label="ROI Calculator Scoped Review">Request a scoped implementation review</a>
         </div>
       </section>
     </section>
@@ -4369,15 +4369,17 @@ function renderRoiCalculatorPage(env) {
             : payback !== null && payback <= 6
               ? "This workflow may justify a measured pilot. Confirm the baseline and test the assumptions before expanding."
               : "The workflow may create value, but the payback is longer. Tighten the scope and validate the highest-impact assumption first.";
-          window.agentidTrackEvent && window.agentidTrackEvent("roi_calculation", {
-            monthly_value: Math.round(monthlyBenefit),
-            monthly_net: Math.round(monthlyNet),
-            payback_months: payback === null ? 0 : Math.round(payback * 10) / 10,
-          });
+          return { monthlyBenefit, monthlyNet, payback };
         };
         form.addEventListener("submit", function (event) {
           event.preventDefault();
-          render();
+          const summary = render();
+          window.agentidTrackEvent && window.agentidTrackEvent("roi_calculation", {
+            monthly_value: Math.round(summary.monthlyBenefit),
+            monthly_net: Math.round(summary.monthlyNet),
+            payback_months: summary.payback === null ? 0 : Math.round(summary.payback * 10) / 10,
+            source: "calculator_submit",
+          });
           results.scrollIntoView({ behavior: "smooth", block: "start" });
         });
         render();

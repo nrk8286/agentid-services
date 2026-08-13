@@ -725,6 +725,33 @@ for (const requiredLaunchKitSearchControl of [
     failures.push(`Launch Kit search and buyer-confidence content is missing ${requiredLaunchKitSearchControl}`);
   }
 }
+
+const roiResponse = await handleAgentIdSiteRequest(
+  new Request("https://gptmarketplus.com/tools/ai-automation-roi-calculator"),
+  {
+    SITE_URL: "https://gptmarketplus.com",
+    SUPPORT_EMAIL: "admin@gptmarketplus.com",
+    BRAND_NAME: "GPTMarketPlus",
+  },
+  { waitUntil() {} },
+);
+const roiBody = await roiResponse.text();
+for (const requiredRoiConversionControl of [
+  'href="/ai-agent-launch-kit?source=roi-calculator"',
+  'data-track-label="ROI Calculator Launch Kit"',
+  'href="/book-a-consultation?source=roi-calculator"',
+  'data-track-label="ROI Calculator Scoped Review"',
+  'const summary = render();',
+  'source: "calculator_submit"',
+]) {
+  if (!roiBody.includes(requiredRoiConversionControl)) {
+    failures.push(`ROI calculator is missing conversion or measurement control ${requiredRoiConversionControl}`);
+  }
+}
+if (roiBody.includes('render();\n          window.agentidTrackEvent("roi_calculation"')) {
+  failures.push("ROI calculator must not record a calculation on initial page render");
+}
+
 for (const requiredIntentAttributionControl of [
   'const trafficSource = `traffic-${trafficSlug}`',
   'data-launch-kit-cta=',
