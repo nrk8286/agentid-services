@@ -4206,7 +4206,7 @@ function renderResourceArticlePage(env, page) {
         </div>
       </header>
       ${renderResourceEvidenceSection(page)}
-      ${page.path === "/guides/ai-agent-for-small-business" ? renderConversionBridge("Small Business AI Guide") : ""}
+      ${renderConversionBridge(page.path === "/guides/ai-agent-for-small-business" ? "Small Business AI Guide" : page.title)}
       <div class="resource-layout">
         <div class="resource-content">
           ${page.sections.map((section, index) => `

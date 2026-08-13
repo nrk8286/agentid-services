@@ -628,6 +628,34 @@ for (const requiredGuideControl of [
   }
 }
 
+for (const resourcePath of [
+  "/guides/ai-receptionist-cost",
+  "/guides/ai-lead-follow-up",
+  "/compare/ai-agent-vs-chatbot",
+  "/industries/contractors-ai-automation",
+  "/templates/lead-follow-up-scripts",
+]) {
+  const resourceResponse = await handleAgentIdSiteRequest(
+    new Request(`https://gptmarketplus.com${resourcePath}`),
+    {
+      SITE_URL: "https://gptmarketplus.com",
+      SUPPORT_EMAIL: "admin@gptmarketplus.com",
+      BRAND_NAME: "GPTMarketPlus",
+    },
+    { waitUntil() {} },
+  );
+  const resourceBody = await resourceResponse.text();
+  if (
+    resourceResponse.status !== 200
+    || !resourceBody.includes('data-conversion-bridge=')
+    || !resourceBody.includes('data-track-event="product_view"')
+    || !resourceBody.includes('href="/ai-agent-launch-kit?source=')
+    || !resourceBody.includes('href="/book-a-consultation?source=')
+  ) {
+    failures.push(`observed resource page ${resourcePath} must include a tracked Launch Kit-first conversion bridge`);
+  }
+}
+
 for (const conversionPath of ["/services", "/ai-agents", "/use-cases"]) {
   const conversionResponse = await handleAgentIdSiteRequest(
     new Request(`https://gptmarketplus.com${conversionPath}`),
