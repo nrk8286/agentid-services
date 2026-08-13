@@ -74,7 +74,7 @@ const MAX_SOURCE_BYTES = 70000;
 const MAX_JSON_BODY_BYTES = 128 * 1024;
 const BODY_TOO_LARGE = Symbol("body-too-large");
 const CANONICAL_HOST = "gptmarketplus.com";
-const PUBLIC_CACHE_KEY_VERSION = "2026-08-13-social-hub-copy-v1";
+const PUBLIC_CACHE_KEY_VERSION = "2026-08-13-social-hub-activation-v1";
 const VERIFIED_REVENUE_GOAL_CENTS = 1_000_000;
 const LEGACY_TLS_VERSIONS = new Set(["TLSv1", "TLSv1.0", "TLSv1.1"]);
 const DOMAIN_CAMPAIGN_REDIRECTS = new Map([
@@ -856,9 +856,9 @@ export default {
     }
 
     if (pagePath === "/social") {
-      return cacheResponse(request, htmlResponse(renderSocialPage(env), 200, isAgentIdSite(env) ? {
+      return cacheResponse(request, htmlResponse(renderSocialPage(env), 200, {
         "x-robots-tag": "noindex,nofollow,noarchive",
-      } : {}));
+      }));
     }
 
     if (pagePath === "/submission-status") {
@@ -6089,6 +6089,53 @@ function renderSocialPage(env) {
     campaign: "agentid_social_hub",
     content: "launch_kit",
   });
+  const socialProfileCount = socialProfileCards(env).length;
+  const paypalReadyForProduction = String(env.PAYPAL_MODE || "live").trim().toLowerCase() === "live"
+    && Boolean(String(env.PAYPAL_CLIENT_ID || "").trim() && String(env.PAYPAL_CLIENT_SECRET || "").trim());
+  const analyticsReady = Boolean(String(env.GOOGLE_ANALYTICS_ID || "").trim() || String(env.GOOGLE_TAG_ID || "").trim());
+  const purchaseConversionReady = Boolean(
+    String(env.GOOGLE_ADS_PURCHASE_CONVERSION_ID || "").trim()
+    && String(env.GOOGLE_ADS_PURCHASE_CONVERSION_LABEL || "").trim(),
+  );
+  const bookingReady = Boolean(String(env.BOOKING_URL || "").trim() || String(env.CALENDAR_EMBED_URL || "").trim());
+  const supportReady = Boolean(String(env.SUPPORT_EMAIL || env.CONTACT_EMAIL || "").trim());
+  const activationChecks = [
+    {
+      label: "$29 PayPal checkout",
+      ready: paypalReadyForProduction,
+      detail: paypalReadyForProduction ? "Live one-time checkout is configured." : "Configure live PayPal credentials before distributing the product link.",
+    },
+    {
+      label: "Customer delivery",
+      ready: Boolean(env.CUSTOMER_EMAIL),
+      detail: env.CUSTOMER_EMAIL ? "Customer email binding is present; verify one real delivery before promotion." : "Configure the customer email binding before promising delivery.",
+    },
+    {
+      label: "Funnel measurement",
+      ready: analyticsReady,
+      detail: analyticsReady ? "First-party analytics is configured for attributed sessions and funnel events." : "Configure Google Analytics or Tag Manager before buying traffic.",
+    },
+    {
+      label: "Purchase conversion reporting",
+      ready: purchaseConversionReady,
+      detail: purchaseConversionReady ? "A separate purchase conversion destination is configured." : "Add the purchase conversion ID and label before optimizing paid ads for sales.",
+    },
+    {
+      label: "Consultation booking",
+      ready: bookingReady,
+      detail: bookingReady ? "A calendar or booking URL is available for custom-fit requests." : "Add BOOKING_URL or CALENDAR_EMBED_URL; otherwise use the support inbox and promise no instant slot.",
+    },
+    {
+      label: "Support inbox",
+      ready: supportReady,
+      detail: supportReady ? `Support is routed to ${String(env.SUPPORT_EMAIL || env.CONTACT_EMAIL).trim()}.` : "Add a monitored support address before distribution.",
+    },
+    {
+      label: "Real social profiles",
+      ready: socialProfileCount > 0,
+      detail: socialProfileCount > 0 ? `${socialProfileCount} real profile URL${socialProfileCount === 1 ? " is" : "s are"} configured.` : "Add only real social profile URLs; do not use placeholders or fabricated proof.",
+    },
+  ];
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -6097,7 +6144,7 @@ ${googleTagGatewayHead(env)}
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Social Share Hub | ${escapeHtml(brandName(env))}</title>
   <meta name="description" content="Share the $29 AI Agent Launch Kit, free checklist, and scoped consultation links with attribution for social and partner distribution.">
-  <meta name="robots" content="index,follow,max-image-preview:large">
+  <meta name="robots" content="noindex,nofollow,noarchive">
   <meta property="og:title" content="GPTMarketPlus Launch Kit Share Hub">
   <meta property="og:description" content="Share the $29 AI Agent Launch Kit, free checklist, and scoped consultation links with attribution.">
   <meta property="og:url" content="${siteUrl(env)}/social">
@@ -6116,17 +6163,17 @@ ${googleTagGatewayBody(env)}
   <main>
     <section class="hero compact-hero">
       <nav>
-        <a class="brand" href="/agents/">${escapeHtml(brandName(env))}</a>
-        <a href="/agents/">Agents</a>
-        <a href="/pricing">Pricing</a>
+        <a class="brand" href="/">${escapeHtml(brandName(env))}</a>
+        <a href="/ai-agent-launch-kit">Launch Kit</a>
+        <a href="/book-a-consultation">Consultation</a>
         <a href="/security.txt">security.txt</a>
-        <a href="/submission-status">Submission status</a>
+        <a href="/agents/">Owner dashboard</a>
       </nav>
       <div class="hero-grid">
         <div>
           <p class="eyebrow">Social share hub</p>
           <h1>Public entry points for sharing</h1>
-          <p class="lede">Use these pages when posting on Facebook, TikTok, LinkedIn, X, or anywhere else that previews a link card. They are also the best crawl targets for Google and Bing.</p>
+          <p class="lede">Use these pages when posting on Facebook, TikTok, LinkedIn, X, email, or partner channels. This operator hub keeps the primary product link attributed and shows what still needs owner action before distribution.</p>
         </div>
         <div class="panel dark">
           <span class="label">Primary product share URL</span>
@@ -6136,6 +6183,19 @@ ${googleTagGatewayBody(env)}
           </div>
           <p class="share-copy-status" aria-live="polite">Use this attributed Launch Kit link for social bios, newsletters, and partner posts.</p>
         </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <p class="eyebrow">First-sale activation</p>
+      <h2>Check the handoff before sending traffic</h2>
+      <p>These checks reflect live Worker configuration. A ready status is not a claim of a completed sale; verify the real purchase and customer delivery path before spending money or promising a booking.</p>
+      <div class="checks">
+        ${activationChecks.map((item) => `<div class="check ${item.ready ? "ok" : "bad"}">
+          <strong>${escapeHtml(item.label)}</strong>
+          <span>${item.ready ? "Ready" : "Owner action"}</span>
+          <p>${escapeHtml(item.detail)}</p>
+        </div>`).join("")}
       </div>
     </section>
 
