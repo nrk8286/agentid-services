@@ -514,6 +514,8 @@ for (const requiredLeadControl of [
   'deduplicated: true',
   'lead_type: trackedEvent === "booking_submit" ? "consultation" : "contact_request"',
   'SUM(CASE WHEN event_name = \'generate_lead\' THEN 1 ELSE 0 END) AS lead_events',
+  "SUM(CASE WHEN event_name = 'launch_kit_scenario_select' THEN 1 ELSE 0 END) AS launch_kit_scenario_selections",
+  "launchKitScenarioSelections: Number(summaryRow?.launch_kit_scenario_selections || 0)",
 ]) {
   if (!siteSource.includes(requiredLeadControl)) {
     failures.push(`consultation measurement is missing ${requiredLeadControl}`);

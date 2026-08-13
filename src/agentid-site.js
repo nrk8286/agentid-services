@@ -6597,6 +6597,7 @@ async function loadAttributionHealth(env, requestedDays = 7) {
         SUM(CASE WHEN event_name = 'generate_lead' THEN 1 ELSE 0 END) AS lead_events,
         SUM(CASE WHEN event_name = 'form_start' THEN 1 ELSE 0 END) AS form_starts,
         SUM(CASE WHEN event_name = 'begin_checkout' THEN 1 ELSE 0 END) AS checkout_starts,
+        SUM(CASE WHEN event_name = 'launch_kit_scenario_select' THEN 1 ELSE 0 END) AS launch_kit_scenario_selections,
         SUM(CASE WHEN event_name = 'purchase'
           AND id LIKE 'paypal:capture:%'
           AND json_extract(properties_json, '$.provider_verified') = 1
@@ -6702,6 +6703,7 @@ async function loadAttributionHealth(env, requestedDays = 7) {
     leadEvents: Number(summaryRow?.lead_events || 0),
     formStarts: Number(summaryRow?.form_starts || 0),
     checkoutStarts: Number(summaryRow?.checkout_starts || 0),
+    launchKitScenarioSelections: Number(summaryRow?.launch_kit_scenario_selections || 0),
     purchases: Number(summaryRow?.purchases || 0),
     taggedCoverageRate: 0,
     coverageBasis: Number(summaryRow?.total_sessions || 0) > 0 ? "sessions" : "events",
@@ -11380,7 +11382,7 @@ async function renderAdminDashboardPage(env, request) {
         {
           kicker: "High-intent activity",
           title: `${attribution.summary.chatOpens} chat opens`,
-          description: `${attribution.summary.leadEvents} lead events and ${attribution.summary.chatPromptViews} pricing prompt views.`,
+          description: `${attribution.summary.leadEvents} lead events, ${attribution.summary.chatPromptViews} pricing prompt views, and ${attribution.summary.launchKitScenarioSelections} Launch Kit scenario selections.`,
         },
       ])}
       <div class="review-panel">
