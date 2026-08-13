@@ -6679,8 +6679,8 @@ function renderHeroVisual() {
         </div>
         <p class="scanner-disclaimer">Planning scenarios only—not promised revenue, savings, or results. Your actual outcome depends on traffic, close rate, workflow quality, and adoption.</p>
         <div class="scanner-actions">
-          <a class="button-primary" href="/book-a-consultation?source=opportunity-scanner" data-track-event="cta_click" data-track-label="Discuss Scanner Result">Discuss my result</a>
-          <a class="button-secondary" href="/pricing" data-track-event="cta_click" data-track-label="Scanner View Pricing">View pricing</a>
+          <a class="button-primary" href="/ai-agent-launch-kit?source=opportunity-scanner" data-track-event="product_view" data-track-label="Scanner Launch Kit CTA">Build the $29 starter system</a>
+          <a class="button-secondary" href="/book-a-consultation?source=opportunity-scanner" data-track-event="cta_click" data-track-label="Discuss Scanner Result">Discuss a custom build</a>
         </div>
       </div>
     </div>`;

@@ -550,6 +550,8 @@ for (const requiredHomeCta of [
   'href="/book-a-consultation?source=homepage"',
   'href="/ai-agent-launch-kit"',
   "Get the $29 Launch Kit",
+  'href="/ai-agent-launch-kit?source=opportunity-scanner"',
+  'data-track-label="Scanner Launch Kit CTA"',
 ]) {
   if (!homeBody.includes(requiredHomeCta)) failures.push(`homepage is missing high-intent CTA ${requiredHomeCta}`);
 }
