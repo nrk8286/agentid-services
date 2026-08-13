@@ -24,7 +24,7 @@
   },
   "type": "module",
   "scripts": {
-    "check": "node --check src/index.js",
+    "check": "node --check src/index.js && node --check src/agentid-site.js",
     "test": "npm run check && npm run validate:bindings && npm run validate:links && npm run validate:google-ads && npm run validate:paypal-cpc",
     "validate": "npm test && npx wrangler deploy --dry-run",
     "dev": "wrangler dev --port 8787",

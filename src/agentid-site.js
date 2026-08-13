@@ -543,13 +543,13 @@ const DIGITAL_PRODUCTS = [
     packageTier: "digital_product",
     checkoutType: "digital_product",
     delivery: "secure_download",
-    summary: "A practical workbook, prompt pack, intake template, launch checklist, and 30-day scorecard for planning your first business AI agent.",
+    summary: "A guided workspace that turns your business inputs into a usable AI agent starter system, with a prompt, workflow map, lead intake, follow-up sequence, QA checklist, and 30-day scorecard.",
     includes: [
-      "AI workflow opportunity scorecard",
-      "Customer-question and knowledge intake template",
-      "Agent guardrail and escalation worksheet",
-      "Lead follow-up message templates",
-      "Launch QA checklist",
+      "Guided AI workflow builder",
+      "Business-specific starter prompt",
+      "Customer-question and knowledge intake map",
+      "Lead intake and human-handoff plan",
+      "Follow-up sequence and launch QA checklist",
       "30-day performance scorecard",
     ],
   },
@@ -3128,6 +3128,7 @@ function chatQuickReplies(state) {
     replies.push({ label: "$1,500-$3,500", value: "$1,500-$3,500" });
     replies.push({ label: "$3,500+", value: "$3,500+" });
   } else {
+    replies.push({ label: "Build the $29 Starter System", value: "build the $29 starter system" });
     replies.push({ label: "Book My Free AI Strategy Call", value: "book my free ai strategy call" });
     replies.push({ label: "Request a Custom Quote", value: "request a custom quote" });
     replies.push({ label: "Start With a Basic Website Agent", value: "start with a basic website agent" });
@@ -3146,7 +3147,7 @@ function hotLeadMessage() {
 }
 
 function warmLeadMessage(packageName) {
-  return `You look like a strong fit for ${packageName}. I can send you the AI Automation Audit Checklist and a quote path, or you can book a free strategy call to go one level deeper.`;
+  return `You look like a strong fit for ${packageName}. Start with the $29 Launch Kit to build the first usable workflow now, or book a free strategy call when you want implementation help.`;
 }
 
 function coldLeadMessage() {
@@ -3366,9 +3367,9 @@ async function handleChat(request, env, ctx) {
     if (leadTag === "HOT" || savedLead.booked_call || savedLead.quote_requested || savedLead.purchase_intent) {
       cta = { label: "Book My Free AI Strategy Call", href: "/book-a-consultation" };
     } else if (leadTag === "WARM") {
-      cta = { label: "Get My AI Agent Recommendation", href: "/contact" };
+      cta = { label: "Build My $29 Starter System", href: "/ai-agent-launch-kit?source=chat" };
     } else {
-      cta = { label: "Get the Free Checklist", href: "/free-ai-automation-audit-checklist" };
+      cta = { label: "Build My $29 Starter System", href: "/ai-agent-launch-kit?source=chat" };
     }
 
     if (!classification.excluded) {
@@ -3405,9 +3406,9 @@ async function handleChat(request, env, ctx) {
     if (leadTag === "HOT") {
       nextAction = "The best next step is to book a free strategy call.";
     } else if (leadTag === "WARM") {
-      nextAction = "You can request a quote or grab the AI Automation Audit Checklist.";
+      nextAction = "Start with the $29 Launch Kit, or request implementation help when you are ready.";
     } else {
-      nextAction = "Start with the checklist and see which workflow is worth automating first.";
+      nextAction = "Start with the $29 Launch Kit and turn one workflow into a usable starter system.";
     }
     state.nextAction = nextAction;
     state.conversationComplete = true;
@@ -3532,7 +3533,7 @@ function renderHomePage(env, state) {
       ownershipLabel: "GPTMarketPlus platform advantages",
       finalEyebrow: "Ready to take the first practical step?",
       finalTitle: "Start with the $29 AI Agent Launch Kit",
-      finalDescription: "Get the workbook, prompt pack, intake templates, launch checklist, and 30-day scorecard through secure delivery. If you need implementation, book a free strategy call instead.",
+      finalDescription: "Build a tailored starter prompt, workflow map, lead-intake plan, follow-up sequence, launch QA checklist, and 30-day scorecard in your private workspace. If you need implementation, book a free strategy call instead.",
       finalLabel: "Get the $29 Launch Kit",
       finalSecondaryPath: "/book-a-consultation?source=homepage-final",
       finalSecondaryLabel: "Book a Free AI Strategy Call",
@@ -3649,7 +3650,7 @@ function renderHomePage(env, state) {
         { kicker: "Free tool", title: "AI Automation ROI Calculator", description: "Estimate time savings, recovered contribution, cost, payback, and first-year ROI without treating gross sales as profit.", href: "/tools/ai-automation-roi-calculator" },
         { kicker: "Buyer guide", title: "AI Agents for Small Business", description: "Choose the right first workflow and avoid paying for a demo that never becomes useful.", href: "/guides/ai-agent-for-small-business" },
         { kicker: "Comparison", title: "AI Agent vs. Chatbot", description: "Understand when a chatbot is enough and when tool-connected action is worth the added complexity.", href: "/compare/ai-agent-vs-chatbot" },
-        { kicker: "$29 download", title: "AI Agent Launch Kit", description: "Get the planning workbook, prompt pack, intake templates, launch checklist, and 30-day scorecard.", href: "/ai-agent-launch-kit" },
+        { kicker: "$29 workspace", title: "AI Agent Launch Kit", description: "Build a usable first-agent starter system with a guided workspace, tailored prompt, workflow map, follow-up sequence, and scorecard.", href: "/ai-agent-launch-kit" },
       ], "Open resource")}
     </section>
 
@@ -3863,7 +3864,7 @@ function renderPricingPage(env) {
     </section>
     <section class="section split-section product-offer">
       <div>
-        ${renderSectionTitle("Start smaller", "Get the AI Agent Launch Kit for $29", "Plan the workflow, guardrails, knowledge intake, follow-up, testing, and first 30 days before you commit to a custom build.")}
+        ${renderSectionTitle("Start smaller", "Build the AI Agent Launch Kit for $29", "Use the private workspace to turn one workflow into a tailored starter prompt, handoff plan, follow-up sequence, launch QA checklist, and first 30 days of measurement before you commit to a custom build.")}
         <ul class="benefit-list compact">
           ${DIGITAL_PRODUCTS[0].includes.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
         </ul>
@@ -3944,7 +3945,7 @@ function renderResourcesPage(env) {
       <div>
         ${renderPageTitle("Resource center", "Make a better AI automation decision", "Use original guides, practical templates, and a client-side ROI calculator to choose a narrow workflow, set safe boundaries, and measure whether it works.")}
         <div class="cta-row">
-          <a class="button-primary" href="/ai-agent-launch-kit" data-track-event="product_view" data-track-label="View Launch Kit">Turn the guidance into a $29 plan</a>
+          <a class="button-primary" href="/ai-agent-launch-kit?source=resources" data-track-event="product_view" data-track-label="View Launch Kit">Build the $29 starter system</a>
           <a class="button-secondary" href="/book-a-consultation?source=resources" data-track-event="cta_click" data-track-label="Resources Book Strategy Call">Map it with us for free</a>
           <a class="button-secondary" href="/tools/ai-automation-roi-calculator" data-track-event="resource_click" data-track-label="Open ROI Calculator">Calculate potential value</a>
         </div>
@@ -3989,14 +3990,14 @@ function renderResourcesPage(env) {
     </section>
     <section class="section split-section product-offer">
       <div>
-        ${renderSectionTitle("Downloadable toolkit", "Turn the guidance into a working plan", DIGITAL_PRODUCTS[0].summary)}
+        ${renderSectionTitle("Interactive workspace", "Turn the guidance into a usable starter system", DIGITAL_PRODUCTS[0].summary)}
         <ul class="benefit-list compact">
           ${DIGITAL_PRODUCTS[0].includes.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
         </ul>
       </div>
       <div class="cta-box">
         <strong>${moneyWithCents(DIGITAL_PRODUCTS[0].price)} one-time</strong>
-        <a class="button-primary" href="/ai-agent-launch-kit">View the AI Agent Launch Kit</a>
+        <a class="button-primary" href="/ai-agent-launch-kit?source=resources-offer">Build the AI Agent Launch Kit</a>
       </div>
     </section>`;
 
@@ -4083,8 +4084,8 @@ function renderResourceArticlePage(env, page) {
           </div>
           <div class="side-note">
             <p class="card-kicker">Need the templates?</p>
-            <p>The $29 launch kit includes the planning workbook, intake templates, guardrail worksheet, launch QA, and scorecard.</p>
-            <a class="button-secondary" href="/ai-agent-launch-kit">View the launch kit</a>
+            <p>The $29 launch kit includes a guided workspace that generates a tailored starter prompt, workflow map, lead intake, follow-up sequence, launch QA, and scorecard.</p>
+            <a class="button-secondary" href="/ai-agent-launch-kit?source=resource-sidebar">Build the launch kit</a>
           </div>
         </aside>
       </div>
@@ -4281,14 +4282,14 @@ function renderLaunchKitPage(env, requestUrl = null) {
   const body = `
     <section class="page-hero split-section">
       <div>
-        ${renderPageTitle("Downloadable toolkit", "Plan an AI agent your business can actually launch", product.summary)}
+        ${renderPageTitle("Interactive launch workspace", "Build a usable AI agent starter system", product.summary)}
         ${paymentNotice}
         <div class="cta-row">${checkout}<a class="button-secondary" href="/resources">Read the free guides first</a></div>
-        <p class="trust-line">One-time PayPal payment. The secure download appears only after PayPal confirms the completed capture. No revenue or performance guarantees.</p>
+        <p class="trust-line">One-time PayPal payment. Your private workspace opens after PayPal confirms the completed capture, and you can download the generated starter pack. No revenue or performance guarantees.</p>
       </div>
       <div class="kit-preview">
         <p class="card-kicker">AI Agent Launch Kit</p>
-        <strong>6 practical planning assets</strong>
+        <strong>One guided build, six usable outputs</strong>
         <ol>
           ${product.includes.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
         </ol>
@@ -4296,22 +4297,22 @@ function renderLaunchKitPage(env, requestUrl = null) {
       </div>
     </section>
     <section class="section">
-      ${renderSectionTitle("What is inside", "From vague idea to a testable workflow", "The kit is delivered as an editable Markdown workbook that can be opened in any text editor, document app, or knowledge workspace.")}
+      ${renderSectionTitle("What you build", "From vague idea to a usable first-agent system", "Answer the guided questions once. The workspace turns your inputs into a business-specific starter prompt, workflow map, lead-intake plan, follow-up sequence, launch QA checklist, and 30-day scorecard.")}
       ${renderCardGrid([
-        { kicker: "Scorecard", title: "Opportunity ranking", description: "Rank candidate workflows by frequency, time, revenue impact, risk, data readiness, and ownership." },
-        { kicker: "Intake", title: "Knowledge collection", description: "Collect approved FAQs, services, policies, escalation contacts, hours, service area, and handoff rules." },
-        { kicker: "Guardrails", title: "Action and escalation map", description: "Define what the agent may answer, collect, change, send, approve, and escalate." },
-        { kicker: "Templates", title: "Lead follow-up pack", description: "Customize acknowledgment, missed-call, quote reminder, appointment, and reactivation messages." },
-        { kicker: "QA", title: "Launch test checklist", description: "Test normal requests, unclear language, missing information, sensitive topics, failures, and human takeover." },
-        { kicker: "Measurement", title: "30-day scorecard", description: "Track response time, completion, handoff, errors, opt-outs, operating cost, and measurable outcomes." },
+        { kicker: "Workflow", title: "Pick the first job", description: "Turn one revenue, response, booking, or operations bottleneck into a clear workflow with an owner and completion definition." },
+        { kicker: "Prompt", title: "Start with business context", description: "Generate a practical starter prompt grounded in your offer, customers, tone, approved claims, and escalation rules." },
+        { kicker: "Intake", title: "Know what the agent needs", description: "Map customer questions, approved knowledge, lead fields, handoff details, and the tools your team already uses." },
+        { kicker: "Follow-up", title: "Keep good leads moving", description: "Create acknowledgment, reminder, booking, quote, and reactivation messages that a human can review and use." },
+        { kicker: "QA", title: "Test before launch", description: "Use the generated test checklist for normal requests, uncertainty, sensitive topics, failures, and human takeover." },
+        { kicker: "Measurement", title: "Prove whether it helps", description: "Track response time, workflow completion, qualified handoffs, bookings, errors, opt-outs, and operating cost for 30 days." },
       ])}
     </section>
     <section class="section split-section">
       <div>
-        ${renderSectionTitle("Who it is for", "Owners and operators planning a first workflow", "Use it yourself, with your team, or as the preparation package before a custom GPTMarketPlus build.")}
+        ${renderSectionTitle("Who it is for", "Owners and operators who want something they can use now", "Use the workspace yourself, give the generated pack to your team, or use it as the exact starting point for a custom GPTMarketPlus implementation.")}
       </div>
       <div class="cta-box">
-        <strong>Ready to plan it?</strong>
+        <strong>Ready to build it?</strong>
         ${checkout}
         <a class="button-secondary" href="/book-a-consultation">Have GPTMarketPlus build it with you</a>
       </div>
@@ -4321,7 +4322,7 @@ function renderLaunchKitPage(env, requestUrl = null) {
   return renderShell(env, {
     path: "/ai-agent-launch-kit",
     title: "AI Agent Launch Kit",
-    description: "A downloadable workbook, prompt pack, intake template, launch checklist, and 30-day scorecard for your first business AI agent.",
+    description: "A private guided workspace that generates a tailored starter prompt, workflow map, lead-intake plan, follow-up sequence, launch checklist, and 30-day scorecard for your first business AI agent.",
     body,
     schema: [
       organizationSchema(env),
@@ -4471,6 +4472,244 @@ GPTMarketPlus can turn this plan into a custom workflow:
 `;
 }
 
+const LAUNCH_KIT_WORKSPACE_FIELDS = [
+  ["businessName", "Business name", "text", "The name customers know you by."],
+  ["businessType", "Business type", "text", "Local service business, agency, consultant, contractor, etc."],
+  ["mainOffer", "Main offer", "textarea", "What do you sell, who is it for, and what should a good customer do next?"],
+  ["targetCustomer", "Best-fit customer", "textarea", "Who should the agent prioritize? Include location, job size, urgency, or other fit signals."],
+  ["primaryGoal", "First workflow goal", "textarea", "Choose one job: capture a lead, answer questions, book a call, recover missed leads, or another measurable outcome."],
+  ["customerQuestions", "Top customer questions", "textarea", "Paste the questions customers ask most often and the answers you already trust."],
+  ["approvedKnowledge", "Approved facts and boundaries", "textarea", "List prices, services, hours, service area, policies, claims, and anything the agent may or may not say."],
+  ["handoff", "Human handoff", "textarea", "Who receives a qualified lead, how they are notified, and when the agent must stop and escalate."],
+  ["tools", "Tools and contact points", "textarea", "Website, email, CRM, calendar, phone, task board, forms, or spreadsheets already in use."],
+  ["tone", "Voice and tone", "text", "Professional, warm, direct, concise, reassuring, or another approved style."],
+];
+
+function cleanWorkspaceText(value, maxLength = 2000) {
+  return String(value ?? "")
+    .replace(/\r\n?/g, "\n")
+    .trim()
+    .slice(0, maxLength);
+}
+
+function normalizeLaunchKitWorkspaceInput(input = {}) {
+  const workspace = {};
+  for (const [name] of LAUNCH_KIT_WORKSPACE_FIELDS) {
+    workspace[name] = cleanWorkspaceText(input[name], name === "approvedKnowledge" || name === "customerQuestions" ? 3000 : 1800);
+  }
+  workspace.tone = workspace.tone || "Professional, clear, helpful, and concise";
+  return workspace;
+}
+
+export function buildLaunchKitWorkspace(input = {}) {
+  const values = normalizeLaunchKitWorkspaceInput(input);
+  return {
+    version: 1,
+    updatedAt: new Date().toISOString(),
+    ...values,
+  };
+}
+
+export function launchKitWorkspacePack(workspace = {}) {
+  const values = normalizeLaunchKitWorkspaceInput(workspace);
+  const business = values.businessName || "the business";
+  const tone = values.tone || "professional, clear, helpful, and concise";
+  return `GPTMARKETPLUS AI AGENT LAUNCH KIT — STARTER PACK
+Generated: ${workspace.updatedAt || new Date().toISOString()}
+
+BUSINESS
+Name: ${business}
+Type: ${values.businessType || "Not specified"}
+Offer: ${values.mainOffer || "Not specified"}
+Best-fit customer: ${values.targetCustomer || "Not specified"}
+
+1. FIRST WORKFLOW BRIEF
+Goal: ${values.primaryGoal || "Choose one measurable workflow outcome."}
+Owner: Assign one person who is responsible for the next step.
+Trigger: A website visit, question, form submission, missed call, or other agreed customer signal.
+Completion: The request is answered, qualified, booked, handed off, or safely closed.
+
+2. STARTER SYSTEM PROMPT
+You are the AI assistant for ${business}.
+Your first job is to help with this workflow: ${values.primaryGoal || "capture and route the next customer request"}.
+Business type: ${values.businessType || "not specified"}.
+Main offer: ${values.mainOffer || "not specified"}.
+Best-fit customer: ${values.targetCustomer || "not specified"}.
+Use this tone: ${tone}.
+Use only approved business information. Never invent prices, availability, policies, credentials, or outcomes.
+Ask only for the information needed to move the request to the next step.
+Collect a concise summary, contact details with consent, urgency, and the requested next action.
+If the answer is uncertain, sensitive, regulated, outside the approved information, or requires a commitment, explain the limit and hand off to a human.
+Approved knowledge and boundaries:
+${values.approvedKnowledge || "Add approved facts, prices, policies, hours, service area, and claims before launch."}
+Human handoff rules:
+${values.handoff || "Add the handoff owner, notification channel, response window, and escalation conditions before launch."}
+
+3. CUSTOMER INTAKE FIELDS
+- Name and preferred contact method
+- Email or phone with contact consent
+- What the customer needs
+- Service, product, or workflow requested
+- Timing or urgency
+- Location or service area when relevant
+- Budget or fit information when appropriate
+- Human handoff owner and next action
+
+4. FOLLOW-UP SEQUENCE
+New inquiry: Thank the customer, summarize the request, state the response window, and confirm the best contact method.
+Missing information: Ask for only the missing detail needed to qualify or route the request.
+Qualified lead: Confirm the recommended next step and offer the approved booking, quote, or handoff path.
+No response: Send one helpful reminder with a simple reply choice; do not pressure or spam.
+Closed loop: Confirm what happened, record the outcome, and invite the customer to return if needed.
+
+5. LAUNCH QA CHECKLIST
+- The agent identifies itself as automated when appropriate.
+- Answers match the approved knowledge above.
+- Prices, availability, policies, and outcomes are never invented.
+- Required lead fields and consent are collected once.
+- Duplicate submissions do not create duplicate handoffs.
+- Unclear, sensitive, regulated, and high-consequence requests escalate.
+- A human receives the summary and knows the next action.
+- Booking, quote, email, CRM, and task writes are tested.
+- Mobile, desktop, failure, and timeout paths are tested.
+- Analytics records workflow start, completion, handoff, and failure.
+
+6. 30-DAY SCORECARD
+Baseline workflow starts: ____
+Median time to first useful response: ____
+Qualified handoffs: ____
+Bookings or quotes created: ____
+Completed workflows: ____
+Wrong answers or misroutes: ____
+Opt-outs or complaints: ____
+Estimated hours saved: ____
+Operating cost: ____
+Decision at day 30: keep / adjust / expand / stop
+
+NEXT IMPLEMENTATION STEP
+${values.tools ? `Connect and test these tools first: ${values.tools}` : "Choose the first tool or channel to connect, then test the workflow with five realistic customer scenarios."}
+`;
+}
+
+export function renderLaunchKitWorkspaceOutput(workspace = {}) {
+  const values = normalizeLaunchKitWorkspaceInput(workspace);
+  const business = values.businessName || "Your business";
+  const pack = launchKitWorkspacePack(workspace);
+  return `
+    <section class="blueprint launch-kit-output">
+      <header>
+        <p class="eyebrow">Generated starter system</p>
+        <h2>${escapeHtml(business)} AI Agent Launch Pack</h2>
+        <p>Your answers are now organized into a first workflow, a usable starter prompt, lead intake, follow-up, QA, and measurement plan.</p>
+      </header>
+      <div class="blueprint-grid">
+        <article class="blueprint-card"><h3>First workflow</h3><p>${escapeHtml(values.primaryGoal || "Complete the workflow brief above.")}</p></article>
+        <article class="blueprint-card"><h3>Best-fit customer</h3><p>${escapeHtml(values.targetCustomer || "Add the customer you want to prioritize.")}</p></article>
+        <article class="blueprint-card"><h3>Human handoff</h3><p>${escapeHtml(values.handoff || "Add who receives qualified requests and when to escalate.")}</p></article>
+      </div>
+      <h3>Starter prompt and launch checklist</h3>
+      <pre class="code-block">${escapeHtml(pack)}</pre>
+    </section>`;
+}
+
+export function renderLaunchKitWorkspacePage(env, context = {}) {
+  if (context.accessDenied) {
+    return renderShell(env, {
+      path: "/launch-kit/workspace",
+      title: "Launch Kit Workspace",
+      description: "A verified purchase is required to open the AI Agent Launch Kit Workspace.",
+      body: `<section class="page-hero"><p class="eyebrow">Customer workspace</p><h1>Verify your Launch Kit purchase</h1><p>Open the workspace from the secure PayPal completion or delivery link. If you need help, contact support with your PayPal order ID.</p><div class="cta-row"><a class="button-primary" href="/ai-agent-launch-kit">Return to the Launch Kit</a><a class="button-secondary" href="/contact">Contact support</a></div></section>`,
+      robots: "noindex,nofollow,noarchive",
+      bodyClass: "page-launch-kit-workspace",
+      privatePage: true,
+    });
+  }
+
+  const orderId = cleanWorkspaceText(context.orderId || "", 80);
+  const accessToken = cleanWorkspaceText(context.accessToken || "", 180);
+  const workspace = context.workspace && typeof context.workspace === "object" ? context.workspace : null;
+  const formFields = LAUNCH_KIT_WORKSPACE_FIELDS.map(([name, label, type, placeholder]) => {
+    const value = escapeHtml(workspace?.[name] || "");
+    if (type === "textarea") {
+      return `<label class="field full"><span>${escapeHtml(label)}</span><textarea name="${escapeHtml(name)}" rows="4" placeholder="${escapeHtml(placeholder)}" required>${value}</textarea></label>`;
+    }
+    return `<label class="field"><span>${escapeHtml(label)}</span><input type="${escapeHtml(type)}" name="${escapeHtml(name)}" value="${value}" placeholder="${escapeHtml(placeholder)}" required></label>`;
+  }).join("");
+  const initialOutput = workspace ? renderLaunchKitWorkspaceOutput(workspace) : `<div class="review-panel"><p>Your generated starter system will appear here after you save your answers.</p><p>Start with one workflow and use plain language. You can edit and regenerate this pack whenever your plan changes.</p></div>`;
+
+  const body = `
+    <section class="page-hero split-section">
+      <div>
+        ${renderPageTitle("Private customer workspace", "Build the first version of your AI agent now", "Answer the guided questions and get a business-specific starter system you can hand to your team, paste into an AI tool, or use as the exact brief for implementation.")}
+        <p class="status-pill">Verified purchase · AI Agent Launch Kit</p>
+      </div>
+      <div class="info-card"><p class="card-kicker">You leave with</p><ul><li>A first workflow brief</li><li>A usable starter system prompt</li><li>Lead intake and handoff rules</li><li>Follow-up, QA, and 30-day measurement pack</li></ul></div>
+    </section>
+    <section class="section split-section">
+      <div>
+        <form class="lead-form launch-kit-workspace-form" id="launch-kit-workspace-form" data-endpoint="/api/paypal/launch-kit/workspace">
+          <input type="hidden" name="orderId" value="${escapeHtml(orderId)}">
+          <input type="hidden" name="accessToken" value="${escapeHtml(accessToken)}">
+          ${formFields}
+          <button class="button-primary" type="submit">Generate My Starter System</button>
+          <p class="form-note">Your workspace is private to this verified purchase. Do not paste passwords, payment details, or regulated personal data.</p>
+          <p class="form-status" id="launch-kit-workspace-status" aria-live="polite"></p>
+        </form>
+      </div>
+      <div class="side-note"><p class="card-kicker">Make it useful</p><p>Choose one workflow that can be tested this week. Examples: respond to new leads, qualify quote requests, answer common questions, book calls, or recover missed inquiries.</p><p>Do not try to automate the whole company on the first pass.</p></div>
+    </section>
+    <section class="section" id="launch-kit-workspace-output">
+      ${initialOutput}
+      <div class="cta-row" id="launch-kit-workspace-actions"${workspace ? "" : " hidden"}>
+        <button class="button-primary" type="button" id="launch-kit-copy">Copy starter pack</button>
+        <a class="button-secondary" id="launch-kit-download" href="/api/paypal/launch-kit/workspace/download?order_id=${encodeURIComponent(orderId)}&access_token=${encodeURIComponent(accessToken)}">Download starter pack</a>
+        <a class="button-secondary" href="/book-a-consultation?source=launch-kit-workspace">Get implementation help</a>
+      </div>
+    </section>
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        const form = document.getElementById("launch-kit-workspace-form");
+        const status = document.getElementById("launch-kit-workspace-status");
+        const output = document.getElementById("launch-kit-workspace-output");
+        const actions = document.getElementById("launch-kit-workspace-actions");
+        const copy = document.getElementById("launch-kit-copy");
+        let packText = ${JSON.stringify(workspace ? launchKitWorkspacePack(workspace) : "") .replace(/</g, "\\u003c")};
+        form.addEventListener("submit", async function (event) {
+          event.preventDefault();
+          status.textContent = "Generating your starter system…";
+          const payload = Object.fromEntries(new FormData(form).entries());
+          try {
+            const response = await fetch("/api/paypal/launch-kit/workspace", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
+            const result = await response.json();
+            if (!response.ok || !result.ok) throw new Error(result.error || "The workspace could not be saved.");
+            output.innerHTML = result.outputHtml;
+            packText = result.packText || "";
+            actions.hidden = false;
+            status.textContent = "Saved. Your starter system is ready below.";
+            output.scrollIntoView({ behavior: "smooth", block: "start" });
+          } catch (error) {
+            status.textContent = error.message || "The workspace could not be saved. Please try again.";
+          }
+        });
+        copy.addEventListener("click", async function () {
+          if (!packText) return;
+          try { await navigator.clipboard.writeText(packText); copy.textContent = "Copied"; setTimeout(() => { copy.textContent = "Copy starter pack"; }, 1800); }
+          catch { status.textContent = "Copy was blocked by the browser. Use Download starter pack instead."; }
+        });
+      });
+    </script>`;
+
+  return renderShell(env, {
+    path: "/launch-kit/workspace",
+    title: "AI Agent Launch Kit Workspace",
+    description: "Build a usable AI agent starter system from your verified Launch Kit purchase.",
+    body,
+    robots: "noindex,nofollow,noarchive",
+    bodyClass: "page-launch-kit-workspace",
+    privatePage: true,
+  });
+}
+
 function renderAboutPage(env) {
   const body = `
     <section class="page-hero split-section">
@@ -4576,7 +4815,7 @@ function renderRefundPolicyPage(env) {
     </section>
     <section class="section legal-copy">
       <h2>AI Agent Launch Kit</h2>
-      <p>The Launch Kit is delivered as a digital download after payment. If you cannot access the files or the files are materially incomplete, contact <a href="mailto:${escapeHtml(support)}">${escapeHtml(support)}</a> within 14 days so we can restore access, replace the files, or issue an appropriate refund.</p>
+      <p>The Launch Kit includes a private guided workspace and generated starter pack after payment. If you cannot access the workspace or the generated materials are materially incomplete, contact <a href="mailto:${escapeHtml(support)}">${escapeHtml(support)}</a> within 14 days so we can restore access, replace the files, or issue an appropriate refund.</p>
       <p>Because downloadable materials can be copied immediately, change-of-mind refunds are not guaranteed after successful access. This does not limit rights that cannot legally be waived.</p>
       <h2>Custom services and sponsorships</h2>
       <p>Custom implementation and sponsorship placements are not sold automatically on this site. Scope, deliverables, timing, payment terms, cancellation rights, and any refund terms must be stated in a written proposal or order before payment is requested.</p>
@@ -5975,7 +6214,7 @@ const AGENTID_PUBLIC_PAGES = [
   { path: "/resources", title: "AI Agent Resources", description: "Practical guides, templates, comparisons, and tools for planning useful business AI agents." },
   ...RESOURCE_PAGES.map((page) => ({ path: page.path, title: page.title, description: page.description })),
   { path: "/tools/ai-automation-roi-calculator", title: "AI Automation ROI Calculator: Estimate Payback and Savings", description: "Estimate monthly time savings, recovered contribution value, operating cost, payback period, and first-year ROI for a proposed AI automation workflow." },
-  { path: "/ai-agent-launch-kit", title: "AI Agent Launch Kit", description: "A downloadable workbook, prompt pack, intake template, launch checklist, and 30-day scorecard for your first business AI agent." },
+  { path: "/ai-agent-launch-kit", title: "AI Agent Launch Kit", description: "A private guided workspace that generates a tailored starter prompt, workflow map, lead-intake plan, follow-up sequence, launch checklist, and 30-day scorecard for your first business AI agent." },
   { path: "/about", title: "About", description: "Practical AI implementation for real businesses." },
   { path: "/contact", title: "Contact", description: "Request your AI agent plan with a validated lead form." },
   { path: "/book-a-consultation", title: "Book a Consultation", description: "Book a free AI strategy call." },
@@ -6001,7 +6240,7 @@ function renderNav(activePath) {
         <span class="brand-sub">Custom AI agents for business</span>
       </div>
       <nav class="nav-links">${items}</nav>
-      <a class="nav-cta" href="/book-a-consultation" data-track-event="cta_click" data-track-label="Book a Free AI Strategy Call">Book a Free AI Strategy Call</a>
+      <a class="nav-cta" href="/ai-agent-launch-kit?source=nav" data-track-event="product_view" data-track-label="Build the $29 Launch Kit">Build the $29 Launch Kit</a>
     </header>`;
 }
 
@@ -6353,10 +6592,11 @@ function renderConversionBridge(source) {
         ${renderSectionTitle("Best next step", "Turn the page you just viewed into one scoped workflow", "The consultation path is the clearest way to match the business problem, handoff rules, integrations, budget, and launch plan before you buy.")}
       </div>
       <div class="cta-box">
-        <strong>Free AI strategy call</strong>
-        <p>Bring one bottleneck. Leave with a recommended first workflow and a clear next step.</p>
-        <a class="button-primary" href="/book-a-consultation?source=${sourceValue}-bridge" data-track-event="cta_click" data-track-label="${escapeHtml(source)} Conversion Bridge">Book my strategy call</a>
-        <a class="button-secondary" href="/pricing" data-track-event="cta_click" data-track-label="${escapeHtml(source)} Bridge Pricing">Compare pricing first</a>
+        <strong>Choose your next step</strong>
+        <p>Build the first usable system yourself for $29, or bring one bottleneck to a free strategy call for implementation help.</p>
+        <a class="button-primary" href="/ai-agent-launch-kit?source=${sourceValue}-bridge" data-track-event="product_view" data-track-label="${escapeHtml(source)} Launch Kit Bridge">Build the $29 starter system</a>
+        <a class="button-secondary" href="/book-a-consultation?source=${sourceValue}-bridge" data-track-event="cta_click" data-track-label="${escapeHtml(source)} Conversion Bridge">Book my strategy call</a>
+        <a class="button-secondary" href="/pricing" data-track-event="cta_click" data-track-label="${escapeHtml(source)} Bridge Pricing">Compare pricing</a>
       </div>
     </section>`;
 }

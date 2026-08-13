@@ -3,10 +3,14 @@ import {
   activeSponsorPlacement,
   agentIdIndexablePaths,
   agentIdOneTimeProducts,
+  buildLaunchKitWorkspace,
   classifyLeadRecord,
   handleAgentIdSiteRequest,
+  launchKitWorkspacePack,
   notifyQueuedSalesReadyLeads,
   recordVerifiedPurchaseAnalytics,
+  renderLaunchKitWorkspaceOutput,
+  renderLaunchKitWorkspacePage,
   renderLaunchKitMarkdown,
   sendCustomerTransactionalEmail,
   sendOwnerTransactionalEmail,
@@ -719,8 +723,17 @@ export default {
     if (url.pathname === "/api/paypal/digital-products/ai-agent-launch-kit" && request.method === "GET") {
       return handlePaypalDigitalProductDownload(request, env);
     }
+    if (url.pathname === "/api/paypal/launch-kit/workspace" && ["GET", "POST"].includes(request.method)) {
+      return handleLaunchKitWorkspaceApi(request, env);
+    }
+    if (url.pathname === "/api/paypal/launch-kit/workspace/download" && request.method === "GET") {
+      return handleLaunchKitWorkspaceDownload(request, env);
+    }
     if (url.pathname === "/paypal/complete" && request.method === "GET") {
       return privateHtmlResponse(renderPaypalOrderCompletionPage(env));
+    }
+    if (url.pathname === "/launch-kit/workspace" && request.method === "GET") {
+      return handleLaunchKitWorkspacePage(request, env);
     }
     if (url.pathname === "/paypal/download/ai-agent-launch-kit" && request.method === "GET") {
       return renderPaypalDigitalProductPage(request, env);
@@ -2192,7 +2205,7 @@ function paypalOrderDeliveryUrl(env, order) {
     product: order.productId,
   });
   if (order.delivery === "secure_download" && order.productId === "ai_agent_launch_kit") {
-    return `${siteUrl(env)}/paypal/download/ai-agent-launch-kit?${params}`;
+    return `${siteUrl(env)}/launch-kit/workspace?${params}`;
   }
   return `${siteUrl(env)}/onboarding?${params}`;
 }
@@ -2567,11 +2580,11 @@ async function handlePaypalOrderCapture(request, env, ctx) {
   });
 }
 
-async function verifyPaypalOrderAccess(request, env, expectedProductId) {
+async function verifyPaypalOrderAccess(request, env, expectedProductId, credentials = {}) {
   if (!env.GMP_KV) return { ok: false, status: 503, error: "Secure order storage is unavailable." };
   const url = new URL(request.url);
-  const orderId = cleanText(url.searchParams.get("order_id") || "", 80);
-  const accessToken = cleanText(url.searchParams.get("access_token") || "", 180);
+  const orderId = cleanText(credentials.orderId || url.searchParams.get("order_id") || "", 80);
+  const accessToken = cleanText(credentials.accessToken || url.searchParams.get("access_token") || "", 180);
   if (!orderId || !accessToken) {
     return { ok: false, status: 400, error: "Order ID and access token are required." };
   }
@@ -2599,6 +2612,81 @@ async function handlePaypalDigitalProductDownload(request, env) {
   });
 }
 
+function launchKitWorkspaceStorageKey(orderId) {
+  return `paypal:launch-kit:workspace:${cleanText(orderId || "", 80)}`;
+}
+
+function launchKitWorkspaceCredentials(request, body = {}) {
+  const url = new URL(request.url);
+  return {
+    orderId: cleanText(body.orderId || body.order_id || url.searchParams.get("order_id") || "", 80),
+    accessToken: cleanText(body.accessToken || body.access_token || url.searchParams.get("access_token") || "", 180),
+  };
+}
+
+async function handleLaunchKitWorkspacePage(request, env) {
+  const credentials = launchKitWorkspaceCredentials(request);
+  const access = await verifyPaypalOrderAccess(request, env, "ai_agent_launch_kit", credentials);
+  if (!access.ok) {
+    return privateHtmlResponse(renderLaunchKitWorkspacePage(env, { accessDenied: true }), access.status === 400 ? 400 : 403);
+  }
+  const workspace = await getJson(env, launchKitWorkspaceStorageKey(credentials.orderId));
+  return privateHtmlResponse(renderLaunchKitWorkspacePage(env, {
+    orderId: credentials.orderId,
+    accessToken: credentials.accessToken,
+    workspace,
+  }));
+}
+
+async function handleLaunchKitWorkspaceApi(request, env) {
+  const body = request.method === "POST" ? await readJson(request) : {};
+  if (body === BODY_TOO_LARGE) return payloadTooLargeResponse();
+  if (request.method === "POST" && (!body || typeof body !== "object")) {
+    return jsonResponse({ ok: false, error: "Invalid JSON." }, 400);
+  }
+  const credentials = launchKitWorkspaceCredentials(request, body || {});
+  const access = await verifyPaypalOrderAccess(request, env, "ai_agent_launch_kit", credentials);
+  if (!access.ok) return jsonResponse({ ok: false, error: access.error }, access.status);
+
+  const key = launchKitWorkspaceStorageKey(credentials.orderId);
+  if (request.method === "GET") {
+    const workspace = await getJson(env, key);
+    return jsonResponse({
+      ok: true,
+      workspace,
+      outputHtml: workspace ? renderLaunchKitWorkspaceOutput(workspace) : "",
+      packText: workspace ? launchKitWorkspacePack(workspace) : "",
+    });
+  }
+
+  const workspace = buildLaunchKitWorkspace(body || {});
+  const missing = ["businessName", "mainOffer", "targetCustomer", "primaryGoal"]
+    .filter((field) => !String(workspace[field] || "").trim());
+  if (missing.length) {
+    return jsonResponse({ ok: false, error: `Complete these fields first: ${missing.join(", ")}.` }, 400);
+  }
+  await putJson(env, key, workspace, 60 * 60 * 24 * 365);
+  return jsonResponse({
+    ok: true,
+    workspace,
+    outputHtml: renderLaunchKitWorkspaceOutput(workspace),
+    packText: launchKitWorkspacePack(workspace),
+  });
+}
+
+async function handleLaunchKitWorkspaceDownload(request, env) {
+  const access = await verifyPaypalOrderAccess(request, env, "ai_agent_launch_kit");
+  if (!access.ok) return privateTextResponse(access.error, access.status);
+  const workspace = await getJson(env, launchKitWorkspaceStorageKey(access.order.id));
+  if (!workspace) {
+    return privateTextResponse("Complete and save your Launch Kit Workspace before downloading the starter pack.", 409);
+  }
+  return privateTextResponse(launchKitWorkspacePack(workspace), 200, {
+    "content-type": "text/plain; charset=utf-8",
+    "content-disposition": 'attachment; filename="GPTMarketPlus-AI-Agent-Starter-Pack.txt"',
+  });
+}
+
 async function renderPaypalDigitalProductPage(request, env) {
   const access = await verifyPaypalOrderAccess(request, env, "ai_agent_launch_kit");
   if (!access.ok) {
@@ -2616,10 +2704,10 @@ async function renderPaypalDigitalProductPage(request, env) {
   });
   return privateHtmlResponse(renderPaypalResultShell(
     "Payment confirmed",
-    "Your AI Agent Launch Kit is ready",
-    "Download the editable Markdown workbook and save a copy with your project files.",
-    `<a class="primary" href="/api/paypal/digital-products/ai-agent-launch-kit?${query}">Download the launch kit</a>
-     <a class="secondary" href="/book-a-consultation">Book implementation help</a>`,
+    "Your AI Agent Launch Kit workspace is ready",
+    "Build your first usable starter system, then download the tailored pack for your team or implementation partner.",
+    `<a class="primary" href="/launch-kit/workspace?${query}">Open your Launch Kit Workspace</a>
+     <a class="secondary" href="/api/paypal/digital-products/ai-agent-launch-kit?${query}">Download the original workbook</a>`,
   ));
 }
 

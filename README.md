@@ -136,7 +136,7 @@ wrangler vars put GOOGLE_ADS_CONVERSION_LABEL
 
 For paid acquisition, use separate destinations in `wrangler.jsonc`: `GOOGLE_ADS_LEAD_CONVERSION_ID` and `GOOGLE_ADS_LEAD_CONVERSION_LABEL` for accepted lead actions, plus `GOOGLE_ADS_PURCHASE_CONVERSION_ID` and `GOOGLE_ADS_PURCHASE_CONVERSION_LABEL` for provider-verified purchases. The older generic pair is retained only as a lead fallback; never reuse one conversion label for both goals.
 
-The $29 AI Agent Launch Kit uses a verified live PayPal order/capture flow and serves its download only after an exact completed capture. Completed captures return the secure delivery URL immediately, send it through the customer transactional-email adapter, and queue failed email delivery for retry without duplicating successful delivery. For Google measurement, the site uses `GOOGLE_TAG_GATEWAY_PATH=/gtag` and serves that path from the Worker itself.
+The $29 AI Agent Launch Kit uses a verified live PayPal order/capture flow. Completed captures return a private Launch Kit Workspace immediately, send that workspace URL through the customer transactional-email adapter, and queue failed email delivery for retry without duplicating successful delivery. The workspace turns buyer inputs into a tailored starter prompt, workflow map, lead-intake plan, follow-up sequence, launch QA checklist, and 30-day scorecard; the buyer can copy or download the generated starter pack. The original Markdown workbook remains available as a legacy download. For Google measurement, the site uses `GOOGLE_TAG_GATEWAY_PATH=/gtag` and serves that path from the Worker itself.
 
 ### Google Cloud Agent Search
 
@@ -192,7 +192,13 @@ The digital product endpoints are:
 # Public product page
 curl https://gptmarketplus.com/ai-agent-launch-kit
 
-# Secure post-purchase page (completed PayPal order and random access token required)
+# Secure post-purchase workspace (completed PayPal order and random access token required)
+curl "https://gptmarketplus.com/launch-kit/workspace?order_id=PAYPAL_ORDER_ID&access_token=PRIVATE_ACCESS_TOKEN"
+
+# Generated starter pack (after the buyer saves the workspace)
+curl -OJ "https://gptmarketplus.com/api/paypal/launch-kit/workspace/download?order_id=PAYPAL_ORDER_ID&access_token=PRIVATE_ACCESS_TOKEN"
+
+# Legacy secure post-purchase page
 curl "https://gptmarketplus.com/paypal/download/ai-agent-launch-kit?order_id=PAYPAL_ORDER_ID&access_token=PRIVATE_ACCESS_TOKEN"
 
 # File delivery (same completed PayPal entitlement required)
