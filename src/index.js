@@ -6483,19 +6483,45 @@ function renderTrafficConversionSection(env, page, { launchKitHref, consultation
       <p>The kit is a usable planning and starter-system product. Website, CRM, calendar, messaging, credentials, testing, and ongoing support require a separate written scope.</p>
       <script>
         document.addEventListener("DOMContentLoaded", function () {
+          var sessionId = "";
+          try {
+            sessionId = sessionStorage.getItem("gptmarketplus.session.v1") || "";
+            if (!sessionId) {
+              sessionId = crypto.randomUUID();
+              sessionStorage.setItem("gptmarketplus.session.v1", sessionId);
+            }
+          } catch (error) {
+            sessionId = crypto.randomUUID();
+          }
           document.querySelectorAll("[data-launch-kit-cta]").forEach(function (link) {
             link.addEventListener("click", function () {
+              var search = new URLSearchParams(location.search);
+              var properties = {
+                item_id: "ai_agent_launch_kit",
+                item_name: "AI Agent Launch Kit",
+                value: 29,
+                currency: "USD",
+                source_page: location.pathname,
+                cta_location: "buyer_intent_bridge",
+                cta_source: link.dataset.launchKitCta || "",
+                utm_source: search.get("utm_source") || "",
+                utm_medium: search.get("utm_medium") || "",
+                utm_campaign: search.get("utm_campaign") || "",
+              };
               if (typeof window.agentidTrackGoogleEvent === "function") {
-                window.agentidTrackGoogleEvent("product_view", {
-                  item_id: "ai_agent_launch_kit",
-                  item_name: "AI Agent Launch Kit",
-                  value: 29,
-                  currency: "USD",
-                  source_page: location.pathname,
-                  cta_location: "buyer_intent_bridge",
-                  cta_source: link.dataset.launchKitCta || "",
-                });
+                window.agentidTrackGoogleEvent("product_view", properties);
               }
+              fetch("/api/events", {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                keepalive: true,
+                body: JSON.stringify({
+                  eventName: "product_view",
+                  sourcePage: location.pathname + location.search,
+                  sessionId: sessionId,
+                  properties: properties,
+                }),
+              }).catch(function () {});
             });
           });
         });
