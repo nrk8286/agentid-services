@@ -1198,7 +1198,7 @@ const CHAT_OBJECTIONS = [
   {
     match: ["how much", "cost", "price"],
     reply:
-      "Basic website agents start at $497. More advanced lead-capture and follow-up systems usually start around $1,497. Full business automation systems start around $3,500. The exact price depends on what you want connected and how much the agent needs to do.",
+      "If you want to build the first workflow yourself, the $29 AI Agent Launch Kit is the primary self-serve starting point. It gives you a private guided workspace with a tailored starter prompt, workflow brief, lead intake, consent-aware follow-up, launch QA, and a 30-day scorecard. If you want GPTMarketPlus to install integrations or build the system with you, custom work starts at the separately scoped service tiers and requires a free strategy call before any payment is requested.",
   },
   {
     match: ["need this", "not sure", "don't know", "dont know", "think about it"],
@@ -3383,6 +3383,10 @@ async function handleChat(request, env, ctx) {
     : [];
   const currentLead = (await dbGetLeadByConversation(env, conversationId)) || {};
   const objection = replyForObjection(message);
+  const objectionCode = objectionTag(message);
+  const objectionCta = ["cost", "uncertain", "chatbot"].includes(objectionCode)
+    ? { label: "Build My $29 Starter System", href: "/ai-agent-launch-kit?source=chat" }
+    : null;
   const contactDetails = detectContactDetails(message);
 
   const state = normalizeChatState({
@@ -3430,7 +3434,7 @@ async function handleChat(request, env, ctx) {
         label: question,
         value: question,
       })),
-      cta: {
+      cta: objectionCta || {
         label: "View GPTMarketPlus Pricing",
         href: "/pricing",
       },
@@ -3440,12 +3444,47 @@ async function handleChat(request, env, ctx) {
   let reply = "";
   let quickReplies = [];
   let nextAction = "";
-  let cta = {
+  let cta = objectionCta || {
     label: "Book My Free AI Strategy Call",
     href: "/book-a-consultation",
   };
 
-  if (!state.businessType) {
+  const incompleteQualification = !state.businessType || !state.painPoint || !state.urgency || !state.budgetRange;
+  if (objection && incompleteQualification) {
+    state.commonObjection = objectionCode || state.commonObjection || "";
+    if (!state.businessType) {
+      reply = `${objection.reply} What type of business do you run?`;
+      quickReplies = [
+        { label: "Local service business", value: "Local service business" },
+        { label: "Contractor", value: "Contractor" },
+        { label: "Agency", value: "Agency" },
+      ];
+    } else if (!state.painPoint) {
+      reply = `${objection.reply} What are you trying to fix first: missed leads, slow follow-up, too many repetitive questions, scheduling, customer support, internal tasks, or something else?`;
+      quickReplies = [
+        { label: "Missed leads", value: "missed leads" },
+        { label: "Too many questions", value: "too many repetitive questions" },
+        { label: "Scheduling", value: "scheduling" },
+      ];
+    } else if (!state.urgency) {
+      reply = `${objection.reply} How soon do you want this working?`;
+      quickReplies = [
+        { label: "Immediately", value: "Immediately" },
+        { label: "This week", value: "This week" },
+        { label: "This month", value: "This month" },
+        { label: "Just researching", value: "Just researching" },
+      ];
+    } else {
+      reply = `${objection.reply} Do you have a rough budget range in mind?`;
+      quickReplies = [
+        { label: "Under $500", value: "Under $500" },
+        { label: "$500-$1,500", value: "$500-$1,500" },
+        { label: "$1,500-$3,500", value: "$1,500-$3,500" },
+        { label: "$3,500+", value: "$3,500+" },
+        { label: "Not sure yet", value: "Not sure yet" },
+      ];
+    }
+  } else if (!state.businessType) {
     state.businessType = message;
     state.step = 1;
     reply = "What are you trying to fix first: missed leads, slow follow-up, too many repetitive questions, scheduling, customer support, internal tasks, or something else?";

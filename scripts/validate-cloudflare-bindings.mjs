@@ -770,6 +770,34 @@ for (const requiredLaunchKitSearchControl of [
     failures.push(`Launch Kit search and buyer-confidence content is missing ${requiredLaunchKitSearchControl}`);
   }
 }
+for (const requiredChatOfferControl of [
+  'match: ["how much", "cost", "price"]',
+  "the $29 AI Agent Launch Kit is the primary self-serve starting point",
+  "custom work starts at the separately scoped service tiers",
+  "requires a free strategy call before any payment is requested",
+  "const incompleteQualification = !state.businessType || !state.painPoint || !state.urgency || !state.budgetRange",
+  'href: "/ai-agent-launch-kit?source=chat"',
+]) {
+  if (!siteSource.includes(requiredChatOfferControl)) {
+    failures.push(`chat pricing response is missing Launch Kit-first routing control ${requiredChatOfferControl}`);
+  }
+}
+
+const chatPriceResponse = await handleAgentIdSiteRequest(
+  new Request("https://gptmarketplus.com/api/chat", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ message: "How much does it cost?", conversationId: "validation-chat-price" }),
+  }),
+  { SITE_URL: "https://gptmarketplus.com", BRAND_NAME: "GPTMarketPlus" },
+  { waitUntil() {} },
+);
+const chatPriceBody = await chatPriceResponse.json();
+if (chatPriceResponse.status !== 200
+  || !String(chatPriceBody.reply || "").includes("$29 AI Agent Launch Kit")
+  || chatPriceBody.cta?.href !== "/ai-agent-launch-kit?source=chat") {
+  failures.push("initial chat price questions must answer with the Launch Kit-first offer and CTA");
+}
 
 const roiResponse = await handleAgentIdSiteRequest(
   new Request("https://gptmarketplus.com/tools/ai-automation-roi-calculator"),
