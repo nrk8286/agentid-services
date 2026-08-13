@@ -13,6 +13,7 @@ import {
   summarizeGoogleSearchIntents,
   summarizeGoogleSearchPages,
 } from "../src/google-search-console.js";
+import { tagAssistantDebugResponse } from "../src/response-security.js";
 import { normalizePaypalInvoiceId, summarizePaypalInvoice } from "../src/paypal-invoice.js";
 
 const raw = readFileSync(new URL("../wrangler.jsonc", import.meta.url), "utf8");
@@ -118,6 +119,48 @@ if (![workerSource, siteSource].every((source) => (
   hasExactCspSource(source, "script-src", "https://www.googletagmanager.com")
 ))) {
   failures.push("Worker CSP must permit the Google Tag Assistant debug bootstrap");
+}
+
+const requiredGoogleDebugStyleSources = [
+  "https://www.googletagmanager.com",
+  "https://fonts.googleapis.com",
+];
+if (![workerSource, siteSource].every((source) => (
+  requiredGoogleDebugStyleSources.every((expectedSource) => (
+    hasExactCspSource(source, "style-src", expectedSource)
+  ))
+  && hasExactCspSource(source, "font-src", "https://fonts.gstatic.com")
+))) {
+  failures.push("Worker CSP must permit Google Tag Assistant debug styles and fonts");
+}
+
+const normalTagResponse = tagAssistantDebugResponse(
+  new Request("https://gptmarketplus.com/"),
+  new Response("<!doctype html>", {
+    headers: {
+      "content-type": "text/html; charset=utf-8",
+      "cross-origin-opener-policy": "same-origin-allow-popups",
+    },
+  }),
+);
+if (normalTagResponse.headers.get("cross-origin-opener-policy") !== "same-origin-allow-popups") {
+  failures.push("Normal pages must retain the configured cross-origin opener policy");
+}
+
+const debugTagResponse = tagAssistantDebugResponse(
+  new Request("https://gptmarketplus.com/?gtm_debug=regression"),
+  new Response("<!doctype html>", {
+    headers: {
+      "content-type": "text/html; charset=utf-8",
+      "cross-origin-opener-policy": "same-origin-allow-popups",
+    },
+  }),
+);
+if (
+  debugTagResponse.headers.get("cross-origin-opener-policy") !== "unsafe-none"
+  || debugTagResponse.headers.get("cache-control") !== "private, no-store"
+) {
+  failures.push("Tag Assistant debug pages must preserve their opener without entering the public cache");
 }
 
 if (
