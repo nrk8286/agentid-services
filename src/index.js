@@ -14,6 +14,7 @@ import {
   renderLaunchKitMarkdown,
   sendQueuedCustomerFollowups,
   sendCustomerTransactionalEmail,
+  customerEmailDeliveryStatus,
   sendOwnerTransactionalEmail,
 } from "./agentid-site.js";
 import { googleSearchConsoleStatus } from "./google-search-console.js";
@@ -2629,36 +2630,6 @@ function launchKitWorkspaceCredentials(request, body = {}) {
   return {
     orderId: cleanText(body.orderId || body.order_id || url.searchParams.get("order_id") || "", 80),
     accessToken: cleanText(body.accessToken || body.access_token || url.searchParams.get("access_token") || "", 180),
-  };
-}
-
-async function customerEmailDeliveryStatus(env) {
-  const cloudflareReady = Boolean(
-    env.CUSTOMER_EMAIL
-    && typeof env.CUSTOMER_EMAIL.send === "function"
-    && cleanEmail(supportEmail(env)),
-  );
-  let gmailReady = false;
-  try {
-    const connection = await googleOAuthGmailConnection(env);
-    gmailReady = Boolean(
-      connection
-      && cleanEmail(env.GMAIL_SENDER_EMAIL || env.OWNER_NOTIFICATION_EMAIL || ""),
-    );
-  } catch {
-    gmailReady = false;
-  }
-  const resendReady = Boolean(
-    String(env.RESEND_API_KEY || "").trim()
-    && cleanEmail(env.EMAIL_FROM || supportEmail(env)),
-  );
-  return {
-    ready: cloudflareReady || gmailReady || resendReady,
-    providers: {
-      cloudflare: cloudflareReady,
-      gmailOAuth: gmailReady,
-      resend: resendReady,
-    },
   };
 }
 

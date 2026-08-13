@@ -2903,6 +2903,36 @@ export async function sendCustomerTransactionalEmail(env, to, subject, text, htm
   return combineEmailDeliveryFailures([cloudflareResult, gmailResult, resendResult]);
 }
 
+export async function customerEmailDeliveryStatus(env) {
+  const cloudflareReady = Boolean(
+    env.CUSTOMER_EMAIL
+    && typeof env.CUSTOMER_EMAIL.send === "function"
+    && cleanEmail(supportEmail(env)),
+  );
+  let gmailReady = false;
+  try {
+    const connection = await googleOAuthGmailConnection(env);
+    gmailReady = Boolean(
+      connection
+      && cleanEmail(env.GMAIL_SENDER_EMAIL || env.OWNER_NOTIFICATION_EMAIL || ""),
+    );
+  } catch {
+    gmailReady = false;
+  }
+  const resendReady = Boolean(
+    String(env.RESEND_API_KEY || "").trim()
+    && cleanEmail(env.EMAIL_FROM || supportEmail(env)),
+  );
+  return {
+    ready: cloudflareReady || gmailReady || resendReady,
+    providers: {
+      cloudflare: cloudflareReady,
+      gmailOAuth: gmailReady,
+      resend: resendReady,
+    },
+  };
+}
+
 async function maybeSendOwnerEmail(env, subject, text, html, replyTo = "") {
   return sendOwnerTransactionalEmail(env, subject, text, html, replyTo);
 }
