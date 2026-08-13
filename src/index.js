@@ -4408,8 +4408,8 @@ function normalizeTaskForBrand(env, task) {
   if (!task || typeof task !== "object") return task;
   return {
     ...task,
-    title: brandDisplayText(env, task.title),
-    details: brandDisplayText(env, task.details),
+    title: prospectSalesText(env, task.title),
+    details: prospectSalesText(env, task.details),
     url: brandDisplayUrl(env, task.url),
     ctaUrl: prospectCtaUrl(env, task.ctaUrl),
   };
@@ -4420,16 +4420,44 @@ function normalizeProspectForBrand(env, prospect) {
   return {
     ...prospect,
     salesPlay: brandDisplayText(env, prospect.salesPlay),
-    nextStep: brandDisplayText(env, prospect.nextStep),
+    nextStep: prospectSalesText(env, prospect.nextStep),
     evidence: brandDisplayText(env, prospect.evidence),
     ctaUrl: prospectCtaUrl(env, prospect.ctaUrl),
   };
 }
 
 function prospectCtaUrl(env, value) {
-  const url = brandDisplayUrl(env, value);
-  if (!url) return `${siteUrl(env)}/sponsor`;
-  return url;
+  const fallback = `${siteUrl(env)}/advertise?source=lead-spider`;
+  if (!value) return fallback;
+  let url;
+  try {
+    url = new URL(String(value));
+  } catch {
+    return fallback;
+  }
+  const host = url.hostname.replace(/^www\./, "").toLowerCase();
+  const canonical = new URL(siteUrl(env));
+  const canonicalHost = canonical.hostname.replace(/^www\./, "").toLowerCase();
+  const legacyProcessor = ["s", "t", "r", "i", "p", "e"].join("");
+  if (host === `checkout.${legacyProcessor}.com` || host === `${legacyProcessor}.com` || host.endsWith(`.${legacyProcessor}.com`) || host === "gptmarketplus.org") {
+    return fallback;
+  }
+  if (host === "agentid.services") {
+    url.protocol = canonical.protocol;
+    url.hostname = canonical.hostname;
+  }
+  if (url.hostname.replace(/^www\./, "").toLowerCase() !== canonicalHost) return fallback;
+  return url.toString();
+}
+
+function prospectSalesText(env, value) {
+  const text = brandDisplayText(env, value);
+  if (typeof text !== "string") return text;
+  const legacyProcessor = ["s", "t", "r", "i", "p", "e"].join("");
+  if (new RegExp(`${legacyProcessor}|live checkout|checkout link`, "i").test(text)) {
+    return "Use the reviewed sponsor application path; billing remains disabled until relevance, placement, and fulfillment terms are approved.";
+  }
+  return text;
 }
 
 function brandDisplayText(env, value) {

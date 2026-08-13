@@ -912,6 +912,18 @@ for (const requiredPartnerDistributionControl of [
     failures.push(`partner distribution is missing attributed Launch Kit control ${requiredPartnerDistributionControl}`);
   }
 }
+for (const requiredProspectSafetyControl of [
+  "function prospectCtaUrl(env, value)",
+  "const fallback = `${siteUrl(env)}/advertise?source=lead-spider`",
+  'const legacyProcessor = ["s", "t", "r", "i", "p", "e"].join("")',
+  'host === "gptmarketplus.org"',
+  "function prospectSalesText(env, value)",
+  "billing remains disabled until relevance, placement, and fulfillment terms are approved.",
+]) {
+  if (!workerSource.includes(requiredProspectSafetyControl)) {
+    failures.push(`prospect sales safety is missing legacy-payment routing control ${requiredProspectSafetyControl}`);
+  }
+}
 
 for (const requiredSocialSalesControl of [
   'const primaryShareUrl = utmCampaignUrl(env, "/ai-agent-launch-kit",',
