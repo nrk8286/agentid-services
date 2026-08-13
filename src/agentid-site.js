@@ -4851,7 +4851,25 @@ No response: Send at most one helpful reminder when contact_consent remains vali
 Marketing or reactivation: Send only when marketing_consent is separately true, and stop immediately when opt_out_requested is true.
 Closed loop: Confirm what happened, record the outcome, and invite the customer to return if needed.
 
-5. LAUNCH QA CHECKLIST
+5. FOLLOW-UP MESSAGES TO ADAPT
+Use the customer's chosen channel only after contact_consent is recorded. Replace bracketed fields and insert only approved facts before sending.
+
+Acknowledgment (contact consent required):
+Hi [FIRST NAME] - thanks for contacting ${business} about ${values.primaryGoal || "your request"}. We received your message and will review the details. The next step is [NEXT STEP]. Is [PREFERRED CONTACT METHOD] the best way to reach you?
+
+Missing information:
+Hi [FIRST NAME] - to route your request about ${values.mainOffer || "our service"}, could you share [ONE MISSING DETAIL]? We only need that detail for the next step. Reply when convenient, or tell us if you would rather not continue.
+
+Qualified handoff:
+Hi [FIRST NAME] - your request looks ready for the next step with ${business}. We have noted [REQUEST SUMMARY]. [HUMAN OWNER] will handle [APPROVED NEXT ACTION]. We will not make a promise about price, availability, or timing until a person confirms it.
+
+Helpful reminder (one reminder maximum; contact consent must remain valid):
+Hi [FIRST NAME] - checking whether you still want help with ${values.primaryGoal || "your request"}. You can reply with [SIMPLE REPLY OPTION], ask a question, or say "stop" and we will close the follow-up.
+
+Marketing or reactivation (marketing consent required separately):
+Hi [FIRST NAME] - because you opted in to updates from ${business}, here is one relevant next step: [APPROVED TIP OR OFFER]. Reply "stop" to end these updates.
+
+6. LAUNCH QA CHECKLIST
 - The agent identifies itself as automated when appropriate.
 - Answers match the approved knowledge above.
 - Prices, availability, policies, and outcomes are never invented.
@@ -4863,7 +4881,7 @@ Closed loop: Confirm what happened, record the outcome, and invite the customer 
 - Mobile, desktop, failure, and timeout paths are tested.
 - Analytics records workflow start, completion, handoff, and failure.
 
-6. 30-DAY SCORECARD
+7. 30-DAY SCORECARD
 Baseline workflow starts: ____
 Median time to first useful response: ____
 Qualified handoffs: ____

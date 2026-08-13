@@ -949,6 +949,11 @@ for (const requiredLaunchKitConsentControl of [
   "consent_timestamp_and_source: record when and where permission was given",
   "opt_out_requested: stop the applicable follow-up sequence and record the request",
   "Marketing or reactivation: Send only when marketing_consent is separately true",
+  "5. FOLLOW-UP MESSAGES TO ADAPT",
+  "Acknowledgment (contact consent required):",
+  "Qualified handoff:",
+  "Marketing or reactivation (marketing consent required separately):",
+  "7. 30-DAY SCORECARD",
 ]) {
   if (!siteSource.includes(requiredLaunchKitConsentControl)) {
     failures.push(`Launch Kit starter pack is missing explicit consent control ${requiredLaunchKitConsentControl}`);
