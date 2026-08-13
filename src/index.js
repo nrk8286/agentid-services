@@ -74,7 +74,7 @@ const MAX_SOURCE_BYTES = 70000;
 const MAX_JSON_BODY_BYTES = 128 * 1024;
 const BODY_TOO_LARGE = Symbol("body-too-large");
 const CANONICAL_HOST = "gptmarketplus.com";
-const PUBLIC_CACHE_KEY_VERSION = "2026-08-13-social-hub-sales-v1";
+const PUBLIC_CACHE_KEY_VERSION = "2026-08-13-social-hub-copy-v1";
 const VERIFIED_REVENUE_GOAL_CENTS = 1_000_000;
 const LEGACY_TLS_VERSIONS = new Set(["TLSv1", "TLSv1.0", "TLSv1.1"]);
 const DOMAIN_CAMPAIGN_REDIRECTS = new Map([
@@ -6130,8 +6130,11 @@ ${googleTagGatewayBody(env)}
         </div>
         <div class="panel dark">
           <span class="label">Primary product share URL</span>
-          <strong>${escapeHtml(primaryShareUrl)}</strong>
-          <p>Use this attributed Launch Kit link for social bios, newsletters, and partner posts.</p>
+          <div class="share-control">
+            <input class="share-url" type="text" readonly value="${escapeHtml(primaryShareUrl)}" aria-label="Primary Launch Kit share URL">
+            <button class="button copy-share-button" type="button" data-copy-value="${escapeHtml(primaryShareUrl)}">Copy link</button>
+          </div>
+          <p class="share-copy-status" aria-live="polite">Use this attributed Launch Kit link for social bios, newsletters, and partner posts.</p>
         </div>
       </div>
     </section>
@@ -6152,14 +6155,51 @@ ${googleTagGatewayBody(env)}
       <h2>Use these exact URLs outside the site</h2>
       <p>These links preserve source, medium, and campaign data for social bios, email, and digital documents. Keep normal internal navigation untagged.</p>
       <div class="page-list">
-        ${shareLinks.map(([label, url]) => `<article>
+        ${shareLinks.map(([label, url]) => {
+          const postCopy = `Build your first AI agent starter system for $29. Get a guided workflow brief, starter prompt, intake and consent fields, handoff rules, follow-up messages, QA tests, and a 30-day scorecard: ${url}`;
+          return `<article>
           <strong>${escapeHtml(label)}</strong>
-          <p><a href="${escapeHtml(url)}">${escapeHtml(url)}</a></p>
+          <div class="share-control">
+            <input class="share-url" type="text" readonly value="${escapeHtml(url)}" aria-label="${escapeHtml(label)} share URL">
+            <button class="button copy-share-button" type="button" data-copy-value="${escapeHtml(url)}">Copy URL</button>
+          </div>
+          <p><a href="${escapeHtml(url)}">Open link</a></p>
+          <textarea class="share-post" readonly aria-label="${escapeHtml(label)} ready-to-edit post text">${escapeHtml(postCopy)}</textarea>
+          <div class="share-actions">
+            <button class="button copy-share-button" type="button" data-copy-value="${escapeHtml(postCopy)}" data-copy-target=".share-post">Copy post</button>
+          </div>
+          <p class="share-copy-status" aria-live="polite">Copy the URL or the ready-to-edit post text.</p>
           <span>UTM tagged</span>
-        </article>`).join("")}
+        </article>`;
+        }).join("")}
       </div>
     </section>
   </main>
+  <script>
+    document.querySelectorAll(".copy-share-button").forEach((button) => {
+      button.addEventListener("click", async () => {
+        const value = button.dataset.copyValue || "";
+        const scope = button.closest(".panel, article");
+        const status = scope ? scope.querySelector(".share-copy-status") : null;
+        const originalLabel = button.textContent;
+        try {
+          if (!navigator.clipboard || !navigator.clipboard.writeText) throw new Error("Clipboard unavailable");
+          await navigator.clipboard.writeText(value);
+          button.textContent = "Copied";
+          if (status) status.textContent = "Copied. Review the wording and add your own context before posting.";
+        } catch {
+          const input = scope ? scope.querySelector(button.dataset.copyTarget || ".share-url") : null;
+          if (input) {
+            input.focus();
+            input.select();
+          }
+          button.textContent = "Select and copy";
+          if (status) status.textContent = "Clipboard access was blocked; the URL is selected so you can copy it manually.";
+        }
+        setTimeout(() => { button.textContent = originalLabel; }, 1800);
+      });
+    });
+  </script>
 </body>
 </html>`;
 }
@@ -8027,7 +8067,7 @@ const STYLES = `
 .hero{min-height:86vh;padding:24px clamp(18px,5vw,72px) 64px;background:radial-gradient(circle at 82% 18%,rgba(70,185,155,.28),transparent 30%),radial-gradient(circle at 12% 82%,rgba(215,164,65,.18),transparent 34%),linear-gradient(125deg,#0b1512,#16362f 58%,#0c1b18);color:#fff}.compact-hero{min-height:62vh}
 nav{max-width:1180px;margin:0 auto 88px;display:flex;justify-content:space-between;gap:18px}nav a{color:#fff;text-decoration:none;font-weight:800}.brand{font-size:18px}
 .hero-grid{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,420px);gap:40px;align-items:center}.eyebrow,.label{margin:0 0 12px;font-size:13px;font-weight:800;text-transform:uppercase;color:var(--gold)}h1{margin:0;font-size:clamp(52px,10vw,112px);line-height:.9}h2{margin:0 0 12px;font-size:clamp(28px,4vw,48px);line-height:1}.lede{max-width:720px;font-size:20px;color:rgba(255,255,255,.88)}
-.button{min-height:48px;border:0;border-radius:6px;padding:0 18px;background:var(--gold);font:inherit;font-weight:800;color:#17130b;cursor:pointer}.link-button{display:inline-flex;align-items:center;text-decoration:none}.checkout-link{font-weight:900;color:var(--green);text-decoration:none}.inline-run{display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin-top:30px}.panel{border-radius:8px;padding:24px;background:#fff;border:1px solid var(--line)}.panel.dark{background:rgba(10,15,14,.8);border-color:rgba(255,255,255,.22);color:#fff}.panel strong{display:block;font-size:42px}
+.button{min-height:48px;border:0;border-radius:6px;padding:0 18px;background:var(--gold);font:inherit;font-weight:800;color:#17130b;cursor:pointer}.link-button{display:inline-flex;align-items:center;text-decoration:none}.checkout-link{font-weight:900;color:var(--green);text-decoration:none}.inline-run{display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin-top:30px}.panel{border-radius:8px;padding:24px;background:#fff;border:1px solid var(--line)}.panel.dark{background:rgba(10,15,14,.8);border-color:rgba(255,255,255,.22);color:#fff}.panel strong{display:block;font-size:42px}.share-control{display:flex;align-items:stretch;gap:10px;margin-top:14px}.share-url,.share-post{min-width:0;flex:1;border:1px solid var(--line);border-radius:6px;padding:11px 12px;font:inherit;color:var(--ink);background:#fff}.share-post{width:100%;min-height:96px;margin-top:12px;resize:vertical}.panel.dark .share-url{border-color:rgba(255,255,255,.3);color:#fff;background:rgba(255,255,255,.08)}.share-control .button,.share-actions .button{min-height:42px;padding:0 14px;font-size:14px}.share-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}.share-copy-status{min-height:22px;font-size:13px;color:var(--muted)}.panel.dark .share-copy-status{color:rgba(255,255,255,.78)}
 .section{max-width:1180px;margin:0 auto;padding:78px clamp(18px,5vw,72px)}.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}.card{min-height:210px;border:1px solid var(--line);border-radius:8px;background:#fff;padding:22px}.card p{color:var(--muted)}
 .split{display:grid;grid-template-columns:.7fr 1fr;gap:42px;border-top:1px solid var(--line)}.checks,.packages{display:grid;gap:12px}.check,.task-list article,.packages article{display:flex;justify-content:space-between;gap:18px;padding:18px;border:1px solid var(--line);border-radius:8px;background:#fff}.packages article{display:grid}.packages span{font-size:34px;font-weight:900}.check.ok strong{color:var(--green)}.check.bad strong{color:var(--red)}
 .task-list{display:grid;gap:12px;margin-top:28px}.task-list article{align-items:flex-start}.task-list span{color:var(--muted);font-weight:800;white-space:nowrap}
@@ -8035,5 +8075,5 @@ nav{max-width:1180px;margin:0 auto 88px;display:flex;justify-content:space-betwe
 .page-list{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-top:28px}.page-list article{border:1px solid var(--line);border-radius:8px;background:#fff;padding:20px}.page-list a{text-decoration:none}.page-list strong{font-size:20px}.page-list p{color:var(--muted)}.page-list span{display:block;font-size:13px;font-weight:800;color:var(--green)}
 .lead-form{display:grid;gap:14px;border:1px solid var(--line);border-radius:8px;background:#fff;padding:22px}.lead-form label{display:grid;gap:7px;font-weight:800}.lead-form span{font-size:13px;text-transform:uppercase;color:var(--muted)}.lead-form input,.lead-form select,.lead-form textarea{width:100%;border:1px solid var(--line);border-radius:6px;padding:12px 13px;font:inherit;color:var(--ink);background:#fff}.lead-form textarea{resize:vertical}.lead-form .consent-field{grid-template-columns:auto 1fr;align-items:start;gap:10px}.lead-form .consent-field input{width:auto;margin-top:2px}.lead-form .consent-field span{text-transform:none;line-height:1.4}.lead-form button:disabled,.buy-button:disabled{opacity:.6;cursor:wait}#lead-status,#run-status{font-weight:800;color:var(--green)}
 @media(max-width:900px){.hero-grid,.split{grid-template-columns:1fr}.grid-3{grid-template-columns:1fr 1fr}.task-list article,.check,.prospect-list article{display:grid;grid-template-columns:1fr}.task-list span{white-space:normal}}
-@media(max-width:560px){nav{flex-direction:column;margin-bottom:48px}.hero{min-height:auto;padding-bottom:48px}.hero h1{font-size:clamp(40px,13vw,56px);line-height:.96}.lede{font-size:18px}.grid-3,.page-list{grid-template-columns:1fr}}
+@media(max-width:560px){nav{flex-direction:column;margin-bottom:48px}.hero{min-height:auto;padding-bottom:48px}.hero h1{font-size:clamp(40px,13vw,56px);line-height:.96}.lede{font-size:18px}.grid-3,.page-list{grid-template-columns:1fr}.share-control{flex-direction:column}.share-control .button{width:100%}}
 `;
