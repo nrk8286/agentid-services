@@ -549,6 +549,18 @@ for (const requiredCheckoutMeasurementControl of [
   }
 }
 
+for (const requiredLegacyLaunchKitRoutingControl of [
+  'const legacySelfServeCampaigns = new Set(["agentid_social_bio", "agentid_newsletter"]);',
+  'String(url.searchParams.get("utm_content") || "").toLowerCase() === "pricing"',
+  'url.pathname = "/ai-agent-launch-kit";',
+  'url.searchParams.set("utm_content", "launch_kit");',
+  'const isLegacyLaunchKitPricingLink = !isAgentIdSite(env)',
+]) {
+  if (!workerSource.includes(requiredLegacyLaunchKitRoutingControl)) {
+    failures.push(`legacy self-serve acquisition routing is missing ${requiredLegacyLaunchKitRoutingControl}`);
+  }
+}
+
 const securityResponse = await handleAgentIdSiteRequest(
   new Request("https://gptmarketplus.com/.well-known/security.txt"),
   { SITE_URL: "https://gptmarketplus.com", SUPPORT_EMAIL: "admin@gptmarketplus.com", BRAND_NAME: "GPTMarketPlus" },

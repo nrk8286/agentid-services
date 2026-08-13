@@ -669,6 +669,24 @@ export default {
         }),
       });
     }
+    const legacySelfServeCampaigns = new Set(["agentid_social_bio", "agentid_newsletter"]);
+    if (request.method === "GET" || request.method === "HEAD") {
+      const isLegacyLaunchKitPricingLink = !isAgentIdSite(env)
+        && url.pathname === "/pricing"
+        && String(url.searchParams.get("utm_content") || "").toLowerCase() === "pricing"
+        && legacySelfServeCampaigns.has(String(url.searchParams.get("utm_campaign") || "").toLowerCase());
+      if (isLegacyLaunchKitPricingLink) {
+        url.pathname = "/ai-agent-launch-kit";
+        url.searchParams.set("utm_content", "launch_kit");
+        return new Response(null, {
+          status: 301,
+          headers: withSecurityHeaders({
+            location: url.toString(),
+            "cache-control": "public, max-age=3600",
+          }),
+        });
+      }
+    }
     if ((url.pathname === "/api/paypal/status" || url.pathname === "/api/agents/paypal/status") && request.method === "GET") {
       return jsonResponse(await paypalPublicStatus(env));
     }
