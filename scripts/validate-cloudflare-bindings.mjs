@@ -10,6 +10,7 @@ import {
   googlePropertyCandidates,
   summarizeGoogleIndexInspection,
   summarizeGoogleSearchAnalytics,
+  summarizeGoogleSearchIntents,
   summarizeGoogleSearchPages,
 } from "../src/google-search-console.js";
 import { normalizePaypalInvoiceId, summarizePaypalInvoice } from "../src/paypal-invoice.js";
@@ -19,6 +20,7 @@ const runtimeMigration = readFileSync(new URL("../migrations/0004_agent_runtime.
 const genericLeadNotificationMigration = readFileSync(new URL("../migrations/0008_generic_lead_notifications.sql", import.meta.url), "utf8");
 const workerSource = readFileSync(new URL("../src/index.js", import.meta.url), "utf8");
 const siteSource = readFileSync(new URL("../src/agentid-site.js", import.meta.url), "utf8");
+const searchConsoleSource = readFileSync(new URL("../src/google-search-console.js", import.meta.url), "utf8");
 const failures = [];
 
 function cspDirectiveSources(source, directiveName) {
@@ -358,6 +360,50 @@ for (const requiredAnalyticsControl of [
   }
 }
 
+for (const requiredOutcomeControl of [
+  'recommendedKeyEvents: ["generate_lead", "purchase"]',
+  'eventsToUnmarkAsKeyEvents: ["conversion", "scroll_depth", "scroll", "chat_open", "checkout_click"]',
+  'steps: ["session_start", "engaged_session", "form_start_or_view_item", "checkout_click", "begin_checkout_or_generate_lead", "purchase"]',
+  'window.__agentidOutcomeEventSeen = function(eventName, properties)',
+  'sessionStorage.setItem(storageKey, "1")',
+  'capture_verified: true',
+  'event_name: "purchase"',
+  'provider_verified: true',
+  'Verified purchase events are recorded by the server after payment capture.',
+  'event: "google_ads_" + eventName',
+  'event: "google_ads_purchase"',
+]) {
+  if (!`${workerSource}\n${siteSource}`.includes(requiredOutcomeControl)) {
+    failures.push(`specific outcome measurement is missing ${requiredOutcomeControl}`);
+  }
+}
+if (/dataLayer\.push\(Object\.assign\(\{\s*event: "conversion"/.test(`${workerSource}\n${siteSource}`)) {
+  failures.push("generic conversion must not be pushed into the shared data layer");
+}
+for (const requiredInternalTrafficControl of [
+  'source === "codex_release" && medium === "qa" ? "internal" : ""',
+  'traffic_type: window.__agentidTrafficType || ""',
+  "'$.traffic_type'",
+]) {
+  if (!`${workerSource}\n${siteSource}`.includes(requiredInternalTrafficControl)) {
+    failures.push(`QA/internal traffic classification is missing ${requiredInternalTrafficControl}`);
+  }
+}
+if (!siteSource.includes("AS hostname,") || !siteSource.includes("GROUP BY hostname, landing_page")) {
+  failures.push("attribution report must break landing performance down by hostname and landing page");
+}
+for (const requiredLeadControl of [
+  'eventName: "form_start"',
+  'form.dataset.submissionId = form.dataset.submissionId || crypto.randomUUID()',
+  'deduplicated: true',
+  'lead_type: trackedEvent === "booking_submit" ? "consultation" : "contact_request"',
+  'SUM(CASE WHEN event_name = \'generate_lead\' THEN 1 ELSE 0 END) AS lead_events',
+]) {
+  if (!siteSource.includes(requiredLeadControl)) {
+    failures.push(`consultation measurement is missing ${requiredLeadControl}`);
+  }
+}
+
 for (const requiredPurchaseControl of [
   'gtag("config", "${escapeJs(directTagId)}", { send_page_view: false })',
   "window.agentidTrackVerifiedPurchase = function(purchase)",
@@ -385,6 +431,23 @@ if (!securityBody.includes("Canonical: https://gptmarketplus.com/.well-known/sec
   failures.push("security.txt must use its well-known URL as Canonical");
 }
 
+const rejectedPublicPurchase = await handleAgentIdSiteRequest(
+  new Request("https://gptmarketplus.com/api/events", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      eventName: "purchase",
+      properties: { provider_verified: true, capture_verified: true },
+    }),
+  }),
+  { SITE_URL: "https://gptmarketplus.com" },
+  { waitUntil() {} },
+);
+const rejectedPublicPurchaseBody = await rejectedPublicPurchase.json();
+if (rejectedPublicPurchase.status !== 403 || rejectedPublicPurchaseBody.recorded !== false) {
+  failures.push("the public analytics collector must reject client-asserted purchase events");
+}
+
 const homeResponse = await handleAgentIdSiteRequest(
   new Request("https://gptmarketplus.com/"),
   {
@@ -398,6 +461,13 @@ const homeResponse = await handleAgentIdSiteRequest(
   { waitUntil() {} },
 );
 const homeBody = await homeResponse.text();
+for (const requiredHomeCta of [
+  'href="/book-a-consultation?source=homepage"',
+  'href="/ai-agent-launch-kit"',
+  "Get the $29 Launch Kit",
+]) {
+  if (!homeBody.includes(requiredHomeCta)) failures.push(`homepage is missing high-intent CTA ${requiredHomeCta}`);
+}
 if (!homeBody.includes('<meta name="google-site-verification" content="hxvcDl32V0BA5LSTQx-OfIUE6DAIR6TrRp2pUbE5XZo">')) {
   failures.push("homepage must expose the exact Google Search Console verification tag");
 }
@@ -459,6 +529,9 @@ for (const conversionPath of ["/services", "/ai-agents", "/use-cases"]) {
   const conversionBody = await conversionResponse.text();
   if (!conversionBody.includes("data-conversion-bridge=") || !conversionBody.includes("Book my strategy call")) {
     failures.push(`${conversionPath} must include the analytics-led consultation bridge`);
+  }
+  if (!conversionBody.includes('href="/ai-agent-launch-kit"')) {
+    failures.push(`${conversionPath} must send qualified visitors to the high-engagement Launch Kit`);
   }
 }
 
@@ -660,6 +733,37 @@ if (
   || JSON.stringify(searchPages).includes("private.example")
 ) {
   failures.push("Search Console page diagnostics must rank canonical public pages by aggregate impressions");
+}
+const searchIntents = summarizeGoogleSearchIntents({
+  rows: [
+    { keys: ["private small business workflow phrase", "https://gptmarketplus.com/services"], clicks: 1, impressions: 20, ctr: 0.05, position: 12 },
+    { keys: ["private receptionist pricing phrase", "https://gptmarketplus.com/ai-agents"], clicks: 0, impressions: 10, ctr: 0, position: 30 },
+    { keys: ["private unmatched automation phrase", "https://gptmarketplus.com/resources"], clicks: 0, impressions: 5, ctr: 0, position: 40 },
+    { keys: ["private small business workflow phrase", "https://www.gptmarketplus.com/services"], clicks: 50, impressions: 500, ctr: 0.1, position: 1 },
+    { keys: ["private receptionist pricing phrase", "https://other.example/"], clicks: 50, impressions: 500, ctr: 0.1, position: 1 },
+  ],
+}, "https://gptmarketplus.com");
+if (
+  searchIntents.length !== 3
+  || searchIntents[0].intent !== "small_business_ai"
+  || searchIntents[0].impressions !== 20
+  || searchIntents[0].position !== 12
+  || !searchIntents.some((entry) => entry.intent === "ai_receptionist" && entry.impressions === 10)
+  || !searchIntents.some((entry) => entry.intent === "other" && entry.impressions === 5)
+  || JSON.stringify(searchIntents).includes("private")
+) {
+  failures.push("Search Console intent diagnostics must aggregate demand without exposing raw queries");
+}
+
+for (const requiredSearchIntentControl of [
+  'dimensions: ["query", "page"]',
+  "rowLimit = 25_000",
+  "startRow += rowLimit",
+  "summarizeGoogleSearchIntents(intentsResponse.payload, origin)",
+]) {
+  if (!searchConsoleSource.includes(requiredSearchIntentControl)) {
+    failures.push(`Search Console intent collection is missing ${requiredSearchIntentControl}`);
+  }
 }
 
 const ownerMessages = [];
