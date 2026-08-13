@@ -535,6 +535,13 @@ for (const requiredPurchaseControl of [
     failures.push(`verified PayPal completion is missing ${requiredPurchaseControl}`);
   }
 }
+const purchaseTrackingMarker = 'if (typeof window.agentidTrackVerifiedPurchase === "function" && result.purchase)';
+const emailFallbackMarker = 'if (!result.emailSent)';
+if (workerSource.indexOf(purchaseTrackingMarker) === -1 || workerSource.indexOf(emailFallbackMarker) === -1) {
+  failures.push("verified PayPal completion must include purchase tracking and email fallback controls");
+} else if (workerSource.indexOf(purchaseTrackingMarker) > workerSource.indexOf(emailFallbackMarker)) {
+  failures.push("verified PayPal purchase tracking must run before the email-delivery fallback branch");
+}
 
 for (const requiredCheckoutMeasurementControl of [
   "let responseStatus = 0;",

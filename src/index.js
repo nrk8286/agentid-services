@@ -2774,15 +2774,15 @@ function renderPaypalOrderCompletionPage(env) {
              throw new Error("The secure delivery link did not match this site.");
            }
            deliveryLink.href = deliveryUrl.toString();
+           if (typeof window.agentidTrackVerifiedPurchase === "function" && result.purchase) {
+             await window.agentidTrackVerifiedPurchase(result.purchase);
+           }
            if (!result.emailSent) {
              fallback.hidden = false;
              status.textContent = "Payment confirmed. Your secure workspace is ready below while delivery email is retried.";
              return;
            }
            status.textContent = "Payment confirmed. Opening your next step…";
-           if (typeof window.agentidTrackVerifiedPurchase === "function" && result.purchase) {
-             await window.agentidTrackVerifiedPurchase(result.purchase);
-           }
            location.replace(deliveryUrl.toString());
          } catch (error) {
            status.textContent = error.message || "Payment confirmation failed. Contact support with your PayPal order ID.";
