@@ -3,6 +3,7 @@ import {
   classifyLeadRecord,
   handleAgentIdSiteRequest,
   notifyQueuedSalesReadyLeads,
+  sendQueuedCustomerFollowups,
   sendCustomerTransactionalEmail,
   sendOwnerTransactionalEmail,
 } from "../src/agentid-site.js";
@@ -23,6 +24,10 @@ const workerSource = readFileSync(new URL("../src/index.js", import.meta.url), "
 const siteSource = readFileSync(new URL("../src/agentid-site.js", import.meta.url), "utf8");
 const searchConsoleSource = readFileSync(new URL("../src/google-search-console.js", import.meta.url), "utf8");
 const failures = [];
+
+if (typeof sendQueuedCustomerFollowups !== "function") {
+  failures.push("customer follow-up sender must be exported for the scheduler");
+}
 
 function cspDirectiveSources(source, directiveName) {
   const cspMatch = source.match(/"content-security-policy"\s*:\s*"([^"\r\n]*)"/i);
@@ -58,6 +63,19 @@ if (!workerSource.includes('const recovery = await paypalApiRequest(env, `/v2/ch
 if (!workerSource.includes('payload.type === "paypal_purchase_fulfillment"')
     || !workerSource.includes('await fulfillPaypalPurchaseEmail(env, payload.payload?.orderId)')) {
   failures.push("failed PayPal customer delivery must use the retryable fulfillment queue");
+}
+for (const requiredCustomerFollowupControl of [
+  "sendQueuedCustomerFollowups",
+  "FROM agentid_followups f",
+  "f.consent_required = 0 OR l.marketing_consent = 1",
+  "status = 'sending'",
+  "send_after_hours",
+  "const customerFollowups = await sendQueuedCustomerFollowups(env)",
+  "sendQueuedCustomerFollowups(env, { limit: 1 })",
+]) {
+  if (!`${workerSource}\n${siteSource}`.includes(requiredCustomerFollowupControl)) {
+    failures.push(`customer follow-up delivery is missing ${requiredCustomerFollowupControl}`);
+  }
 }
 if (siteSource.includes('data-endpoint="/api/checkout"') || siteSource.includes("Pay by card")) {
   failures.push("public product pages must not expose a non-PayPal checkout path");

@@ -12,6 +12,7 @@ import {
   renderLaunchKitWorkspaceOutput,
   renderLaunchKitWorkspacePage,
   renderLaunchKitMarkdown,
+  sendQueuedCustomerFollowups,
   sendCustomerTransactionalEmail,
   sendOwnerTransactionalEmail,
 } from "./agentid-site.js";
@@ -3644,6 +3645,7 @@ function stableProspectId(domain, path) {
 async function runAgentLoop(env, trigger, force) {
   const now = new Date();
   const salesLeadHandoff = await notifyQueuedSalesReadyLeads(env);
+  const customerFollowups = await sendQueuedCustomerFollowups(env);
   const state = await getJson(env, "agents:state") || {};
   const elapsed = state.lastRunAt ? (now.getTime() - Date.parse(state.lastRunAt)) / 1000 : Infinity;
 
@@ -3655,6 +3657,7 @@ async function runAgentLoop(env, trigger, force) {
       nextEligibleAt: new Date(Date.parse(state.lastRunAt) + RUN_INTERVAL_SECONDS * 1000).toISOString(),
       latest: await getJson(env, "agents:latest"),
       salesLeadHandoff,
+      customerFollowups,
     };
   }
 
@@ -3677,7 +3680,7 @@ async function runAgentLoop(env, trigger, force) {
 
   await replaceTasks(env, mergeTasks(tasks.items, nextTasks));
   const leadSpider = await runLeadSpider(env, { trigger, force: false });
-  const finalPlan = { ...plan, leadSpider: summarizeLeadSpider(leadSpider), salesLeadHandoff };
+  const finalPlan = { ...plan, leadSpider: summarizeLeadSpider(leadSpider), salesLeadHandoff, customerFollowups };
   await recordPlaybook(env, finalPlan.playbook || dailyPlaybook(env, { latest: finalPlan, tasks: { items: tasks.items }, metrics, spider: null, revenue: null }), finalPlan);
 
   await putJson(env, "agents:latest", finalPlan, 60 * 60 * 24 * 30);

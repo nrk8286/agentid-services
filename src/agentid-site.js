@@ -1936,7 +1936,6 @@ function buildLeadSummary(lead) {
 }
 
 function generateFollowUpSequence(lead, env = null) {
-  const packageName = lead.recommendedPackage || "the right package";
   const emailLink = (pathname, content) => env
     ? campaignUrl(env, pathname, {
       source: "lead_followup",
@@ -1945,31 +1944,55 @@ function generateFollowUpSequence(lead, env = null) {
       content,
     })
     : pathname;
+  const implementationIntent = Boolean(
+    Number(lead.booked_call) === 1
+      || Number(lead.quote_requested) === 1
+      || lead.purchase_intent
+      || lead.lead_status === "HOT"
+      || lead.leadTag === "HOT",
+  );
+  const launchKitLink = emailLink("/ai-agent-launch-kit", "launch_kit");
+  const consultationLink = emailLink("/book-a-consultation", "consultation");
+  const firstStep = implementationIntent
+    ? {
+      subject: "Confirm the scope for your first AI workflow",
+      body: `Thanks for checking out GPTMarketPlus. Because you asked about implementation, the next step is a free strategy call to confirm the workflow, handoff rules, integrations, budget, and delivery scope: ${consultationLink}`,
+      send_after_hours: 0,
+      consent_required: false,
+    }
+    : {
+      subject: "Start with a usable AI workflow for $29",
+      body: `Thanks for checking out GPTMarketPlus. If you want a self-serve first step, the $29 Launch Kit turns one bottleneck into a private guided workspace with a tailored starter prompt, lead intake, follow-up, QA, and a 30-day scorecard: ${launchKitLink}`,
+      send_after_hours: 0,
+      consent_required: false,
+    };
   return [
-    {
-      step: 1,
-      subject: "We received your AI agent request",
-      body: `Thanks for checking out GPTMarketPlus. Based on what you told us, your business may benefit from ${packageName}. Review plans and pricing: ${emailLink("/pricing", "step_1_pricing")}`,
-    },
+    { step: 1, ...firstStep },
     {
       step: 2,
       subject: "What a custom AI agent can do for your business",
       body: `A custom AI agent can respond faster, capture more leads, and route requests before your team has to do the manual work. Compare agent types: ${emailLink("/ai-agents", "step_2_agent_types")}`,
+      send_after_hours: 24,
     },
     {
       step: 3,
       subject: "Where most businesses lose leads",
       body: `Most businesses lose leads because follow-up is too slow. A custom AI agent can help collect, qualify, and route leads instantly. See practical use cases: ${emailLink("/use-cases", "step_3_use_cases")}`,
+      send_after_hours: 72,
     },
     {
       step: 4,
-      subject: "Want us to map your first AI workflow?",
-      body: `We can map the first workflow that will save the most time or capture the most revenue. Request your plan: ${emailLink("/contact", "step_4_contact")}`,
+      subject: implementationIntent ? "Want us to map your first AI workflow?" : "Turn the checklist into a working starter system",
+      body: implementationIntent
+        ? `We can map the first workflow that will save the most time or capture the most revenue. Request your plan: ${consultationLink}`
+        : `Choose one bottleneck from the checklist and turn it into a usable starter system with the private Launch Kit workspace: ${launchKitLink}`,
+      send_after_hours: 120,
     },
     {
       step: 5,
       subject: "Should we close your AI agent request?",
-      body: `When you are ready, book a strategy call so we can confirm scope and pricing: ${emailLink("/book-a-consultation", "step_5_consultation")}`,
+      body: `When you are ready, ${implementationIntent ? `book a strategy call so we can confirm scope and pricing: ${consultationLink}` : `start with the Launch Kit or book a strategy call if you want implementation help: ${launchKitLink} · ${consultationLink}`}`,
+      send_after_hours: 240,
     },
   ];
 }
@@ -2909,6 +2932,91 @@ export async function notifyQueuedSalesReadyLeads(env, options = {}) {
   };
 }
 
+function customerFollowupHtml(subject, body) {
+  const safeBody = escapeHtml(body || "").replace(/\n/g, "<br>");
+  return `<div style="font-family:Arial,sans-serif;line-height:1.55;color:#17211d;max-width:640px">
+    <h1 style="font-size:24px">${escapeHtml(subject || "GPTMarketPlus follow-up")}</h1>
+    <p>${safeBody}</p>
+    <p>You can reply to this email if you need help with your request.</p>
+  </div>`;
+}
+
+export async function sendQueuedCustomerFollowups(env, options = {}) {
+  if (!env.GMP_DB) {
+    return { ok: true, eligible: 0, claimed: 0, delivered: 0, failed: 0, storage: "unavailable" };
+  }
+  const requestedLimit = Number(options.limit || 10);
+  const limit = Number.isFinite(requestedLimit) ? Math.max(1, Math.min(20, requestedLimit)) : 10;
+  const now = new Date().toISOString();
+  const result = await env.GMP_DB.prepare(`
+    SELECT f.*, l.email, l.name, l.crm_stage, l.lead_status, l.contact_consent, l.marketing_consent
+    FROM agentid_followups f
+    JOIN agentid_leads l ON l.id = f.lead_id
+    WHERE l.contact_consent = 1
+      AND l.crm_stage <> 'test_record'
+      AND l.lead_status <> 'TEST'
+      AND COALESCE(l.email, '') <> ''
+      AND (f.consent_required = 0 OR l.marketing_consent = 1)
+      AND (
+        (f.status = 'queued' AND datetime(f.created_at, '+' || f.send_after_hours || ' hours') <= datetime(?))
+        OR (f.status = 'delivery_failed' AND datetime(f.updated_at, '+24 hours') <= datetime(?))
+      )
+    ORDER BY f.step_number ASC, f.created_at ASC
+    LIMIT ?
+  `).bind(now, now, limit).all();
+  const followups = Array.isArray(result.results) ? result.results : [];
+  let claimed = 0;
+  let delivered = 0;
+  let failed = 0;
+
+  for (const followup of followups) {
+    const claimedAt = new Date().toISOString();
+    const claim = await env.GMP_DB.prepare(`
+      UPDATE agentid_followups
+      SET status = 'sending', updated_at = ?
+      WHERE id = ? AND status IN ('queued', 'delivery_failed')
+    `).bind(claimedAt, followup.id).run();
+    if (Number(claim.meta?.changes || 0) !== 1) continue;
+    claimed += 1;
+    try {
+      const recipient = cleanEmail(followup.email || "");
+      const subject = cleanText(followup.subject || "GPTMarketPlus follow-up", 160);
+      const body = cleanText(followup.body || "", 1200);
+      const delivery = await sendCustomerTransactionalEmail(
+        env,
+        recipient,
+        subject,
+        body,
+        customerFollowupHtml(subject, body),
+      );
+      const status = delivery.delivered ? "sent" : "delivery_failed";
+      await env.GMP_DB.prepare(
+        "UPDATE agentid_followups SET status = ?, updated_at = ? WHERE id = ?",
+      ).bind(status, new Date().toISOString(), followup.id).run();
+      if (delivery.delivered) delivered += 1;
+      else failed += 1;
+    } catch (error) {
+      failed += 1;
+      await env.GMP_DB.prepare(
+        "UPDATE agentid_followups SET status = ?, updated_at = ? WHERE id = ?",
+      ).bind("delivery_failed", new Date().toISOString(), followup.id).run();
+      console.warn("gptmarketplus customer follow-up failed", {
+        followupId: cleanText(followup.id || "", 120),
+        message: cleanText(error instanceof Error ? error.message : error, 160),
+      });
+    }
+  }
+
+  return {
+    ok: failed === 0,
+    eligible: followups.length,
+    claimed,
+    delivered,
+    failed,
+    storage: "d1",
+  };
+}
+
 async function maybeSendCustomerEmail(env, to, subject, text, html) {
   const result = await sendCustomerTransactionalEmail(env, to, subject, text, html);
   if (!result.delivered) {
@@ -3536,7 +3644,7 @@ function renderHomePage(env, state) {
       primaryLabel: "Get the $29 Launch Kit",
       secondaryPath: "/book-a-consultation?source=homepage",
       secondaryLabel: "Book a Free AI Strategy Call",
-      trustLine: "Start with a one-time $29 toolkit delivered after verified PayPal payment, or book a free call for a custom build. Plans start at $497.",
+      trustLine: "Start with the one-time $29 Launch Kit for a self-serve first workflow. Need implementation? Book a free strategy call; custom builds are scoped before payment.",
       ownershipLabel: "GPTMarketPlus platform advantages",
       finalEyebrow: "Ready to take the first practical step?",
       finalTitle: "Start with the $29 AI Agent Launch Kit",
@@ -5068,6 +5176,31 @@ function renderBookingPage(env) {
   });
 }
 
+function renderLeadMagnetDelivery(env) {
+  const launchKitUrl = campaignUrl(env, "/ai-agent-launch-kit", {
+    source: "lead_magnet",
+    medium: "owned",
+    campaign: "agentid_lead_magnet",
+    content: "launch_kit",
+  });
+  const consultationUrl = campaignUrl(env, "/book-a-consultation", {
+    source: "lead_magnet",
+    medium: "owned",
+    campaign: "agentid_lead_magnet",
+    content: "consultation",
+  });
+  return `
+    <p class="card-kicker">Your checklist is ready</p>
+    <h2>10 practical places to look for an AI workflow</h2>
+    <ol class="checklist">${LEAD_MAGNET_CHECKLIST.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ol>
+    <div class="cta-box">
+      <strong>Want to turn one item into a usable system?</strong>
+      <p>The $29 Launch Kit gives you a private guided workspace, tailored starter prompt, lead-intake plan, follow-up sequence, QA checklist, and 30-day scorecard after verified PayPal payment.</p>
+      <a class="button-primary" href="${escapeHtml(launchKitUrl)}" data-track-event="product_view" data-track-label="Lead Magnet Launch Kit CTA">Build the $29 Launch Kit</a>
+      <a class="button-secondary" href="${escapeHtml(consultationUrl)}" data-track-event="cta_click" data-track-label="Lead Magnet Consultation CTA">Book a free strategy call</a>
+    </div>`;
+}
+
 function renderLeadMagnetPage(env) {
   const form = renderLeadForm({
     action: "/api/lead-magnet",
@@ -5075,13 +5208,15 @@ function renderLeadMagnetPage(env) {
     cta: "Get the Free Checklist",
     note: "Free AI Automation Audit Checklist. Find 10 tasks your business can automate this month.",
     turnstileHtml: renderTurnstileWidget(env),
+    dataAttrs: 'data-form-type="lead_magnet" data-preview-target="#lead-magnet-delivery"',
     fields: [
       { name: "name", label: "Name", placeholder: "Your name", required: true },
       { name: "email", label: "Email", type: "email", placeholder: "you@example.com", required: true },
-      { name: "phone", label: "Phone", placeholder: "(555) 555-5555", required: true },
+      { name: "phone", label: "Phone (optional)", placeholder: "(555) 555-5555", required: false },
       { name: "businessType", label: "Business type", type: "select", required: true, options: businessTypeCatalog() },
-      { name: "website", label: "Website", type: "url", placeholder: "https://yourbusiness.com", required: true },
+      { name: "website", label: "Website (optional)", type: "url", placeholder: "https://yourbusiness.com", required: false },
       { name: "contactConsent", label: "I agree to be contacted about my request.", type: "checkbox", required: true },
+      { name: "marketingConsent", label: "Send me occasional practical AI workflow tips and Launch Kit updates.", type: "checkbox", required: false },
     ],
   });
 
@@ -5098,10 +5233,15 @@ function renderLeadMagnetPage(env) {
       </div>
     </section>
     <section class="section split-section">
-      <div>${form}</div>
+      <div>
+        ${form}
+        <div id="lead-magnet-delivery" class="review-panel lead-magnet-delivery" aria-live="polite">
+          <p class="form-note">Submit the short form and the checklist will appear here immediately.</p>
+        </div>
+      </div>
       <div class="side-note">
         <p class="card-kicker">After submit</p>
-        <p>We’ll capture your details, show a thank-you message, recommend a strategy call, and prepare follow-up workflow routing.</p>
+        <p>Your checklist appears immediately. We’ll also prepare consent-aware follow-up and show the $29 Launch Kit as the self-serve next step.</p>
       </div>
     </section>
   `;
@@ -5274,6 +5414,13 @@ async function captureLead(env, ctx, body, options = {}) {
   const saved = await dbUpsertLead(env, lead);
   if (!classification.excluded) {
     await dbInsertFollowups(env, saved.id, generateFollowUpSequence(saved, env));
+    if (ctx && typeof ctx.waitUntil === "function") {
+      ctx.waitUntil(sendQueuedCustomerFollowups(env, { limit: 1 }).catch((error) => {
+        console.warn("gptmarketplus immediate customer follow-up failed", {
+          message: cleanText(error instanceof Error ? error.message : error, 160),
+        });
+      }));
+    }
   }
   await dbInsertEvent(env, {
     event_name: classification.excluded ? "test_submission" : `${submissionType}_submit`,
@@ -11045,14 +11192,13 @@ async function handleLeadMagnetSubmission(request, env, ctx) {
     requiredFields: [
       "name",
       "email",
-      "phone",
       "businessType",
-      "website",
       "contactConsent",
     ],
-    message: "Your checklist request has been received.",
+    message: "Your checklist is ready below. We also included the $29 Launch Kit as the self-serve next step.",
     trackEvent: "lead_magnet_submit",
     crmStage: "nurture",
+    customerBlueprintHtml: renderLeadMagnetDelivery(env),
   });
 
   if (!result.ok) {
