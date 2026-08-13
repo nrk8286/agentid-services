@@ -73,7 +73,7 @@ const MAX_SOURCE_BYTES = 70000;
 const MAX_JSON_BODY_BYTES = 128 * 1024;
 const BODY_TOO_LARGE = Symbol("body-too-large");
 const CANONICAL_HOST = "gptmarketplus.com";
-const PUBLIC_CACHE_KEY_VERSION = "2026-08-13-roi-funnel-v1";
+const PUBLIC_CACHE_KEY_VERSION = "2026-08-13-social-share-funnel-v1";
 const VERIFIED_REVENUE_GOAL_CENTS = 1_000_000;
 const LEGACY_TLS_VERSIONS = new Set(["TLSv1", "TLSv1.0", "TLSv1.1"]);
 const DOMAIN_CAMPAIGN_REDIRECTS = new Map([
@@ -6071,12 +6071,12 @@ ${googleTagGatewayBody(env)}
 
 function renderSocialPage(env) {
   const shareLinks = [
-    ["LinkedIn bio", utmCampaignUrl(env, "/pricing", { source: "linkedin", medium: "social", campaign: "agentid_social_bio", content: "pricing" })],
-    ["Facebook bio", utmCampaignUrl(env, "/pricing", { source: "facebook", medium: "social", campaign: "agentid_social_bio", content: "pricing" })],
-    ["Instagram bio", utmCampaignUrl(env, "/pricing", { source: "instagram", medium: "social", campaign: "agentid_social_bio", content: "pricing" })],
-    ["TikTok bio", utmCampaignUrl(env, "/pricing", { source: "tiktok", medium: "social", campaign: "agentid_social_bio", content: "pricing" })],
-    ["X bio", utmCampaignUrl(env, "/pricing", { source: "x", medium: "social", campaign: "agentid_social_bio", content: "pricing" })],
-    ["Newsletter", utmCampaignUrl(env, "/pricing", { source: "newsletter", medium: "email", campaign: "agentid_newsletter", content: "pricing" })],
+    ["LinkedIn bio", utmCampaignUrl(env, "/ai-agent-launch-kit", { source: "linkedin", medium: "social", campaign: "agentid_social_bio", content: "launch_kit" })],
+    ["Facebook bio", utmCampaignUrl(env, "/ai-agent-launch-kit", { source: "facebook", medium: "social", campaign: "agentid_social_bio", content: "launch_kit" })],
+    ["Instagram bio", utmCampaignUrl(env, "/ai-agent-launch-kit", { source: "instagram", medium: "social", campaign: "agentid_social_bio", content: "launch_kit" })],
+    ["TikTok bio", utmCampaignUrl(env, "/ai-agent-launch-kit", { source: "tiktok", medium: "social", campaign: "agentid_social_bio", content: "launch_kit" })],
+    ["X bio", utmCampaignUrl(env, "/ai-agent-launch-kit", { source: "x", medium: "social", campaign: "agentid_social_bio", content: "launch_kit" })],
+    ["Newsletter", utmCampaignUrl(env, "/ai-agent-launch-kit", { source: "newsletter", medium: "email", campaign: "agentid_newsletter", content: "launch_kit" })],
     ["Proposal or PDF", utmCampaignUrl(env, "/pricing", { source: "proposal", medium: "document", campaign: "agentid_sales_materials", content: "pricing" })],
   ];
   return `<!doctype html>

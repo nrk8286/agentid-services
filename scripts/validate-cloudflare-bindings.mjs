@@ -794,6 +794,16 @@ if (campaignLinksResponse.status !== 200 || launchKitCampaigns.some((value) => {
   failures.push("external campaign links must send the primary self-serve distribution paths to the Launch Kit with attribution");
 }
 
+for (const socialSource of ["linkedin", "facebook", "instagram", "tiktok", "x", "newsletter"]) {
+  const launchKitShareControl = `utmCampaignUrl(env, "/ai-agent-launch-kit", { source: "${socialSource}"`;
+  if (!workerSource.includes(launchKitShareControl)) {
+    failures.push(`social share hub must route ${socialSource} to the attributed Launch Kit page`);
+  }
+  if (workerSource.includes(`utmCampaignUrl(env, "/pricing", { source: "${socialSource}"`)) {
+    failures.push(`social share hub must not route ${socialSource} to the old pricing path`);
+  }
+}
+
 const cancelledCheckoutResponse = await handleAgentIdSiteRequest(
   new Request("https://gptmarketplus.com/ai-agent-launch-kit?paypal=cancel&product=ai_agent_launch_kit"),
   {
