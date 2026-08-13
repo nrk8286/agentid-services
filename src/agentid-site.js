@@ -3680,6 +3680,7 @@ function renderHomePage(env, state) {
       finalSecondaryLabel: "Book a Free AI Strategy Call",
       description: "Start with a $29 AI Agent Launch Kit for a usable first workflow, or request a scoped custom AI agent plan for lead capture, follow-up, and operations.",
     };
+  const heroPrimaryTrackEvent = hero.primaryPath.startsWith("/ai-agent-launch-kit") ? "product_view" : "cta_click";
   const body = `
     <section class="hero">
       <div class="hero-copy">
@@ -3687,7 +3688,7 @@ function renderHomePage(env, state) {
         <h1>${escapeHtml(hero.title)}</h1>
         <p class="hero-lede">${escapeHtml(hero.lede)}</p>
         <div class="cta-row">
-          <a class="button-primary" href="${escapeHtml(hero.primaryPath)}" data-track-event="cta_click" data-track-label="${escapeHtml(hero.primaryLabel)}">${escapeHtml(hero.primaryLabel)}</a>
+          <a class="button-primary" href="${escapeHtml(hero.primaryPath)}" data-track-event="${heroPrimaryTrackEvent}" data-track-label="${escapeHtml(hero.primaryLabel)}">${escapeHtml(hero.primaryLabel)}</a>
           <a class="button-secondary" href="${escapeHtml(hero.secondaryPath)}" data-track-event="cta_click" data-track-label="${escapeHtml(hero.secondaryLabel)}">${escapeHtml(hero.secondaryLabel)}</a>
         </div>
         <p class="trust-line">${escapeHtml(hero.trustLine)}</p>
@@ -3800,7 +3801,7 @@ function renderHomePage(env, state) {
         ${renderSectionTitle(hero.finalEyebrow, hero.finalTitle, hero.finalDescription)}
       </div>
       <div class="cta-box">
-        <a class="button-primary" href="${escapeHtml(hero.primaryPath)}" data-track-event="cta_click" data-track-label="${escapeHtml(hero.finalLabel)}">${escapeHtml(hero.finalLabel)}</a>
+        <a class="button-primary" href="${escapeHtml(hero.primaryPath)}" data-track-event="${heroPrimaryTrackEvent}" data-track-label="${escapeHtml(hero.finalLabel)}">${escapeHtml(hero.finalLabel)}</a>
         ${hero.finalSecondaryPath ? `<a class="button-secondary" href="${escapeHtml(hero.finalSecondaryPath)}" data-track-event="cta_click" data-track-label="${escapeHtml(hero.finalSecondaryLabel)}">${escapeHtml(hero.finalSecondaryLabel)}</a>` : ""}
       </div>
     </section>
@@ -3939,7 +3940,7 @@ function renderPricingPage(env) {
       <p class="pricing-note">Final pricing depends on complexity, integrations, data sources, and compliance requirements.</p>
       <div class="cta-row">
         <a class="button-primary" href="/ai-agent-launch-kit?source=pricing-hero" data-track-event="product_view" data-track-label="Pricing View Launch Kit">Start with the $29 Launch Kit</a>
-        <a class="button-secondary" href="/book-a-consultation" data-track-event="cta_click" data-track-label="Book a Free Strategy Call">Book a free strategy call</a>
+        <a class="button-secondary" href="/book-a-consultation?source=pricing-hero" data-track-event="cta_click" data-track-label="Book a Free Strategy Call">Book a free strategy call</a>
         <button class="button-secondary" type="button" data-open-agent-chat data-track-event="pricing_assistant_click" data-track-label="Ask the Pricing Assistant">Ask the pricing assistant</button>
       </div>
     </section>
@@ -3998,7 +3999,7 @@ function renderPricingPage(env) {
           <strong>${moneyWithCents(deposit.price)}</strong>
           <span>Secure your build slot with a deposit. Final scope and pricing will be confirmed after your strategy call.</span>
           <div class="checkout-stack">
-            <a class="button-secondary" href="/book-a-consultation">Confirm scope before paying</a>
+            <a class="button-secondary" href="/book-a-consultation?source=pricing-deposit">Confirm scope before paying</a>
           </div>
         </article>
       `).join("")}
@@ -4486,7 +4487,7 @@ function renderLaunchKitPage(env, requestUrl = null) {
       <div class="cta-box">
         <strong>Ready to build it?</strong>
         ${checkout}
-        <a class="button-secondary" href="/book-a-consultation">Have GPTMarketPlus build it with you</a>
+        <a class="button-secondary" href="/book-a-consultation?source=launch-kit-page">Have GPTMarketPlus build it with you</a>
       </div>
     </section>
     ${renderViewItemTracking(product)}`;
@@ -6863,7 +6864,7 @@ function renderConversionBridge(source) {
         <p>Build the first usable system yourself for $29, or bring one bottleneck to a free strategy call for implementation help.</p>
         <a class="button-primary" href="/ai-agent-launch-kit?source=${sourceValue}-bridge" data-track-event="product_view" data-track-label="${escapeHtml(source)} Launch Kit Bridge">Build the $29 starter system</a>
         <a class="button-secondary" href="/book-a-consultation?source=${sourceValue}-bridge" data-track-event="cta_click" data-track-label="${escapeHtml(source)} Conversion Bridge">Book my strategy call</a>
-        <a class="button-secondary" href="/pricing" data-track-event="cta_click" data-track-label="${escapeHtml(source)} Bridge Pricing">Compare pricing</a>
+        <a class="button-secondary" href="/pricing?source=${sourceValue}-bridge" data-track-event="cta_click" data-track-label="${escapeHtml(source)} Bridge Pricing">Compare pricing</a>
       </div>
     </section>`;
 }

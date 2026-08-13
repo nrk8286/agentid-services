@@ -564,6 +564,14 @@ if (!homeBody.includes("<title>AI Agents for Small Business | GPTMarketPlus</tit
 if (!homeBody.includes('meta name="description" content="Start with a $29 AI Agent Launch Kit for a usable first workflow, or request a scoped custom AI agent plan for lead capture, follow-up, and operations."')) {
   failures.push("homepage search description must expose the truthful $29 self-serve and scoped-service paths");
 }
+for (const requiredHomepageMeasurementControl of [
+  'const heroPrimaryTrackEvent = hero.primaryPath.startsWith("/ai-agent-launch-kit") ? "product_view" : "cta_click"',
+  'data-track-event="${heroPrimaryTrackEvent}"',
+]) {
+  if (!siteSource.includes(requiredHomepageMeasurementControl)) {
+    failures.push(`homepage measurement must distinguish Launch Kit product views from consultation CTA clicks: ${requiredHomepageMeasurementControl}`);
+  }
+}
 if ((homeBody.match(/pagead2\.googlesyndication\.com\/pagead\/js\/adsbygoogle\.js/g) || []).length !== 1) {
   failures.push("eligible public pages must load the Google AdSense script exactly once");
 }
@@ -586,6 +594,9 @@ const pricingResponse = await handleAgentIdSiteRequest(
 const pricingBody = await pricingResponse.text();
 if (pricingBody.includes("adsbygoogle") || pricingBody.includes('data-ad-slot="3045151068"')) {
   failures.push("high-conversion pricing page must remain free of publisher ads");
+}
+if (!pricingBody.includes('href="/book-a-consultation?source=pricing-hero"')) {
+  failures.push("pricing consultation CTA must preserve its source attribution");
 }
 
 const faqResponse = await handleAgentIdSiteRequest(
@@ -838,6 +849,7 @@ for (const requiredLaunchKitDeliveryCopy of [
   "production testing",
   "Before you buy",
   "Clear answers about the $29 Launch Kit",
+  'href="/book-a-consultation?source=launch-kit-page"',
   'href="/refund-policy"',
 ]) {
   if (!launchKitDeliveryBody.includes(requiredLaunchKitDeliveryCopy)) {
