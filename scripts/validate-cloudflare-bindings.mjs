@@ -116,6 +116,7 @@ for (const requiredConfirmationControl of [
   "nextStep: isSponsorApplication",
   "campaign: \"agentid_contact_confirmation\"",
   "campaign: \"agentid_consultation_confirmation\"",
+  "This request does not book a meeting automatically",
   "This form does not book a meeting automatically",
   "nextUrl.origin === location.origin",
 ]) {

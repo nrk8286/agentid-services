@@ -5234,6 +5234,7 @@ function renderBookingPage(env) {
     ? `<iframe class="calendar-embed" src="${escapeHtml(calendarEmbedUrl(env))}" title="Booking calendar" loading="lazy"></iframe>`
     : `
       <div class="calendar-placeholder">
+        <p class="form-note">This request does not book a meeting automatically. We will reply to confirm a time that works for you.</p>
         <p class="card-kicker">Flexible scheduling</p>
         <strong>Tell us about the workflow you want to improve.</strong>
         <p>Submit the short form and we’ll follow up to confirm a call time that works for you.</p>
