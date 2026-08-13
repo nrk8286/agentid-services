@@ -1464,6 +1464,7 @@ async function paypalPublicStatus(env) {
   const serviceCheckoutEnabled = String(env.SERVICE_CHECKOUT_ENABLED || "").trim().toLowerCase() === "true";
   const credentialsConfigured = paypalCredentialsReady(env);
   const storageConfigured = Boolean(env.GMP_KV);
+  const customerEmailDelivery = await customerEmailDeliveryStatus(env);
   const packages = adPackages(env).map((item) => ({
     id: item.id,
     name: item.name,
@@ -1493,6 +1494,8 @@ async function paypalPublicStatus(env) {
     cpcCampaignsReady,
     oneTimePaymentsReady: credentialsConfigured && storageConfigured,
     digitalProductReady,
+    customerEmailDeliveryReady: customerEmailDelivery.ready,
+    customerEmailProviders: customerEmailDelivery.providers,
     servicePaymentsReady,
     reviewGates: {
       customServices: serviceCheckoutEnabled ? "checkout_enabled" : "written_scope_required",
@@ -2626,6 +2629,30 @@ function launchKitWorkspaceCredentials(request, body = {}) {
   return {
     orderId: cleanText(body.orderId || body.order_id || url.searchParams.get("order_id") || "", 80),
     accessToken: cleanText(body.accessToken || body.access_token || url.searchParams.get("access_token") || "", 180),
+  };
+}
+
+async function customerEmailDeliveryStatus(env) {
+  let gmailReady = false;
+  try {
+    const connection = await googleOAuthGmailConnection(env);
+    gmailReady = Boolean(
+      connection
+      && cleanEmail(env.GMAIL_SENDER_EMAIL || env.OWNER_NOTIFICATION_EMAIL || ""),
+    );
+  } catch {
+    gmailReady = false;
+  }
+  const resendReady = Boolean(
+    String(env.RESEND_API_KEY || "").trim()
+    && cleanEmail(env.EMAIL_FROM || supportEmail(env)),
+  );
+  return {
+    ready: gmailReady || resendReady,
+    providers: {
+      gmailOAuth: gmailReady,
+      resend: resendReady,
+    },
   };
 }
 

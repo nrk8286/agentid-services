@@ -545,12 +545,13 @@ const DIGITAL_PRODUCTS = [
     delivery: "secure_download",
     summary: "A guided workspace that turns your business inputs into a usable AI agent starter system, with a prompt, workflow map, lead intake, follow-up sequence, QA checklist, and 30-day scorecard.",
     includes: [
-      "Guided AI workflow builder",
-      "Business-specific starter prompt",
-      "Customer-question and knowledge intake map",
-      "Lead intake and human-handoff plan",
-      "Follow-up sequence and launch QA checklist",
+      "First workflow brief and completion definition",
+      "Business-specific starter system prompt",
+      "Lead-intake, consent, and human-handoff field plan",
+      "Follow-up message sequence with opt-out rules",
+      "Launch QA and failure tests",
       "30-day performance scorecard",
+      "Private workspace with copy and download actions",
     ],
   },
 ];
@@ -4433,7 +4434,7 @@ function renderLaunchKitPage(env, requestUrl = null) {
       </div>
       <div class="kit-preview">
         <p class="card-kicker">AI Agent Launch Kit</p>
-        <strong>One guided build, six usable outputs</strong>
+        <strong>One guided build, seven practical deliverables</strong>
         <ol>
           ${product.includes.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
         </ol>
@@ -4759,21 +4760,28 @@ ${values.approvedKnowledge || "Add approved facts, prices, policies, hours, serv
 Human handoff rules:
 ${values.handoff || "Add the handoff owner, notification channel, response window, and escalation conditions before launch."}
 
-3. CUSTOMER INTAKE FIELDS
-- Name and preferred contact method
-- Email or phone with contact consent
-- What the customer needs
-- Service, product, or workflow requested
-- Timing or urgency
-- Location or service area when relevant
-- Budget or fit information when appropriate
-- Human handoff owner and next action
+3. LEAD INTAKE AND CONSENT FIELDS
+- full_name: required before a human handoff
+- preferred_contact_method: email, phone, SMS, or other approved channel
+- email_address: collect only when the customer chooses email contact
+- phone_number: collect only when the customer chooses phone or SMS contact
+- request_summary: the customer need in their own words
+- service_or_product: the requested offer or workflow
+- urgency_and_timing: when the customer needs the next step
+- location_or_service_area: only when relevant to fit or routing
+- budget_or_fit_signal: only when it changes qualification or routing
+- contact_consent: required before non-urgent follow-up through the requested channel
+- marketing_consent: separate optional permission; never infer it from contact consent
+- consent_timestamp_and_source: record when and where permission was given
+- opt_out_requested: stop the applicable follow-up sequence and record the request
+- human_handoff_owner_and_next_action: the person responsible for completion
 
-4. FOLLOW-UP SEQUENCE
-New inquiry: Thank the customer, summarize the request, state the response window, and confirm the best contact method.
+4. FOLLOW-UP SEQUENCE AND CONSENT RULES
+New inquiry: Send an acknowledgment only through the requested channel after contact_consent is recorded; summarize the request, state the response window, and confirm the best contact method.
 Missing information: Ask for only the missing detail needed to qualify or route the request.
 Qualified lead: Confirm the recommended next step and offer the approved booking, quote, or handoff path.
-No response: Send one helpful reminder with a simple reply choice; do not pressure or spam.
+No response: Send at most one helpful reminder when contact_consent remains valid; do not pressure or spam.
+Marketing or reactivation: Send only when marketing_consent is separately true, and stop immediately when opt_out_requested is true.
 Closed loop: Confirm what happened, record the outcome, and invite the customer to return if needed.
 
 5. LAUNCH QA CHECKLIST

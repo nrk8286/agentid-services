@@ -878,6 +878,7 @@ const launchKitDeliveryResponse = await handleAgentIdSiteRequest(
 const launchKitDeliveryBody = await launchKitDeliveryResponse.text();
 for (const requiredLaunchKitDeliveryCopy of [
   "After checkout",
+  "One guided build, seven practical deliverables",
   "Your private workspace opens after PayPal confirms the completed capture",
   "Separate written scope",
   "production testing",
@@ -891,6 +892,22 @@ for (const requiredLaunchKitDeliveryCopy of [
   }
 }
 
+for (const requiredLaunchKitConsentControl of [
+  "LEAD INTAKE AND CONSENT FIELDS",
+  "contact_consent: required before non-urgent follow-up through the requested channel",
+  "marketing_consent: separate optional permission; never infer it from contact consent",
+  "consent_timestamp_and_source: record when and where permission was given",
+  "opt_out_requested: stop the applicable follow-up sequence and record the request",
+  "Marketing or reactivation: Send only when marketing_consent is separately true",
+]) {
+  if (!siteSource.includes(requiredLaunchKitConsentControl)) {
+    failures.push(`Launch Kit starter pack is missing explicit consent control ${requiredLaunchKitConsentControl}`);
+  }
+}
+if (siteSource.includes("One guided build, six usable outputs")) {
+  failures.push("Launch Kit product copy must match the actual seven-deliverable starter pack");
+}
+
 for (const requiredRevenueGoalControl of [
   "const VERIFIED_REVENUE_GOAL_CENTS = 1_000_000",
   "verifiedRevenueGoalDollars",
@@ -899,6 +916,17 @@ for (const requiredRevenueGoalControl of [
 ]) {
   if (!workerSource.includes(requiredRevenueGoalControl)) {
     failures.push(`revenue reporting is missing the explicit $10,000 goal control ${requiredRevenueGoalControl}`);
+  }
+}
+for (const requiredCustomerDeliveryStatusControl of [
+  "async function customerEmailDeliveryStatus(env)",
+  "customerEmailDeliveryReady: customerEmailDelivery.ready",
+  "customerEmailProviders: customerEmailDelivery.providers",
+  "gmailOAuth: gmailReady",
+  "resend: resendReady",
+]) {
+  if (!workerSource.includes(requiredCustomerDeliveryStatusControl)) {
+    failures.push(`PayPal status is missing customer delivery readiness control ${requiredCustomerDeliveryStatusControl}`);
   }
 }
 
