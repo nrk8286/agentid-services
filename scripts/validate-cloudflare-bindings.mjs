@@ -1028,6 +1028,10 @@ for (const requiredLaunchKitConsentControl of [
   "New lead intake and human handoff",
   "Missed-call recovery",
   "FAQ and booking assistant",
+  'id="launch-kit-scenario-picker"',
+  'data-scenario-id="${escapeHtml(scenario.id)}"',
+  "nothing is saved before purchase",
+  'window.agentidTrackEvent("launch_kit_scenario_select"',
 ]) {
   if (!siteSource.includes(requiredLaunchKitConsentControl)) {
     failures.push(`Launch Kit starter pack is missing explicit consent control ${requiredLaunchKitConsentControl}`);

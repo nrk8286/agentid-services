@@ -4650,8 +4650,54 @@ LAUNCH QA
 30-DAY SCORECARD
 Workflow starts: ____   Qualified handoffs: ____   Bookings or quotes: ____
 Wrong answers or misroutes: ____   Opt-outs or complaints: ____   Hours saved: ____`;
+  const scenarioPreview = [
+    {
+      id: "lead_intake",
+      label: "New lead intake",
+      title: "Capture the right details and route a qualified inquiry",
+      description: "A website form, chat, or inbound message becomes a concise human-ready summary instead of an unstructured inbox item.",
+      collect: "Service needed, location, timing, preferred contact method, and contact consent.",
+      handoff: "Send qualified or uncertain requests to the owner or team within the approved response window.",
+      measure: "Workflow starts, qualified handoffs, response time, and bookings or quotes.",
+    },
+    {
+      id: "missed_call",
+      label: "Missed-call recovery",
+      title: "Turn a missed call into a safe next step",
+      description: "A helpful follow-up asks what the caller needs, checks urgency, records consent, and stops when a human should take over.",
+      collect: "Reason for the call, urgency, callback method, timing, and opt-out request.",
+      handoff: "Urgent, sensitive, uncertain, or qualified requests go directly to a named human owner.",
+      measure: "Missed calls reached, replies, qualified handoffs, opt-outs, and recovered bookings.",
+    },
+    {
+      id: "faq_booking",
+      label: "FAQ and booking",
+      title: "Answer approved questions and offer the right next action",
+      description: "The assistant uses approved facts, avoids invented availability or pricing, and offers booking or human help when appropriate.",
+      collect: "Customer question, service fit, timing, contact consent, and the requested next action.",
+      handoff: "Escalate questions outside approved knowledge or any request requiring a price, policy, or availability decision.",
+      measure: "Questions answered, booking starts, handoffs, wrong answers, and customer opt-outs.",
+    },
+  ];
+  const scenarioJson = JSON.stringify(scenarioPreview).replace(/</g, "\\u003c");
+  const initialScenario = scenarioPreview[0];
   return `<section class="section launch-kit-sample">
       ${renderSectionTitle("Illustrative sample", "See the deliverable before you buy", "This fictional example shows the structure of the starter pack. Your private workspace replaces the placeholders with your business details after verified PayPal capture.")}
+      <div class="scenario-preview" aria-labelledby="launch-kit-scenario-heading">
+        <p class="card-kicker" id="launch-kit-scenario-heading">Choose a starting workflow</p>
+        <p>See how the same guided workspace adapts to a specific job. These examples are fictional and nothing is saved before purchase.</p>
+        <div class="scenario-picker" id="launch-kit-scenario-picker" role="tablist" aria-label="Launch Kit sample workflows">
+          ${scenarioPreview.map((scenario, index) => `<button class="button-secondary launch-kit-scenario-button" type="button" role="tab" aria-selected="${index === 0 ? "true" : "false"}" aria-controls="launch-kit-scenario-output" data-scenario-id="${escapeHtml(scenario.id)}">${escapeHtml(scenario.label)}</button>`).join("")}
+        </div>
+        <div class="review-panel scenario-output" id="launch-kit-scenario-output" role="tabpanel" aria-live="polite">
+          <p class="card-kicker" id="launch-kit-scenario-label">${escapeHtml(initialScenario.label)}</p>
+          <h3 id="launch-kit-scenario-title">${escapeHtml(initialScenario.title)}</h3>
+          <p id="launch-kit-scenario-description">${escapeHtml(initialScenario.description)}</p>
+          <p><strong>Collect:</strong> <span id="launch-kit-scenario-collect">${escapeHtml(initialScenario.collect)}</span></p>
+          <p><strong>Human handoff:</strong> <span id="launch-kit-scenario-handoff">${escapeHtml(initialScenario.handoff)}</span></p>
+          <p><strong>30-day scorecard:</strong> <span id="launch-kit-scenario-measure">${escapeHtml(initialScenario.measure)}</span></p>
+        </div>
+      </div>
       <div class="blueprint-grid">
         <article class="blueprint-card"><p class="card-kicker">Workflow brief</p><h3>One measurable first job</h3><p>Respond to new quote requests, collect the right details, and route qualified requests to a human.</p></article>
         <article class="blueprint-card"><p class="card-kicker">Starter prompt</p><h3>Bounded business behavior</h3><p>Approved facts, minimum necessary questions, honest uncertainty, and explicit escalation rules.</p></article>
@@ -4663,6 +4709,40 @@ Wrong answers or misroutes: ____   Opt-outs or complaints: ____   Hours saved: _
       </details>
       <p class="form-note">This is an illustrative product sample, not a customer result, testimonial, or performance guarantee.</p>
       <div class="cta-row"><a class="button-primary" href="/ai-agent-launch-kit?source=sample-preview" data-track-event="product_view" data-track-label="Launch Kit Sample Preview CTA">Build my private starter system</a></div>
+      <script>
+        document.addEventListener("DOMContentLoaded", function () {
+          const scenarios = ${scenarioJson};
+          const byId = Object.fromEntries(scenarios.map(function (scenario) { return [scenario.id, scenario]; }));
+          const buttons = Array.from(document.querySelectorAll(".launch-kit-scenario-button"));
+          const fields = {
+            label: document.getElementById("launch-kit-scenario-label"),
+            title: document.getElementById("launch-kit-scenario-title"),
+            description: document.getElementById("launch-kit-scenario-description"),
+            collect: document.getElementById("launch-kit-scenario-collect"),
+            handoff: document.getElementById("launch-kit-scenario-handoff"),
+            measure: document.getElementById("launch-kit-scenario-measure"),
+          };
+          function showScenario(id, track) {
+            const scenario = byId[id];
+            if (!scenario) return;
+            fields.label.textContent = scenario.label;
+            fields.title.textContent = scenario.title;
+            fields.description.textContent = scenario.description;
+            fields.collect.textContent = scenario.collect;
+            fields.handoff.textContent = scenario.handoff;
+            fields.measure.textContent = scenario.measure;
+            buttons.forEach(function (button) {
+              button.setAttribute("aria-selected", button.dataset.scenarioId === id ? "true" : "false");
+            });
+            if (track && typeof window.agentidTrackEvent === "function") {
+              window.agentidTrackEvent("launch_kit_scenario_select", { scenario: scenario.id, product_id: "ai_agent_launch_kit" });
+            }
+          }
+          buttons.forEach(function (button) {
+            button.addEventListener("click", function () { showScenario(button.dataset.scenarioId, true); });
+          });
+        });
+      </script>
     </section>`;
 }
 
@@ -9109,6 +9189,37 @@ main {
 
 .checkout-stack button {
   width: 100%;
+}
+
+.scenario-preview {
+  display: grid;
+  gap: 12px;
+  margin: 22px 0;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: rgba(10, 20, 34, 0.68);
+}
+
+.scenario-preview > p {
+  max-width: 64ch;
+  margin: 0;
+}
+
+.scenario-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.scenario-picker .button-secondary[aria-selected="true"] {
+  border-color: rgba(93, 240, 198, 0.6);
+  background: rgba(31, 100, 91, 0.34);
+  color: var(--text);
+}
+
+.scenario-output {
+  margin-top: 2px;
 }
 
 .sponsor-house-ad {
