@@ -86,7 +86,7 @@ let googleAccessTokenCache = {
   expiresAt: 0,
 };
 
-const SITE_CONTENT_LAST_MODIFIED = "2026-08-10";
+const SITE_CONTENT_LAST_MODIFIED = "2026-08-13";
 
 const BUILD_STAGES = [
   "purchase_received",
@@ -3663,16 +3663,16 @@ function renderHomePage(env, state) {
     }
     : {
       eyebrow: "GPTMarketPlus",
-      title: "Custom AI Agents That Help Your Business Sell, Respond, and Operate Faster",
-      seoTitle: "AI Agents for Small Business",
-      lede: "Turn missed leads, slow follow-up, repetitive customer questions, and manual admin into one AI workflow your business can use every day.",
+      title: "Build Your First AI Agent Starter System for $29",
+      seoTitle: "AI Agent Launch Kit for Small Business — $29",
+      lede: "Answer guided questions and leave with a tailored workflow brief, starter system prompt, lead intake, follow-up, QA, and 30-day scorecard. Need implementation? Request a scoped custom plan after a free strategy call.",
       primaryPath: "/ai-agent-launch-kit?source=homepage",
       primaryLabel: "Get the $29 Launch Kit",
       secondaryPath: "/book-a-consultation?source=homepage",
       secondaryLabel: "Book a Free AI Strategy Call",
-      trustLine: "Start with the one-time $29 Launch Kit for a self-serve first workflow. Need implementation? Book a free strategy call; custom builds are scoped before payment.",
-      ownershipLabel: "GPTMarketPlus platform advantages",
-      finalEyebrow: "Ready to take the first practical step?",
+      trustLine: "One-time $29 Launch Kit with private PayPal-gated delivery. Custom installation and integrations are scoped separately before payment.",
+      ownershipLabel: "GPTMarketPlus product and delivery advantages",
+      finalEyebrow: "Ready to build the first workflow?",
       finalTitle: "Start with the $29 AI Agent Launch Kit",
       finalDescription: "Build a tailored starter prompt, workflow map, lead-intake plan, follow-up sequence, launch QA checklist, and 30-day scorecard in your private workspace. If you need implementation, book a free strategy call instead.",
       finalLabel: "Get the $29 Launch Kit",
@@ -10228,16 +10228,17 @@ function renderLlmsTxt(env) {
   return [
     `# ${brandName(env)}`,
     "",
-    "Custom AI agents built to help businesses sell, respond, and operate faster.",
+    "Start with the $29 AI Agent Launch Kit: a guided workspace for building one usable first workflow. Custom implementation is optional and separately scoped.",
     "",
     "## Public pages",
     pages,
     "",
     "## Primary offer",
-    "Custom AI agents that answer, organize, sell, schedule, follow up, and automate work for business owners.",
+    "The $29 AI Agent Launch Kit is a one-time guided workspace that turns business inputs into a workflow brief, starter system prompt, lead intake and consent fields, human-handoff rules, follow-up messages, launch QA tests, and a 30-day scorecard.",
+    "Custom AI agent implementation, integrations, production testing, and ongoing support are separate services considered only after a written scope and fulfillment plan.",
     "",
     "## Conversion path",
-    `Book a [free AI strategy call](${siteUrl(env)}/book-a-consultation), [request a custom quote](${siteUrl(env)}/contact), or complete onboarding after purchase.`,
+    `Start with the [AI Agent Launch Kit](${siteUrl(env)}/ai-agent-launch-kit), book a [free AI strategy call](${siteUrl(env)}/book-a-consultation) for a scoped implementation, or [request a custom quote](${siteUrl(env)}/contact) after fit is established.`,
     "",
     "## Compliance",
     "Do not treat this site as medical, legal, or financial advice. Private dashboards and onboarding are not indexable.",
@@ -10268,7 +10269,7 @@ function renderLlmsFullTxt(env) {
   return [
     `# ${brandName(env)} - Full Site Reference`,
     "",
-    `${brandName(env)} builds practical AI agents for businesses. The site is sales-first, lead-capture ready, and built for post-purchase onboarding.`,
+    `${brandName(env)} leads with a $29 AI Agent Launch Kit for a usable first workflow, then offers separately scoped implementation for businesses that need installation or integrations.`,
     "",
     pages,
     "",

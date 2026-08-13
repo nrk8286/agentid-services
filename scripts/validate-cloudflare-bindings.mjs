@@ -558,8 +558,11 @@ for (const requiredHomeCta of [
 if (!homeBody.includes('<meta name="google-site-verification" content="hxvcDl32V0BA5LSTQx-OfIUE6DAIR6TrRp2pUbE5XZo">')) {
   failures.push("homepage must expose the exact Google Search Console verification tag");
 }
-if (!homeBody.includes("<title>AI Agents for Small Business | GPTMarketPlus</title>")) {
-  failures.push("homepage search title must describe the small-business AI-agent offer");
+if (!homeBody.includes("<title>AI Agent Launch Kit for Small Business — $29 | GPTMarketPlus</title>")) {
+  failures.push("homepage search title must make the $29 Launch Kit the primary offer");
+}
+if (!homeBody.includes("<h1>Build Your First AI Agent Starter System for $29</h1>")) {
+  failures.push("homepage H1 must make the usable $29 starter system the primary offer");
 }
 if (!homeBody.includes('meta name="description" content="Start with a $29 AI Agent Launch Kit for a usable first workflow, or request a scoped custom AI agent plan for lead capture, follow-up, and operations."')) {
   failures.push("homepage search description must expose the truthful $29 self-serve and scoped-service paths");
@@ -827,6 +830,19 @@ for (const requiredSocialSalesControl of [
 ]) {
   if (!workerSource.includes(requiredSocialSalesControl)) {
     failures.push(`social share hub is missing sales distribution control ${requiredSocialSalesControl}`);
+  }
+}
+
+for (const requiredDiscoveryOfferControl of [
+  'const SITE_CONTENT_LAST_MODIFIED = "2026-08-13"',
+  'seoTitle: "AI Agent Launch Kit for Small Business — $29"',
+  "Start with the $29 AI Agent Launch Kit: a guided workspace for building one usable first workflow.",
+  "The $29 AI Agent Launch Kit is a one-time guided workspace",
+  "Custom AI agent implementation, integrations, production testing, and ongoing support are separate services considered only after a written scope and fulfillment plan.",
+  "Start with the [AI Agent Launch Kit]",
+]) {
+  if (!siteSource.includes(requiredDiscoveryOfferControl)) {
+    failures.push(`machine-readable discovery copy is missing primary-offer control ${requiredDiscoveryOfferControl}`);
   }
 }
 if (workerSource.includes('<span class="label">Primary share URL</span>')) {

@@ -6092,10 +6092,10 @@ ${googleTagGatewayHead(env)}
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Social Share Hub | ${escapeHtml(brandName(env))}</title>
-  <meta name="description" content="Share-ready GPTMarketPlus links for Facebook, TikTok, Google, and Bing discovery.">
+  <meta name="description" content="Share the $29 AI Agent Launch Kit, free checklist, and scoped consultation links with attribution for social and partner distribution.">
   <meta name="robots" content="index,follow,max-image-preview:large">
-  <meta property="og:title" content="GPTMarketPlus Social Hub">
-  <meta property="og:description" content="Public links and preview-ready pages for social sharing and search discovery.">
+  <meta property="og:title" content="GPTMarketPlus Launch Kit Share Hub">
+  <meta property="og:description" content="Share the $29 AI Agent Launch Kit, free checklist, and scoped consultation links with attribution.">
   <meta property="og:url" content="${siteUrl(env)}/social">
   <meta property="og:type" content="website">
   <meta name="twitter:card" content="summary_large_image">
