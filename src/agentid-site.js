@@ -4292,7 +4292,7 @@ function renderLaunchKitPage(env, requestUrl = null) {
         ${renderPageTitle("Interactive launch workspace", "Build a usable AI agent starter system", product.summary)}
         ${paymentNotice}
         <div class="cta-row">${checkout}<a class="button-secondary" href="/resources">Read the free guides first</a></div>
-        <p class="trust-line">One-time PayPal payment. Your private workspace opens after PayPal confirms the completed capture, and you can download the generated starter pack. No revenue or performance guarantees.</p>
+        <p class="trust-line">One-time PayPal payment. Your private workspace opens after PayPal confirms the completed capture, and you can download the generated starter pack. <a href="/refund-policy">Review the refund policy.</a> No revenue or performance guarantees.</p>
       </div>
       <div class="kit-preview">
         <p class="card-kicker">AI Agent Launch Kit</p>
@@ -4301,6 +4301,23 @@ function renderLaunchKitPage(env, requestUrl = null) {
           ${product.includes.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
         </ol>
         <span class="price-badge">${moneyWithCents(product.price)} one-time</span>
+      </div>
+    </section>
+    <section class="section split-section launch-kit-delivery">
+      <div>
+        ${renderSectionTitle("After checkout", "Know exactly what happens next", "The Launch Kit is a guided product you can use yourself, hand to your team, or use as the starting brief for a separately scoped implementation.")}
+        <ol class="benefit-list compact">
+          <li><strong>Pay once through PayPal.</strong> Access is not granted by a client-side success message; the Worker verifies the completed capture.</li>
+          <li><strong>Open your private workspace.</strong> The secure completion link includes the verified order and access token.</li>
+          <li><strong>Answer the guided questions.</strong> Start with four core inputs, then add approved knowledge, handoff rules, tools, and tone as you refine the plan.</li>
+          <li><strong>Generate, copy, or download.</strong> Keep the starter pack, use the prompt in your chosen AI tool, and test the workflow with real scenarios.</li>
+        </ol>
+      </div>
+      <div class="side-note">
+        <p class="card-kicker">Included for $29</p>
+        <p>Private workspace, tailored starter system, workflow brief, lead-intake and consent plan, handoff rules, follow-up messages, launch QA, and 30-day scorecard.</p>
+        <p class="card-kicker">Separate written scope</p>
+        <p>Website installation, CRM or calendar connections, messaging credentials, custom integrations, production testing, ongoing support, and performance work are not included in the Launch Kit purchase.</p>
       </div>
     </section>
     <section class="section">

@@ -679,6 +679,31 @@ if (!cancelledCheckoutBody.includes("PayPal checkout was canceled. No payment wa
   failures.push("canceled PayPal checkout must clearly confirm that no payment was captured");
 }
 
+const launchKitDeliveryResponse = await handleAgentIdSiteRequest(
+  new Request("https://gptmarketplus.com/ai-agent-launch-kit"),
+  {
+    SITE_URL: "https://gptmarketplus.com",
+    SUPPORT_EMAIL: "admin@gptmarketplus.com",
+    BRAND_NAME: "GPTMarketPlus",
+    GOOGLE_ANALYTICS_ID: "G-TEST123456",
+    PAYPAL_CLIENT_ID: "test-client-id",
+    PAYPAL_CLIENT_SECRET: "test-client-secret",
+  },
+  { waitUntil() {} },
+);
+const launchKitDeliveryBody = await launchKitDeliveryResponse.text();
+for (const requiredLaunchKitDeliveryCopy of [
+  "After checkout",
+  "Your private workspace opens after PayPal confirms the completed capture",
+  "Separate written scope",
+  "production testing",
+  'href="/refund-policy"',
+]) {
+  if (!launchKitDeliveryBody.includes(requiredLaunchKitDeliveryCopy)) {
+    failures.push(`Launch Kit product page is missing delivery or scope copy ${requiredLaunchKitDeliveryCopy}`);
+  }
+}
+
 const agentIdEnv = {
   SITE_URL: "https://agentid.services",
   SUPPORT_EMAIL: "admin@gptmarketplus.com",
