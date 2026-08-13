@@ -107,6 +107,10 @@ for (const requiredBookingHonestyControl of [
   "const hasDirectBooking = Boolean(calendarEmbedUrl(env) || bookingUrl(env))",
   "Request My Free AI Strategy Call",
   "const bookingHeading = hasDirectBooking",
+  "href=\"/book-a-consultation?package=${encodeURIComponent(tier.id)}&amp;source=pricing-custom\"",
+  "const requestedTier = PRICING_TIERS.find((tier) => tier.id === requestedPackageId)",
+  "requested_package:${cleanText(body.requestedPackageId, 80)}",
+  "before any custom-service payment is requested",
 ]) {
   if (!siteSource.includes(requiredBookingHonestyControl)) {
     failures.push(`booking path honesty is missing ${requiredBookingHonestyControl}`);

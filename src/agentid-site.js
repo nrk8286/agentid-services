@@ -4014,7 +4014,7 @@ function renderPricingPage(env) {
           <p>${escapeHtml(tier.summary)}</p>
           <ul>${tier.includes.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
           <div class="checkout-stack">
-            <a class="button-secondary" href="/contact?package=${encodeURIComponent(tier.id)}">Request a scoped quote</a>
+            <a class="button-secondary" href="/book-a-consultation?package=${encodeURIComponent(tier.id)}&amp;source=pricing-custom" data-track-event="cta_click" data-track-label="Request scoped ${escapeHtml(tier.name)} consultation">Request a scoped consultation</a>
           </div>
         </article>
       `).join("")}
@@ -5223,10 +5223,13 @@ function renderContactPage(env, requestUrl = null) {
   });
 }
 
-function renderBookingPage(env) {
+function renderBookingPage(env, requestUrl = null) {
   const hasDirectBooking = Boolean(calendarEmbedUrl(env) || bookingUrl(env));
+  const requestedPackageId = cleanText(requestUrl?.searchParams?.get("package") || "", 80);
+  const requestedTier = PRICING_TIERS.find((tier) => tier.id === requestedPackageId) || null;
+  const requestedPackageLabel = requestedTier ? ` for ${requestedTier.name}` : "";
   const bookingCta = hasDirectBooking ? "Book My Free AI Strategy Call" : "Request My Free AI Strategy Call";
-  const bookingHeading = hasDirectBooking ? "Book a Free AI Strategy Call" : "Request a Free AI Strategy Call";
+  const bookingHeading = hasDirectBooking ? `Book a Free AI Strategy Call${requestedPackageLabel}` : `Request a Free AI Strategy Call${requestedPackageLabel}`;
   const bookingDescription = hasDirectBooking
     ? "We’ll look at your business, identify what can be automated, and recommend the best AI agent setup."
     : "Tell us what you want to automate and we’ll follow up to confirm a call time and recommend the best AI agent setup.";
@@ -5259,6 +5262,7 @@ function renderBookingPage(env) {
       { name: "preferredContactMethod", label: "Preferred contact method", type: "select", required: true, options: ["Email", "Phone", "Text"] },
       { name: "bestTimeToContact", label: "Best time to contact", placeholder: "Morning, afternoon, or evening", required: false },
       { name: "contactConsent", label: "I agree to be contacted about this strategy call.", type: "checkbox", required: true },
+      { name: "requestedPackageId", type: "hidden", value: requestedTier?.id || "" },
     ],
   });
 
@@ -5277,6 +5281,7 @@ function renderBookingPage(env) {
       <div class="side-note">
         <p class="card-kicker">Good fit for</p>
         <p>Businesses that want a practical AI workflow, a clear recommendation, and a next step that does not waste time.</p>
+        ${requestedTier ? `<p><strong>Requested scope:</strong> ${escapeHtml(requestedTier.name)}. We will confirm fit, integrations, timing, deliverables, and written terms before any custom-service payment is requested.</p>` : ""}
         <p class="card-kicker">Prefer to start now?</p>
         <p>Build the first usable starter system yourself in the $29 Launch Kit Workspace.</p>
         <a class="button-secondary" href="/ai-agent-launch-kit?source=consultation-alternative">Build the $29 starter system</a>
@@ -5542,6 +5547,7 @@ async function captureLead(env, ctx, body, options = {}) {
     dashboard_token: cleanText(body.dashboardToken || "", 120) || crypto.randomUUID().replace(/-/g, ""),
     notes: cleanText([
       body.notes || "",
+      body.requestedPackageId ? `requested_package:${cleanText(body.requestedPackageId, 80)}` : "",
       classification.excluded ? `classification:${classification.reason}` : "",
     ].filter(Boolean).join(" | "), 1200),
   };
@@ -10767,7 +10773,7 @@ export async function handleAgentIdSiteRequest(request, env, ctx) {
   }
 
   if (path === "/book-a-consultation" || path === "/consultation") {
-    return respondHtml(renderBookingPage(env));
+    return respondHtml(renderBookingPage(env, url));
   }
 
   if (path === "/faq") {
