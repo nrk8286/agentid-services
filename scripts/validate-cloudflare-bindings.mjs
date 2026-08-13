@@ -359,6 +359,49 @@ for (const requiredAnalyticsControl of [
   }
 }
 
+for (const requiredOutcomeControl of [
+  'recommendedKeyEvents: ["generate_lead", "purchase"]',
+  'eventsToUnmarkAsKeyEvents: ["conversion", "scroll_depth", "scroll", "chat_open", "checkout_click"]',
+  'steps: ["session_start", "engaged_session", "form_start_or_view_item", "checkout_click", "begin_checkout_or_generate_lead", "purchase"]',
+  'window.__agentidOutcomeEventSeen = function(eventName, properties)',
+  'sessionStorage.setItem(storageKey, "1")',
+  'capture_verified: true',
+  'eventName: "purchase"',
+  'provider_verified: true',
+  'event: "google_ads_" + eventName',
+  'event: "google_ads_purchase"',
+]) {
+  if (!`${workerSource}\n${siteSource}`.includes(requiredOutcomeControl)) {
+    failures.push(`specific outcome measurement is missing ${requiredOutcomeControl}`);
+  }
+}
+if (/dataLayer\.push\(Object\.assign\(\{\s*event: "conversion"/.test(`${workerSource}\n${siteSource}`)) {
+  failures.push("generic conversion must not be pushed into the shared data layer");
+}
+for (const requiredInternalTrafficControl of [
+  'source === "codex_release" && medium === "qa" ? "internal" : ""',
+  'traffic_type: window.__agentidTrafficType || ""',
+  "'$.traffic_type'",
+]) {
+  if (!`${workerSource}\n${siteSource}`.includes(requiredInternalTrafficControl)) {
+    failures.push(`QA/internal traffic classification is missing ${requiredInternalTrafficControl}`);
+  }
+}
+if (!siteSource.includes("AS hostname,") || !siteSource.includes("GROUP BY hostname, landing_page")) {
+  failures.push("attribution report must break landing performance down by hostname and landing page");
+}
+for (const requiredLeadControl of [
+  'eventName: "form_start"',
+  'form.dataset.submissionId = form.dataset.submissionId || crypto.randomUUID()',
+  'deduplicated: true',
+  'lead_type: trackedEvent === "booking_submit" ? "consultation" : "contact_request"',
+  'SUM(CASE WHEN event_name = \'generate_lead\' THEN 1 ELSE 0 END) AS lead_events',
+]) {
+  if (!siteSource.includes(requiredLeadControl)) {
+    failures.push(`consultation measurement is missing ${requiredLeadControl}`);
+  }
+}
+
 for (const requiredPurchaseControl of [
   'gtag("config", "${escapeJs(directTagId)}", { send_page_view: false })',
   "window.agentidTrackVerifiedPurchase = function(purchase)",
@@ -399,6 +442,13 @@ const homeResponse = await handleAgentIdSiteRequest(
   { waitUntil() {} },
 );
 const homeBody = await homeResponse.text();
+for (const requiredHomeCta of [
+  'href="/book-a-consultation?source=homepage"',
+  'href="/ai-agent-launch-kit"',
+  "Get the $29 Launch Kit",
+]) {
+  if (!homeBody.includes(requiredHomeCta)) failures.push(`homepage is missing high-intent CTA ${requiredHomeCta}`);
+}
 if (!homeBody.includes('<meta name="google-site-verification" content="hxvcDl32V0BA5LSTQx-OfIUE6DAIR6TrRp2pUbE5XZo">')) {
   failures.push("homepage must expose the exact Google Search Console verification tag");
 }
@@ -460,6 +510,9 @@ for (const conversionPath of ["/services", "/ai-agents", "/use-cases"]) {
   const conversionBody = await conversionResponse.text();
   if (!conversionBody.includes("data-conversion-bridge=") || !conversionBody.includes("Book my strategy call")) {
     failures.push(`${conversionPath} must include the analytics-led consultation bridge`);
+  }
+  if (!conversionBody.includes('href="/ai-agent-launch-kit"')) {
+    failures.push(`${conversionPath} must send qualified visitors to the high-engagement Launch Kit`);
   }
 }
 

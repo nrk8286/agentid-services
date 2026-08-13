@@ -2641,27 +2641,35 @@ function renderPaypalPurchaseMeasurementHead(env) {
   if (!useTagManager && !directTagId) return "";
 
   const loader = useTagManager
-    ? `<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+    ? `<script>
+${googleStorageConsentDefaultScript("  ")}
+(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
 new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
 j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 '${measurementPath}/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
 })(window,document,'script','dataLayer','${escapeJs(tagId)}');</script>`
-    : `<script async src="${measurementPath}/gtag/js?id=${encodeURIComponent(directTagId)}"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
+    : `<script>
+${googleStorageConsentDefaultScript("  ")}
   gtag("set", "linker", { domains: ${JSON.stringify(GOOGLE_CROSS_DOMAIN_HOSTS)} });
   gtag("js", new Date());
   gtag("config", "${escapeJs(directTagId)}", { send_page_view: false });
-</script>`;
+</script>
+<script async src="${measurementPath}/gtag/js?id=${encodeURIComponent(directTagId)}"></script>`;
 
   return `${loader}
 <script>
   window.agentidTrackVerifiedPurchase = function(purchase) {
-    if (!purchase || !purchase.transactionId || window.__agentidGooglePurchaseTracked) {
+    if (!purchase || !purchase.transactionId) {
       return Promise.resolve(false);
     }
-    window.__agentidGooglePurchaseTracked = true;
+    var transactionId = String(purchase.transactionId);
+    var purchaseStorageKey = "agentid.purchase." + transactionId;
+    if (window.__agentidGooglePurchaseTracked === transactionId) return Promise.resolve(false);
+    try {
+      if (sessionStorage.getItem(purchaseStorageKey)) return Promise.resolve(false);
+      sessionStorage.setItem(purchaseStorageKey, "1");
+    } catch {}
+    window.__agentidGooglePurchaseTracked = transactionId;
     var value = Number(purchase.value || 0);
     var currency = String(purchase.currency || "USD").toUpperCase();
     var item = {
@@ -2672,13 +2680,29 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
       quantity: 1
     };
     var eventPayload = {
-      transaction_id: String(purchase.transactionId),
+      transaction_id: transactionId,
       affiliation: location.hostname,
       value: value,
       currency: currency,
       payment_type: String(purchase.paymentProvider || "paypal"),
+      capture_verified: true,
       items: [item]
     };
+    fetch("/api/events", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      keepalive: true,
+      body: JSON.stringify({
+        eventName: "purchase",
+        sourcePage: location.pathname + location.search,
+        sessionId: transactionId,
+        properties: Object.assign({
+          page_hostname: location.hostname,
+          landing_host: location.hostname,
+          provider_verified: true
+        }, eventPayload)
+      })
+    }).catch(function() {});
     return new Promise(function(resolve) {
       var finished = false;
       var finish = function(sent) {
@@ -2690,7 +2714,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
       if (${JSON.stringify(useTagManager)}) {
         window.dataLayer = window.dataLayer || [];
         window.dataLayer.push(Object.assign({ event: "purchase", ecommerce: eventPayload }, eventPayload));
-        ${purchaseConversionSendTo ? `window.dataLayer.push(Object.assign({ event: "conversion", send_to: ${JSON.stringify(purchaseConversionSendTo)} }, eventPayload));` : ""}
+        ${purchaseConversionSendTo ? `window.dataLayer.push(Object.assign({ event: "google_ads_purchase", google_ads_destination: ${JSON.stringify(purchaseConversionSendTo)}, send_to: ${JSON.stringify(purchaseConversionSendTo)} }, eventPayload));` : ""}
         window.setTimeout(function() { finish(true); }, 250);
         return;
       }
@@ -7192,10 +7216,24 @@ function googleMeasurementStatus(env) {
     adsConversionSendTo: conversionSendTo,
     scrollDepthThresholds: [25, 50, 75, 90],
     chatOpenEvent: "chat_open",
-    recommendedKeyEvents: ["chat_open", "generate_lead", "purchase"],
-    ga4KeyEventConfigured: false,
-    ga4KeyEventStatus: "Runtime tagging is configured; GA4 event receipt and Key Event status require post-deployment verification.",
-    ga4AdminActionRequired: "Verify incoming events in GA4 DebugView/Realtime, then mark genuine conversion events as Key Events.",
+    recommendedKeyEvents: ["generate_lead", "purchase"],
+    diagnosticEvents: ["form_start", "chat_open", "cta_click", "checkout_click", "view_item", "add_to_cart", "begin_checkout", "scroll_depth"],
+    eventsToUnmarkAsKeyEvents: ["conversion", "scroll_depth", "scroll", "chat_open", "checkout_click"],
+    outcomeRules: {
+      generate_lead: "Emit once only after the contact or consultation API accepts and stores a non-test lead.",
+      purchase: "Emit once only after PayPal returns a completed capture matching the stored product, amount, currency, and capture ID.",
+    },
+    funnelExploration: {
+      dimensions: ["hostName", "landingPagePlusQueryString"],
+      steps: ["session_start", "engaged_session", "form_start_or_view_item", "checkout_click", "begin_checkout_or_generate_lead", "purchase"],
+      metric: "distinct_users",
+    },
+    ga4KeyEventConfigured: null,
+    ga4KeyEventVerification: "blocked_scope",
+    googleAdsLinkVerified: null,
+    googleAdsLinkVerification: "blocked_scope",
+    ga4KeyEventStatus: "Runtime tagging is configured; the current credential cannot list account-side Key Events because it lacks the analytics.readonly OAuth scope.",
+    ga4AdminActionRequired: "In GA4 Admin, unmark generic or diagnostic events, then mark only generate_lead and purchase after verifying their payloads in DebugView/Realtime.",
     note: tagId || analyticsId
       ? leadConversionSendTo || purchaseConversionSendTo
         ? "Google tagging is configured through the first-party proxy. Verify live event receipt before relying on conversion reporting."
@@ -7372,37 +7410,60 @@ function googleTagGatewayHead(env) {
   if (!tagId && !analyticsId) return "";
 
   const measurementPath = googleTagGatewayPath(env);
-  const snippets = [];
+  const snippets = [`  <script>
+    window.__agentidTrafficType = (function() {
+      var storageKey = "agentid.traffic-type.v1";
+      var search = new URLSearchParams(location.search);
+      var source = String(search.get("utm_source") || "").toLowerCase();
+      var medium = String(search.get("utm_medium") || "").toLowerCase();
+      var incoming = source === "codex_release" && medium === "qa" ? "internal" : "";
+      try {
+        if (incoming) sessionStorage.setItem(storageKey, incoming);
+        return incoming || sessionStorage.getItem(storageKey) || "";
+      } catch (error) {
+        return incoming;
+      }
+    })();
+  </script>`];
   if (tagId.startsWith("GTM-")) {
-    snippets.push(`  <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+    snippets.push(`  <script>
+${googleStorageConsentDefaultScript("    ")}
+    (function(w,d,s,l,i){w[l]=w[l]||[];if(w.__agentidTrafficType){w[l].push({traffic_type:w.__agentidTrafficType});}w[l].push({'gtm.start':
 new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
 j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 '${measurementPath}/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
 })(window,document,'script','dataLayer','${escapeJs(tagId)}');</script>`);
   } else if (tagId) {
-    snippets.push(`  <script async src="${measurementPath}/gtag/js?id=${encodeURIComponent(tagId)}"></script>
-  <script>
-    window.dataLayer = window.dataLayer || [];
-    function gtag(){dataLayer.push(arguments);}
+    snippets.push(`  <script>
+${googleStorageConsentDefaultScript("    ")}
     gtag("set", "linker", { domains: ${JSON.stringify(GOOGLE_CROSS_DOMAIN_HOSTS)} });
     gtag("js", new Date());
-    gtag("config", "${escapeJs(tagId)}");
-  </script>`);
+    gtag("config", "${escapeJs(tagId)}", window.__agentidTrafficType ? { traffic_type: window.__agentidTrafficType } : {});
+  </script>
+  <script async src="${measurementPath}/gtag/js?id=${encodeURIComponent(tagId)}"></script>`);
   }
 
   if (analyticsId && analyticsId !== tagId) {
-    snippets.push(`  <script async src="${measurementPath}/gtag/js?id=${encodeURIComponent(analyticsId)}"></script>
-  <script>
-    window.dataLayer = window.dataLayer || [];
-    function gtag(){dataLayer.push(arguments);}
+    snippets.push(`  <script>
+${googleStorageConsentDefaultScript("    ")}
     gtag("set", "linker", { domains: ${JSON.stringify(GOOGLE_CROSS_DOMAIN_HOSTS)} });
     gtag("js", new Date());
-    gtag("config", "${escapeJs(analyticsId)}");
-  </script>`);
+    gtag("config", "${escapeJs(analyticsId)}", window.__agentidTrafficType ? { traffic_type: window.__agentidTrafficType } : {});
+  </script>
+  <script async src="${measurementPath}/gtag/js?id=${encodeURIComponent(analyticsId)}"></script>`);
   }
 
   snippets.push(webVitalsHead(), googleMeasurementHead(env));
   return snippets.join("\n");
+}
+
+function googleStorageConsentDefaultScript(indent = "") {
+  return `${indent}window.dataLayer = window.dataLayer || [];
+${indent}function gtag(){dataLayer.push(arguments);}
+${indent}gtag("consent", "default", {
+${indent}  ad_storage: "granted",
+${indent}  analytics_storage: "granted",
+${indent}});`;
 }
 
 function googleTagGatewayBody(env) {
@@ -7439,12 +7500,22 @@ function googleMeasurementHead(env) {
       }
       var conversionDestination = window.agentidGoogleAdsConversionSendTo[item.eventName] || "";
       if (conversionDestination) {
-        var conversionPayload = Object.assign({ event: "conversion", send_to: conversionDestination }, payload);
+        var conversionPayload = Object.assign({
+          event: "google_ads_" + item.eventName,
+          google_ads_destination: conversionDestination,
+          send_to: conversionDestination
+        }, payload);
         if (typeof conversionPayload.value === "undefined") conversionPayload.value = 1;
         if (!conversionPayload.currency) conversionPayload.currency = "USD";
-        window.dataLayer.push(conversionPayload);
-        if (window.agentidGoogleTagType !== "google-tag-manager" && typeof window.gtag === "function") {
-          window.gtag("event", "conversion", conversionPayload);
+        if (window.agentidGoogleTagType === "google-tag-manager") {
+          window.dataLayer.push(conversionPayload);
+        } else if (typeof window.gtag === "function") {
+          window.gtag("event", "conversion", {
+            send_to: conversionDestination,
+            value: conversionPayload.value,
+            currency: conversionPayload.currency,
+            transaction_id: conversionPayload.transaction_id || conversionPayload.lead_id || ""
+          });
         }
       }
     };

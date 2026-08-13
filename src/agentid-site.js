@@ -3470,10 +3470,10 @@ function renderHomePage(env, state) {
       eyebrow: "AgentID Services",
       title: "AI agents that capture leads, automate follow-up, and keep your business moving",
       lede: "AgentID Services designs practical AI workflows for lead capture, customer response, scheduling, follow-up, and internal operations—with clear scope and human handoff.",
-      primaryPath: "/contact",
-      primaryLabel: "Get My AI Automation Plan",
-      secondaryPath: "/pricing",
-      secondaryLabel: "See Starting Prices",
+      primaryPath: "/book-a-consultation?source=homepage",
+      primaryLabel: "Book a Free AI Strategy Call",
+      secondaryPath: "/ai-agent-launch-kit",
+      secondaryLabel: "Get the $29 Launch Kit",
       trustLine: "Clear scope, human handoff, and measurable next steps—without a vague chatbot demo.",
       ownershipLabel: "AgentID Services delivery advantages",
       finalEyebrow: "Ready to improve response time?",
@@ -3486,10 +3486,10 @@ function renderHomePage(env, state) {
       eyebrow: "GPTMarketPlus",
       title: "Custom AI Agents That Help Your Business Sell, Respond, and Operate Faster",
       lede: "Turn missed leads, slow follow-up, repetitive customer questions, and manual admin into one AI workflow your business can use every day.",
-      primaryPath: "/book-a-consultation",
+      primaryPath: "/book-a-consultation?source=homepage",
       primaryLabel: "Book a Free AI Strategy Call",
-      secondaryPath: "/pricing",
-      secondaryLabel: "See Plans & Pricing",
+      secondaryPath: "/ai-agent-launch-kit",
+      secondaryLabel: "Get the $29 Launch Kit",
       trustLine: "Plans start at $497. Built for small businesses, service companies, agencies, and operations teams that need practical AI systems - not confusing tech.",
       ownershipLabel: "GPTMarketPlus platform advantages",
       finalEyebrow: "Ready to build your first AI agent?",
@@ -3640,11 +3640,12 @@ function renderHomePage(env, state) {
 function renderServicesPage(env) {
   const body = `
     <section class="page-hero">
-      ${renderPageTitle("Services", "AI services that solve real business work", "Custom agent builds, automation setup, website AI assistants, and ongoing management.")}
+      ${renderPageTitle("Services", "Choose the business result your first AI workflow should deliver", "Start with faster lead response, consistent follow-up, customer self-service, or a cleaner handoff into your existing tools. We will scope one accountable workflow before recommending a larger build.")}
       <div class="cta-row">
-        <a class="button-primary" href="/book-a-consultation?source=services" data-track-event="cta_click" data-track-label="Services Book Strategy Call">Book a free strategy call</a>
-        <a class="button-secondary" href="/pricing" data-track-event="cta_click" data-track-label="Services View Pricing">See plans &amp; pricing</a>
+        <a class="button-primary" href="/book-a-consultation?source=services" data-track-event="cta_click" data-track-label="Services Book Strategy Call">Map my first workflow</a>
+        <a class="button-secondary" href="/ai-agent-launch-kit" data-track-event="product_view" data-track-label="Services View Launch Kit">Plan it myself for $29</a>
       </div>
+      <p class="trust-line">Free strategy call for custom implementation. One-time $29 toolkit for businesses that want to plan before they buy.</p>
     </section>
     <section class="section">
       ${renderCardGrid(SERVICE_CARDS.map((item) => ({
@@ -3672,8 +3673,8 @@ function renderAgentsPage(env) {
     <section class="page-hero">
       ${renderPageTitle("AI Agents", "Choose the bottleneck you want an AI agent to remove", "Start with missed leads, slow follow-up, scheduling, customer questions, CRM handoff, or repetitive operations work.")}
       <div class="cta-row">
-        <a class="button-primary" href="/book-a-consultation?source=ai-agents" data-track-event="cta_click" data-track-label="AI Agents Book Strategy Call">Book a free strategy call</a>
-        <a class="button-secondary" href="/pricing" data-track-event="cta_click" data-track-label="Compare AI Agent Plans">Compare plans &amp; pricing</a>
+        <a class="button-primary" href="/book-a-consultation?source=ai-agents" data-track-event="cta_click" data-track-label="AI Agents Book Strategy Call">Match an agent to my workflow</a>
+        <a class="button-secondary" href="/ai-agent-launch-kit" data-track-event="product_view" data-track-label="AI Agents View Launch Kit">Plan it myself for $29</a>
         <button class="button-secondary" type="button" data-open-agent-chat>Ask which agent fits</button>
       </div>
       <div class="selector-card">
@@ -3851,11 +3852,13 @@ function renderPricingPage(env) {
 function renderUseCasesPage(env) {
   const body = `
     <section class="page-hero">
-      ${renderPageTitle("Use Cases", "Realistic AI workflows for common business problems", "No fake case studies. Just realistic ways the system can work.")}
+      ${renderPageTitle("Use Cases", "See the workflow, human handoff, and measurable outcome before you buy", "Explore realistic ways to capture leads, speed up response, automate follow-up, and organize repetitive work without fake case studies or promised results.")}
       <div class="cta-row">
         <a class="button-primary" href="/book-a-consultation?source=use-cases" data-track-event="cta_click" data-track-label="Use Cases Book Strategy Call">Map my first workflow</a>
+        <a class="button-secondary" href="/ai-agent-launch-kit" data-track-event="product_view" data-track-label="Use Cases View Launch Kit">Use the $29 planning kit</a>
         <button class="button-secondary" type="button" data-open-agent-chat>Ask which workflow fits</button>
       </div>
+      <p class="trust-line">Bring one bottleneck to the free strategy call, or use the Launch Kit to score and document it yourself.</p>
     </section>
     <section class="section">
       ${renderCardGrid(USE_CASES.map((item) => ({
@@ -3899,8 +3902,9 @@ function renderResourcesPage(env) {
       <div>
         ${renderPageTitle("Resource center", "Make a better AI automation decision", "Use original guides, practical templates, and a client-side ROI calculator to choose a narrow workflow, set safe boundaries, and measure whether it works.")}
         <div class="cta-row">
-          <a class="button-primary" href="/tools/ai-automation-roi-calculator" data-track-event="resource_click" data-track-label="Open ROI Calculator">Calculate potential value</a>
-          <a class="button-secondary" href="/ai-agent-launch-kit" data-track-event="product_view" data-track-label="View Launch Kit">Get the $29 launch kit</a>
+          <a class="button-primary" href="/ai-agent-launch-kit" data-track-event="product_view" data-track-label="View Launch Kit">Turn the guidance into a $29 plan</a>
+          <a class="button-secondary" href="/book-a-consultation?source=resources" data-track-event="cta_click" data-track-label="Resources Book Strategy Call">Map it with us for free</a>
+          <a class="button-secondary" href="/tools/ai-automation-roi-calculator" data-track-event="resource_click" data-track-label="Open ROI Calculator">Calculate potential value</a>
         </div>
       </div>
       <div class="side-note">
@@ -4607,6 +4611,7 @@ function renderContactPage(env, requestUrl = null) {
       : "By submitting, you agree we can contact you about your request. Add only the information you want us to use for this project.",
     turnstileHtml: renderTurnstileWidget(env),
     fields,
+    dataAttrs: `data-form-type="${isSponsorApplication ? "sponsor_application" : "contact"}"`,
   });
 
   const body = `
@@ -4667,6 +4672,7 @@ function renderBookingPage(env) {
     cta: "Book My Free AI Strategy Call",
     note: "We’ll look at your business, identify what can be automated, and recommend the best AI agent setup.",
     turnstileHtml: renderTurnstileWidget(env),
+    dataAttrs: 'data-form-type="consultation"',
     fields: [
       { name: "name", label: "Name", placeholder: "Your name", required: true },
       { name: "email", label: "Email", type: "email", placeholder: "you@example.com", required: true },
@@ -4808,6 +4814,22 @@ async function captureLead(env, ctx, body, options = {}) {
     return { ok: false, status: 400, error: `Missing required fields: ${missing.join(", ")}` };
   }
 
+  const submittedLeadId = cleanText(body.leadId || body.id || "", 120);
+  const existingLead = submittedLeadId ? await dbGetLeadById(env, submittedLeadId) : null;
+  if (existingLead) {
+    return {
+      ok: true,
+      status: 200,
+      response: {
+        ok: true,
+        deduplicated: true,
+        leadId: existingLead.id,
+        message: "This request was already received. No duplicate lead or notification was created.",
+        trackEvent: options.trackEvent || `${submissionType}_submit`,
+      },
+    };
+  }
+
   const rate = await rateLimit(env, options.request || new Request("https://example.com"), submissionType);
   if (!rate.ok) {
     return { ok: false, status: 429, error: "Rate limited.", retryAfter: rate.retryAfter };
@@ -4845,7 +4867,7 @@ async function captureLead(env, ctx, body, options = {}) {
   const leadTag = leadScoreLabel(leadScore);
   const effectiveLeadTag = classification.excluded ? "TEST" : leadTag;
   const lead = {
-    id: cleanText(body.leadId || body.id || "", 120) || crypto.randomUUID(),
+    id: submittedLeadId || crypto.randomUUID(),
     source_page: sourcePage,
     conversation_id: cleanText(body.conversationId || "", 120),
     crm_stage: classification.excluded ? "test_record" : options.crmStage || defaultLeadStage(leadTag),
@@ -5684,6 +5706,9 @@ async function loadAttributionHealth(env, requestedDays = 7) {
       chatOpens: 0,
       chatPromptViews: 0,
       leadEvents: 0,
+      formStarts: 0,
+      checkoutStarts: 0,
+      purchases: 0,
       taggedCoverageRate: 0,
       coverageBasis: "events",
       firstSeenAt: null,
@@ -5702,7 +5727,8 @@ async function loadAttributionHealth(env, requestedDays = 7) {
     OR NULLIF(TRIM(json_extract(properties_json, '$.utm_medium')), '') IS NOT NULL
     OR NULLIF(TRIM(json_extract(properties_json, '$.utm_campaign')), '') IS NOT NULL
   )`;
-  const productionPredicate = `COALESCE(LOWER(TRIM(json_extract(properties_json, '$.utm_medium'))), '') <> 'qa'`;
+  const productionPredicate = `COALESCE(LOWER(TRIM(json_extract(properties_json, '$.utm_medium'))), '') <> 'qa'
+    AND COALESCE(LOWER(TRIM(json_extract(properties_json, '$.traffic_type'))), '') <> 'internal'`;
   const [
     summaryRow,
     channelRows,
@@ -5720,7 +5746,10 @@ async function loadAttributionHealth(env, requestedDays = 7) {
         SUM(CASE WHEN NULLIF(TRIM(json_extract(properties_json, '$.page_referrer')), '') IS NOT NULL THEN 1 ELSE 0 END) AS referred_events,
         SUM(CASE WHEN event_name = 'chat_open' THEN 1 ELSE 0 END) AS chat_opens,
         SUM(CASE WHEN event_name = 'chat_prompt_view' THEN 1 ELSE 0 END) AS chat_prompt_views,
-        SUM(CASE WHEN event_name IN ('contact_submit', 'booking_submit', 'lead_magnet_submit', 'lead_captured', 'generate_lead') THEN 1 ELSE 0 END) AS lead_events,
+        SUM(CASE WHEN event_name = 'generate_lead' THEN 1 ELSE 0 END) AS lead_events,
+        SUM(CASE WHEN event_name = 'form_start' THEN 1 ELSE 0 END) AS form_starts,
+        SUM(CASE WHEN event_name = 'begin_checkout' THEN 1 ELSE 0 END) AS checkout_starts,
+        SUM(CASE WHEN event_name = 'purchase' THEN 1 ELSE 0 END) AS purchases,
         MIN(created_at) AS first_seen_at,
         MAX(created_at) AS latest_seen_at
        FROM agentid_events
@@ -5737,7 +5766,7 @@ async function loadAttributionHealth(env, requestedDays = 7) {
         COUNT(*) AS events,
         COUNT(DISTINCT NULLIF(session_id, '')) AS sessions,
         SUM(CASE WHEN event_name = 'chat_open' THEN 1 ELSE 0 END) AS chat_opens,
-        SUM(CASE WHEN event_name IN ('contact_submit', 'booking_submit', 'lead_magnet_submit', 'lead_captured', 'generate_lead') THEN 1 ELSE 0 END) AS lead_events,
+        SUM(CASE WHEN event_name = 'generate_lead' THEN 1 ELSE 0 END) AS lead_events,
         MAX(created_at) AS latest_seen_at
        FROM agentid_events
        WHERE datetime(created_at) >= datetime('now', ?)
@@ -5750,6 +5779,11 @@ async function loadAttributionHealth(env, requestedDays = 7) {
     queryD1All(
       env,
       `SELECT
+        COALESCE(
+          NULLIF(TRIM(json_extract(properties_json, '$.landing_host')), ''),
+          NULLIF(TRIM(json_extract(properties_json, '$.page_hostname')), ''),
+          '(unknown)'
+        ) AS hostname,
         CASE
           WHEN instr(COALESCE(NULLIF(TRIM(json_extract(properties_json, '$.landing_page')), ''), source_page, '/'), '?') > 0
           THEN substr(
@@ -5766,7 +5800,7 @@ async function loadAttributionHealth(env, requestedDays = 7) {
        FROM agentid_events
        WHERE datetime(created_at) >= datetime('now', ?)
          AND ${productionPredicate}
-       GROUP BY landing_page
+       GROUP BY hostname, landing_page
        ORDER BY events DESC, sessions DESC
        LIMIT 20`,
       [windowModifier],
@@ -5814,6 +5848,9 @@ async function loadAttributionHealth(env, requestedDays = 7) {
     chatOpens: Number(summaryRow?.chat_opens || 0),
     chatPromptViews: Number(summaryRow?.chat_prompt_views || 0),
     leadEvents: Number(summaryRow?.lead_events || 0),
+    formStarts: Number(summaryRow?.form_starts || 0),
+    checkoutStarts: Number(summaryRow?.checkout_starts || 0),
+    purchases: Number(summaryRow?.purchases || 0),
     taggedCoverageRate: 0,
     coverageBasis: Number(summaryRow?.total_sessions || 0) > 0 ? "sessions" : "events",
     firstSeenAt: summaryRow?.first_seen_at || null,
@@ -5848,6 +5885,17 @@ async function loadAttributionHealth(env, requestedDays = 7) {
     Object.entries(row).map(([key, value]) => [key, keys.includes(key) ? Number(value || 0) : value])
   );
 
+  const channels = channelRows.map((row) => {
+    const channel = numericRow(row, ["events", "sessions", "chat_opens", "lead_events"]);
+    const referralNeedsReview = channel.medium === "referral"
+      && channel.sessions <= 2
+      && channel.lead_events === 0;
+    return {
+      ...channel,
+      trafficReview: referralNeedsReview ? "review_low_volume_referral" : "none",
+    };
+  });
+
   return {
     ...empty,
     generatedAt: new Date().toISOString(),
@@ -5855,7 +5903,7 @@ async function loadAttributionHealth(env, requestedDays = 7) {
     status,
     statusLabel,
     summary,
-    channels: channelRows.map((row) => numericRow(row, ["events", "sessions", "chat_opens", "lead_events"])),
+    channels,
     landingPages: landingRows.map((row) => numericRow(row, ["events", "sessions", "chat_opens"])),
     events: eventRows.map((row) => numericRow(row, ["events", "sessions", "tagged_events"])),
     daily: dailyRows.map((row) => numericRow(row, ["events", "sessions", "tagged_events", "chat_opens"])),
@@ -6349,23 +6397,61 @@ function renderMeasurementHead(env) {
   });
 
   if (tagManagerId.startsWith("GTM-")) {
-    snippets.push(`<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+    snippets.push(`<script>
+${renderGrantedStorageConsentDefault("  ")}
+  window.__agentidTrafficType = (function() {
+    const storageKey = "agentid.traffic-type.v1";
+    const search = new URLSearchParams(location.search);
+    const source = String(search.get("utm_source") || "").toLowerCase();
+    const medium = String(search.get("utm_medium") || "").toLowerCase();
+    const incoming = source === "codex_release" && medium === "qa" ? "internal" : "";
+    try {
+      if (incoming) sessionStorage.setItem(storageKey, incoming);
+      return incoming || sessionStorage.getItem(storageKey) || "";
+    } catch {
+      return incoming;
+    }
+  })();
+</script>
+<script>(function(w,d,s,l,i){w[l]=w[l]||[];if(w.__agentidTrafficType){w[l].push({traffic_type:w.__agentidTrafficType});}w[l].push({'gtm.start':
 new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
 j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 '${escapeJs(gatewayPath)}/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
 })(window,document,'script','dataLayer','${escapeJs(tagManagerId)}');</script>`);
   } else if (analyticsId.startsWith("G-")) {
-    snippets.push(`<script async src="${escapeHtml(gatewayPath)}/gtag/js?id=${encodeURIComponent(analyticsId)}"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
+    snippets.push(`<script>
+${renderGrantedStorageConsentDefault("  ")}
+  window.__agentidTrafficType = (function() {
+    const storageKey = "agentid.traffic-type.v1";
+    const search = new URLSearchParams(location.search);
+    const source = String(search.get("utm_source") || "").toLowerCase();
+    const medium = String(search.get("utm_medium") || "").toLowerCase();
+    const incoming = source === "codex_release" && medium === "qa" ? "internal" : "";
+    try {
+      if (incoming) sessionStorage.setItem(storageKey, incoming);
+      return incoming || sessionStorage.getItem(storageKey) || "";
+    } catch {
+      return incoming;
+    }
+  })();
   gtag("set", "linker", { domains: ${JSON.stringify(GOOGLE_CROSS_DOMAIN_HOSTS)} });
   gtag("js", new Date());
-  gtag("config", "${escapeJs(analyticsId)}", ${measurementConfig});
-</script>`);
+  gtag("config", "${escapeJs(analyticsId)}", Object.assign(${measurementConfig},
+    window.__agentidTrafficType ? { traffic_type: window.__agentidTrafficType } : {}));
+</script>
+<script async src="${escapeHtml(gatewayPath)}/gtag/js?id=${encodeURIComponent(analyticsId)}"></script>`);
   }
 
   return snippets.join("\n");
+}
+
+function renderGrantedStorageConsentDefault(indent = "") {
+  return `${indent}window.dataLayer = window.dataLayer || [];
+${indent}function gtag(){dataLayer.push(arguments);}
+${indent}gtag("consent", "default", {
+${indent}  ad_storage: "granted",
+${indent}  analytics_storage: "granted",
+${indent}});`;
 }
 
 function renderMeasurementBody(env) {
@@ -6523,6 +6609,7 @@ function renderAnalyticsBootstrap(env) {
           utm_campaign: search.get("utm_campaign") || "",
           utm_content: search.get("utm_content") || "",
           utm_term: search.get("utm_term") || "",
+          traffic_type: window.__agentidTrafficType || "",
         };
         const hasCampaign = Boolean(incoming.utm_source || incoming.utm_medium || incoming.utm_campaign);
         let stored = null;
@@ -6558,13 +6645,31 @@ function renderAnalyticsBootstrap(env) {
           value: typeof eventProperties.value === "number" ? eventProperties.value : 1,
           currency: eventProperties.currency || "USD",
         }, eventProperties);
-        window.dataLayer = window.dataLayer || [];
-        window.dataLayer.push(Object.assign({ event: "conversion" }, conversionProperties));
-        if (!window.__agentidAnalyticsConfig.googleTagId.startsWith("GTM-")
-            && typeof window.gtag === "function") {
+        if (window.__agentidAnalyticsConfig.googleTagId.startsWith("GTM-")) {
+          window.dataLayer = window.dataLayer || [];
+          window.dataLayer.push(Object.assign({
+            event: "google_ads_" + eventName,
+            google_ads_destination: sendTo,
+          }, conversionProperties));
+        } else if (typeof window.gtag === "function") {
           window.gtag("event", "conversion", conversionProperties);
         }
         return true;
+      };
+      window.__agentidOutcomeEventKeys = new Set();
+      window.__agentidOutcomeEventSeen = function(eventName, properties) {
+        if (!["generate_lead", "purchase"].includes(eventName)) return false;
+        const eventId = String(properties?.transaction_id || properties?.lead_id || "").trim();
+        if (!eventId) return false;
+        const key = [eventName, eventId].join("|");
+        if (window.__agentidOutcomeEventKeys.has(key)) return true;
+        try {
+          const storageKey = "agentid.outcome." + key;
+          if (sessionStorage.getItem(storageKey)) return true;
+          sessionStorage.setItem(storageKey, "1");
+        } catch {}
+        window.__agentidOutcomeEventKeys.add(key);
+        return false;
       };
       window.agentidTrackEvent = async function(eventName, properties) {
         const eventProperties = Object.assign({
@@ -6574,6 +6679,7 @@ function renderAnalyticsBootstrap(env) {
           page_origin: location.origin,
           page_title: document.title,
         }, window.__agentidAttribution || {}, properties || {});
+        if (window.__agentidOutcomeEventSeen(eventName, eventProperties)) return false;
         const payload = {
           eventName,
           sourcePage: location.pathname + location.search,
@@ -6596,8 +6702,10 @@ function renderAnalyticsBootstrap(env) {
             keepalive: true,
             body: JSON.stringify(payload),
           });
+          return true;
         } catch (error) {
           console.debug("agentid analytics", error);
+          return false;
         }
       };
 
@@ -7018,6 +7126,43 @@ function renderFormsBootstrap(env) {
           })[char]);
         }
 
+        function leadFormType(form) {
+          const explicitType = String(form.dataset.formType || "").trim();
+          if (explicitType) return explicitType;
+          const endpoint = String(form.getAttribute("data-endpoint") || "");
+          if (endpoint === "/api/book-consultation") return "consultation";
+          if (endpoint === "/api/contact") return "contact";
+          if (endpoint === "/api/lead-magnet") return "lead_magnet";
+          return "";
+        }
+
+        function isLeadForm(form) {
+          return Boolean(leadFormType(form));
+        }
+
+        function recordFormStart(form) {
+          if (!isLeadForm(form) || form.dataset.formStartRecorded === "1") return;
+          form.dataset.formStartRecorded = "1";
+          const formType = leadFormType(form);
+          const properties = Object.assign({
+            form_id: form.id || "lead_form",
+            form_name: form.id || formType,
+            form_type: formType,
+            page_hostname: location.hostname,
+          }, window.__agentidAttribution || {});
+          fetch("/api/events", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            keepalive: true,
+            body: JSON.stringify({
+              eventName: "form_start",
+              sourcePage: location.pathname + location.search,
+              sessionId: window.__agentidSessionId || "",
+              properties,
+            }),
+          }).catch(() => {});
+        }
+
         async function submitForm(form) {
           const endpoint = form.getAttribute("data-endpoint");
           const status = form.querySelector(".form-status");
@@ -7026,6 +7171,11 @@ function renderFormsBootstrap(env) {
 
           const data = new FormData(form);
           const payload = Object.fromEntries(data.entries());
+          const formType = leadFormType(form);
+          if (isLeadForm(form)) {
+            form.dataset.submissionId = form.dataset.submissionId || crypto.randomUUID();
+            payload.leadId = form.dataset.submissionId;
+          }
           payload.sourcePage = location.pathname + location.search;
           payload.sourceUrl = location.href;
           payload.leadSource = [
@@ -7044,6 +7194,7 @@ function renderFormsBootstrap(env) {
           if (ecommerceItemId && window.agentidTrackEvent) {
             const price = Number(form.dataset.ecommerceItemPrice || 0);
             const currency = String(form.dataset.ecommerceCurrency || "USD").toUpperCase();
+            form.dataset.checkoutAttemptId = crypto.randomUUID();
             window.agentidTrackEvent("add_to_cart", {
               value: price,
               currency,
@@ -7054,6 +7205,11 @@ function renderFormsBootstrap(env) {
                 price,
                 quantity: 1,
               }],
+            });
+            window.agentidTrackEvent("checkout_click", {
+              product_id: ecommerceItemId,
+              source_page: location.pathname,
+              checkout_attempt_id: form.dataset.checkoutAttemptId,
             });
           }
 
@@ -7098,6 +7254,8 @@ function renderFormsBootstrap(env) {
                   value: amount,
                   currency,
                   payment_provider: result.provider || "paypal",
+                  checkout_id: result.orderId || "",
+                  checkout_attempt_id: form.dataset.checkoutAttemptId || "",
                   items: [{
                     item_id: result.product?.id || payload.productId || payload.packageId || "",
                     item_name: result.product?.name || result.product?.id || "Purchase",
@@ -7105,10 +7263,6 @@ function renderFormsBootstrap(env) {
                     price: amount,
                     quantity: 1,
                   }],
-                });
-                window.agentidTrackEvent("checkout_click", {
-                  productId: payload.productId || payload.packageId || "",
-                  sourcePage: location.pathname,
                 });
               }
               window.location.href = result.checkoutUrl;
@@ -7122,11 +7276,15 @@ function renderFormsBootstrap(env) {
                 sourcePage: location.pathname,
                 transaction_id: result.leadId || "",
               };
-              window.agentidTrackEvent(trackedEvent, eventProperties);
-              if (["contact_submit", "booking_submit"].includes(trackedEvent)) {
+              if (!result.deduplicated) window.agentidTrackEvent(trackedEvent, eventProperties);
+              if (!result.deduplicated && ["contact_submit", "booking_submit"].includes(trackedEvent)) {
                 window.agentidTrackEvent("generate_lead", Object.assign({
                   value: 1,
                   currency: "USD",
+                  lead_id: result.leadId || "",
+                  lead_source: window.__agentidAttribution?.utm_source || "direct",
+                  lead_type: trackedEvent === "booking_submit" ? "consultation" : "contact_request",
+                  form_name: form.id || formType || "lead_form",
                 }, eventProperties));
               }
             }
@@ -7143,6 +7301,10 @@ function renderFormsBootstrap(env) {
 
         document.addEventListener("DOMContentLoaded", () => {
           document.querySelectorAll("form[data-agentid-form]").forEach((form) => {
+            if (isLeadForm(form)) {
+              form.addEventListener("focusin", () => recordFormStart(form), { once: true });
+              form.addEventListener("change", () => recordFormStart(form), { once: true });
+            }
             form.addEventListener("submit", (event) => {
               event.preventDefault();
               submitForm(form);
@@ -10317,6 +10479,7 @@ async function renderAdminDashboardPage(env, request) {
       <div class="dashboard-section">
         ${renderSectionTitle("Landing pages", "Where tracked sessions enter", "")}
         ${attribution.landingPages.length ? renderRows(attribution.landingPages.slice(0, 10), [
+          { label: "Hostname", value: (row) => row.hostname || "(unknown)" },
           { label: "Landing page", value: (row) => row.landing_page || "/" },
           { label: "Sessions", value: (row) => row.sessions || 0 },
           { label: "Events", value: (row) => row.events || 0 },
