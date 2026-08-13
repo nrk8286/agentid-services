@@ -3972,8 +3972,8 @@ function renderAgentsPage(env) {
     <section class="page-hero">
       ${renderPageTitle("AI Agents", "Choose the bottleneck you want an AI agent to remove", "Start with missed leads, slow follow-up, scheduling, customer questions, CRM handoff, or repetitive operations work.")}
       <div class="cta-row">
-        <a class="button-primary" href="/book-a-consultation?source=ai-agents" data-track-event="cta_click" data-track-label="AI Agents Book Strategy Call">Match an agent to my workflow</a>
-        <a class="button-secondary" href="/ai-agent-launch-kit" data-track-event="product_view" data-track-label="AI Agents View Launch Kit">Plan it myself for $29</a>
+        <a class="button-primary" href="/ai-agent-launch-kit?source=ai-agents" data-track-event="product_view" data-track-label="AI Agents Build Launch Kit">Build my first workflow for $29</a>
+        <a class="button-secondary" href="/book-a-consultation?source=ai-agents" data-track-event="cta_click" data-track-label="AI Agents Book Strategy Call">Match an agent to my workflow</a>
         <button class="button-secondary" type="button" data-open-agent-chat>Ask which agent fits</button>
       </div>
       <div class="selector-card">
@@ -4012,7 +4012,18 @@ function renderAgentsPage(env) {
           const match = mapping.find((item) => value.includes(item.match));
           const agentType = match ? match.agentType : "Website Sales Agent";
           const packageName = match ? match.package : "Starter Agent";
-          target.innerHTML = "<strong>Recommended agent</strong><p>" + agentType + " with the " + packageName + " package.</p>";
+          target.replaceChildren();
+          const heading = document.createElement("strong");
+          heading.textContent = "Recommended agent";
+          const summary = document.createElement("p");
+          summary.textContent = agentType + " with the " + packageName + " package.";
+          const launchKitLink = document.createElement("a");
+          launchKitLink.className = "inline-action";
+          launchKitLink.href = "/ai-agent-launch-kit?source=ai-agents-recommendation";
+          launchKitLink.dataset.trackEvent = "product_view";
+          launchKitLink.dataset.trackLabel = "AI Agents Recommendation Launch Kit";
+          launchKitLink.textContent = "Build this first workflow for $29";
+          target.append(heading, summary, launchKitLink);
           if (window.agentidTrackEvent) {
             window.agentidTrackEvent("package_recommendation", { businessType: select.value, agentType, packageName });
           }
@@ -4154,8 +4165,8 @@ function renderUseCasesPage(env) {
     <section class="page-hero">
       ${renderPageTitle("Use Cases", "See the workflow, human handoff, and measurable outcome before you buy", "Explore realistic ways to capture leads, speed up response, automate follow-up, and organize repetitive work without fake case studies or promised results.")}
       <div class="cta-row">
-        <a class="button-primary" href="/book-a-consultation?source=use-cases" data-track-event="cta_click" data-track-label="Use Cases Book Strategy Call">Map my first workflow</a>
-        <a class="button-secondary" href="/ai-agent-launch-kit" data-track-event="product_view" data-track-label="Use Cases View Launch Kit">Use the $29 planning kit</a>
+        <a class="button-primary" href="/ai-agent-launch-kit?source=use-cases" data-track-event="product_view" data-track-label="Use Cases Build Launch Kit">Build the first workflow for $29</a>
+        <a class="button-secondary" href="/book-a-consultation?source=use-cases" data-track-event="cta_click" data-track-label="Use Cases Book Strategy Call">Map my first workflow</a>
         <button class="button-secondary" type="button" data-open-agent-chat>Ask which workflow fits</button>
       </div>
       <p class="trust-line">Bring one bottleneck to the free strategy call, or use the Launch Kit to score and document it yourself.</p>

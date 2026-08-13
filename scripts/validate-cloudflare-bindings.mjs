@@ -747,6 +747,25 @@ for (const conversionPath of ["/services", "/ai-agents", "/use-cases"]) {
   }
 }
 
+for (const [conversionPath, requiredPrimaryControl] of [
+  ["/ai-agents", 'href="/ai-agent-launch-kit?source=ai-agents" data-track-event="product_view"'],
+  ["/use-cases", 'href="/ai-agent-launch-kit?source=use-cases" data-track-event="product_view"'],
+]) {
+  const conversionResponse = await handleAgentIdSiteRequest(
+    new Request(`https://gptmarketplus.com${conversionPath}`),
+    {
+      SITE_URL: "https://gptmarketplus.com",
+      SUPPORT_EMAIL: "admin@gptmarketplus.com",
+      BRAND_NAME: "GPTMarketPlus",
+    },
+    { waitUntil() {} },
+  );
+  const conversionBody = await conversionResponse.text();
+  if (!conversionBody.includes(requiredPrimaryControl)) {
+    failures.push(`${conversionPath} must put the attributed Launch Kit in the primary CTA position`);
+  }
+}
+
 for (const [purchaseOrigin, purchaseBrand] of [
   ["https://gptmarketplus.com", "GPTMarketPlus"],
   ["https://agentid.services", "AgentID Services"],
