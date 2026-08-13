@@ -5392,6 +5392,21 @@ function buildLeadResponse(savedLead, options = {}) {
     recommendedPackage: savedLead.recommended_package,
     leadTag: savedLead.lead_status,
   }, options.env || null);
+  let nextStep = null;
+  if (!excludedTest && options.nextStep?.url && options.nextStep?.label) {
+    try {
+      const nextUrl = new URL(options.nextStep.url, siteUrl(options.env || {}));
+      const siteOrigin = new URL(siteUrl(options.env || {})).origin;
+      if (nextUrl.origin === siteOrigin && ["http:", "https:"].includes(nextUrl.protocol)) {
+        nextStep = {
+          label: cleanText(options.nextStep.label, 120),
+          url: nextUrl.toString().slice(0, 500),
+        };
+      }
+    } catch {
+      nextStep = null;
+    }
+  }
   const dashboardUrl = excludedTest
     ? ""
     : savedLead.dashboard_token
@@ -5409,6 +5424,7 @@ function buildLeadResponse(savedLead, options = {}) {
     nextAction: savedLead.next_action,
     dashboardUrl,
     followUpSequence,
+    ...(nextStep ? { nextStep } : {}),
     customerBlueprintHtml: options.customerBlueprintHtml || "",
     internalBlueprintJson: options.internalBlueprintJson || null,
     trackEvent: options.trackEvent || "lead_captured",
@@ -7861,6 +7877,20 @@ function renderFormsBootstrap(env) {
             }
             if (status) {
               status.textContent = result.message || result.summary || "Received. We’ll follow up with the next step.";
+              const nextStep = result.nextStep;
+              if (nextStep && nextStep.url && nextStep.label) {
+                try {
+                  const nextUrl = new URL(String(nextStep.url), location.origin);
+                  if (nextUrl.origin === location.origin && ["http:", "https:"].includes(nextUrl.protocol)) {
+                    const separator = document.createTextNode(" ");
+                    const link = document.createElement("a");
+                    link.className = "button-secondary form-status-action";
+                    link.href = nextUrl.toString();
+                    link.textContent = String(nextStep.label);
+                    status.append(separator, link);
+                  }
+                } catch {}
+              }
             }
             if (result.customerBlueprintHtml && form.dataset.previewTarget) {
               const preview = document.querySelector(form.dataset.previewTarget);
@@ -11264,10 +11294,21 @@ async function handleContactSubmission(request, env, ctx) {
         ],
     message: isSponsorApplication
       ? "Thanks. Your sponsor application has been received for review. No charge has been created."
-      : "Thanks. Your AI Agent Plan request has been received.",
+      : "Thanks. Your AI Agent Plan request is in. We will review the workflow details and reply with the next step.",
     trackEvent: isSponsorApplication ? "sponsor_application_submit" : "contact_submit",
     quoteRequested: true,
     crmStage: isSponsorApplication ? "sponsor_application" : "qualified",
+    nextStep: isSponsorApplication
+      ? null
+      : {
+          label: "Start with the $29 Launch Kit",
+          url: campaignUrl(env, "/ai-agent-launch-kit", {
+            source: "contact_confirmation",
+            medium: "owned",
+            campaign: "agentid_contact_confirmation",
+            content: "launch_kit",
+          }),
+        },
   });
 
   if (!result.ok) {
@@ -11299,10 +11340,19 @@ async function handleBookingSubmission(request, env, ctx) {
       "preferredContactMethod",
       "contactConsent",
     ],
-    message: "Your free AI strategy call request has been received.",
+    message: "Your free AI strategy call request is in. This form does not book a meeting automatically; we will reply to confirm a time.",
     trackEvent: "booking_submit",
     bookedCall: true,
     crmStage: "strategy_call_booked",
+    nextStep: {
+      label: "Start with the $29 Launch Kit while you wait",
+      url: campaignUrl(env, "/ai-agent-launch-kit", {
+        source: "consultation_confirmation",
+        medium: "owned",
+        campaign: "agentid_consultation_confirmation",
+        content: "launch_kit",
+      }),
+    },
   });
 
   if (!result.ok) {

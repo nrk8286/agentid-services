@@ -112,6 +112,17 @@ for (const requiredBookingHonestyControl of [
     failures.push(`booking path honesty is missing ${requiredBookingHonestyControl}`);
   }
 }
+for (const requiredConfirmationControl of [
+  "nextStep: isSponsorApplication",
+  "campaign: \"agentid_contact_confirmation\"",
+  "campaign: \"agentid_consultation_confirmation\"",
+  "This form does not book a meeting automatically",
+  "nextUrl.origin === location.origin",
+]) {
+  if (!siteSource.includes(requiredConfirmationControl)) {
+    failures.push(`lead confirmation recovery is missing ${requiredConfirmationControl}`);
+  }
+}
 
 if (!/"durable_objects"\s*:\s*\{[\s\S]{0,220}?"name"\s*:\s*"AGENT_SCHEDULER"[\s\S]{0,120}?"class_name"\s*:\s*"AgentScheduler"/.test(raw)) {
   failures.push("AGENT_SCHEDULER Durable Object binding is missing");
