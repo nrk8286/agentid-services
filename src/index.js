@@ -6393,9 +6393,25 @@ function renderOgImage(env, title, subtitle) {
 function renderTrafficPage(env, page) {
   const related = trafficPageTemplates(env).filter((item) => item.path !== page.path).slice(0, 4);
   const showSponsorRail = page.path === "/sponsor" || page.path === "/advertise" || page.path === "/ad-network" || page.path === "/pricing";
-  const primaryCtaHref = page.path === "/pricing" ? "#pricing-packages" : "/pricing";
-  const primaryCtaLabel = page.path === "/pricing" ? "Review options" : "View pricing";
+  const buyerIntentPage = !["/sponsor", "/advertise", "/ad-network"].includes(page.path);
+  const trafficSlug = page.path.replace(/^\/+/, "").replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase() || "traffic-page";
+  const launchKitHref = utmCampaignUrl(env, "/ai-agent-launch-kit", {
+    source: "organic_search",
+    medium: "seo",
+    campaign: "launch_kit",
+    content: trafficSlug,
+  });
+  const consultationHref = utmCampaignUrl(env, "/book-a-consultation", {
+    source: "organic_search",
+    medium: "seo",
+    campaign: "consultation",
+    content: trafficSlug,
+  });
+  const primaryCtaHref = buyerIntentPage ? launchKitHref : page.path === "/pricing" ? "#pricing-packages" : "/pricing";
+  const primaryCtaLabel = buyerIntentPage ? "Build the $29 Launch Kit" : page.path === "/pricing" ? "Review options" : "View pricing";
+  const primaryCtaTracking = buyerIntentPage ? ` data-launch-kit-cta="${escapeHtml(`${trafficSlug}-hero`)}"` : "";
   const specialSection = renderTrafficSpecialSection(env, page);
+  const conversionSection = buyerIntentPage ? renderTrafficConversionSection(env, page, { launchKitHref, consultationHref, trafficSlug }) : "";
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -6428,7 +6444,7 @@ ${googleTagGatewayBody(env)}
           <p class="eyebrow">AI growth system</p>
           <h1>${escapeHtml(page.title)}</h1>
           <p class="lede">${escapeHtml(page.description)}</p>
-          <p><a class="button" href="${escapeHtml(primaryCtaHref)}">${escapeHtml(primaryCtaLabel)}</a></p>
+          <p><a class="button" href="${escapeHtml(primaryCtaHref)}"${primaryCtaTracking}>${escapeHtml(primaryCtaLabel)}</a></p>
         </div>
         <div class="panel dark">
           <span class="label">Buyer intent</span>
@@ -6448,6 +6464,7 @@ ${googleTagGatewayBody(env)}
       </div>
     </section>
     ${specialSection}
+    ${conversionSection}
     ${showSponsorRail || activeSponsorPlacement(env) ? renderActiveSponsorInventory(env) : ""}
     ${showSponsorRail ? renderSponsorCheckoutSection(env) : renderAdInventorySection(env, "Automated ads", page.path === "/ad-network" ? "This page is the canonical sponsor inventory view for all recurring placements." : "Sponsor placements are sold through the live dashboard, with buyer-intent pages feeding the same inventory.") }
     <section class="section">
@@ -6461,6 +6478,38 @@ ${googleTagGatewayBody(env)}
   </main>
 </body>
 </html>`;
+}
+
+function renderTrafficConversionSection(env, page, { launchKitHref, consultationHref, trafficSlug }) {
+  return `<section class="section conversion-bridge">
+      <p class="eyebrow">Choose your next step</p>
+      <h2>Turn this research into one usable workflow</h2>
+      <p>If you want a self-serve first version, the $29 Launch Kit turns your offer, best-fit customer, and first workflow into a tailored starter prompt, lead-intake plan, follow-up sequence, QA checklist, and 30-day scorecard. It opens a private workspace after verified PayPal capture.</p>
+      <div class="inline-run">
+        <a class="button link-button" href="${escapeHtml(launchKitHref)}" data-launch-kit-cta="${escapeHtml(trafficSlug)}">Build the $29 Launch Kit</a>
+        <a class="button link-button" href="${escapeHtml(consultationHref)}">Discuss a scoped implementation</a>
+      </div>
+      <p>The kit is a usable planning and starter-system product. Website, CRM, calendar, messaging, credentials, testing, and ongoing support require a separate written scope.</p>
+      <script>
+        document.addEventListener("DOMContentLoaded", function () {
+          document.querySelectorAll("[data-launch-kit-cta]").forEach(function (link) {
+            link.addEventListener("click", function () {
+              if (typeof window.agentidTrackGoogleEvent === "function") {
+                window.agentidTrackGoogleEvent("product_view", {
+                  item_id: "ai_agent_launch_kit",
+                  item_name: "AI Agent Launch Kit",
+                  value: 29,
+                  currency: "USD",
+                  source_page: location.pathname,
+                  cta_location: "buyer_intent_bridge",
+                  cta_source: link.dataset.launchKitCta || "",
+                });
+              }
+            });
+          });
+        });
+      </script>
+    </section>`;
 }
 
 function renderTrafficSpecialSection(env, page) {
