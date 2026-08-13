@@ -72,6 +72,7 @@ const MAX_SOURCE_BYTES = 70000;
 const MAX_JSON_BODY_BYTES = 128 * 1024;
 const BODY_TOO_LARGE = Symbol("body-too-large");
 const CANONICAL_HOST = "gptmarketplus.com";
+const PUBLIC_CACHE_KEY_VERSION = "2026-08-13-traffic-cta-v1";
 const LEGACY_TLS_VERSIONS = new Set(["TLSv1", "TLSv1.0", "TLSv1.1"]);
 const DOMAIN_CAMPAIGN_REDIRECTS = new Map([
   ["agentid.life", "/use-cases"],
@@ -7867,6 +7868,7 @@ function cacheKeyFor(request) {
   const url = new URL(request.url);
   if (url.pathname.startsWith("/api/")) return null;
   if (url.searchParams.toString()) return null;
+  url.searchParams.set("__cache_version", PUBLIC_CACHE_KEY_VERSION);
   return new Request(url.toString(), { method: "GET" });
 }
 
