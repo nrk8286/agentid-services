@@ -3524,16 +3524,18 @@ function renderHomePage(env, state) {
       eyebrow: "GPTMarketPlus",
       title: "Custom AI Agents That Help Your Business Sell, Respond, and Operate Faster",
       lede: "Turn missed leads, slow follow-up, repetitive customer questions, and manual admin into one AI workflow your business can use every day.",
-      primaryPath: "/book-a-consultation?source=homepage",
-      primaryLabel: "Book a Free AI Strategy Call",
-      secondaryPath: "/ai-agent-launch-kit",
-      secondaryLabel: "Get the $29 Launch Kit",
-      trustLine: "Plans start at $497. Built for small businesses, service companies, agencies, and operations teams that need practical AI systems - not confusing tech.",
+      primaryPath: "/ai-agent-launch-kit?source=homepage",
+      primaryLabel: "Get the $29 Launch Kit",
+      secondaryPath: "/book-a-consultation?source=homepage",
+      secondaryLabel: "Book a Free AI Strategy Call",
+      trustLine: "Start with a one-time $29 toolkit delivered after verified PayPal payment, or book a free call for a custom build. Plans start at $497.",
       ownershipLabel: "GPTMarketPlus platform advantages",
-      finalEyebrow: "Ready to build your first AI agent?",
-      finalTitle: "Book your free strategy call",
-      finalDescription: "We will look at your business, identify what can be automated, and recommend the best AI agent setup.",
-      finalLabel: "Book Your Free Strategy Call",
+      finalEyebrow: "Ready to take the first practical step?",
+      finalTitle: "Start with the $29 AI Agent Launch Kit",
+      finalDescription: "Get the workbook, prompt pack, intake templates, launch checklist, and 30-day scorecard through secure delivery. If you need implementation, book a free strategy call instead.",
+      finalLabel: "Get the $29 Launch Kit",
+      finalSecondaryPath: "/book-a-consultation?source=homepage-final",
+      finalSecondaryLabel: "Book a Free AI Strategy Call",
       description: "GPTMarketPlus builds AI-powered assistants, automation systems, and lead-capture tools that handle repetitive work, improve response time, and help businesses turn more visitors into customers.",
     };
   const body = `
@@ -3657,6 +3659,7 @@ function renderHomePage(env, state) {
       </div>
       <div class="cta-box">
         <a class="button-primary" href="${escapeHtml(hero.primaryPath)}" data-track-event="cta_click" data-track-label="${escapeHtml(hero.finalLabel)}">${escapeHtml(hero.finalLabel)}</a>
+        ${hero.finalSecondaryPath ? `<a class="button-secondary" href="${escapeHtml(hero.finalSecondaryPath)}" data-track-event="cta_click" data-track-label="${escapeHtml(hero.finalSecondaryLabel)}">${escapeHtml(hero.finalSecondaryLabel)}</a>` : ""}
       </div>
     </section>
   `;
@@ -3793,8 +3796,9 @@ function renderPricingPage(env) {
       ${renderPageTitle("Pricing", "Choose the AI agent system that matches your next bottleneck", "Start with lead capture, add follow-up and integrations, or automate work across multiple teams.")}
       <p class="pricing-note">Final pricing depends on complexity, integrations, data sources, and compliance requirements.</p>
       <div class="cta-row">
-        <button class="button-primary" type="button" data-open-agent-chat data-track-event="pricing_assistant_click" data-track-label="Ask the Pricing Assistant">Not sure? Ask the pricing assistant</button>
+        <a class="button-primary" href="/ai-agent-launch-kit?source=pricing-hero" data-track-event="product_view" data-track-label="Pricing View Launch Kit">Start with the $29 Launch Kit</a>
         <a class="button-secondary" href="/book-a-consultation" data-track-event="cta_click" data-track-label="Book a Free Strategy Call">Book a free strategy call</a>
+        <button class="button-secondary" type="button" data-open-agent-chat data-track-event="pricing_assistant_click" data-track-label="Ask the Pricing Assistant">Ask the pricing assistant</button>
       </div>
     </section>
     <section class="section pricing-grid">
