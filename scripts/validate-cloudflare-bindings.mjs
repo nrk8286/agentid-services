@@ -773,6 +773,8 @@ for (const requiredLaunchKitSearchControl of [
 for (const requiredChatOfferControl of [
   'match: ["how much", "cost", "price"]',
   "the $29 AI Agent Launch Kit is the primary self-serve starting point",
+  "$29 AI Agent Launch Kit is a low-risk way to turn it into a usable first workflow",
+  "The $29 AI Agent Launch Kit helps you map one bounded workflow yourself",
   "custom work starts at the separately scoped service tiers",
   "requires a free strategy call before any payment is requested",
   "const incompleteQualification = !state.businessType || !state.painPoint || !state.urgency || !state.budgetRange",
@@ -783,20 +785,26 @@ for (const requiredChatOfferControl of [
   }
 }
 
-const chatPriceResponse = await handleAgentIdSiteRequest(
-  new Request("https://gptmarketplus.com/api/chat", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ message: "How much does it cost?", conversationId: "validation-chat-price" }),
-  }),
-  { SITE_URL: "https://gptmarketplus.com", BRAND_NAME: "GPTMarketPlus" },
-  { waitUntil() {} },
-);
-const chatPriceBody = await chatPriceResponse.json();
-if (chatPriceResponse.status !== 200
-  || !String(chatPriceBody.reply || "").includes("$29 AI Agent Launch Kit")
-  || chatPriceBody.cta?.href !== "/ai-agent-launch-kit?source=chat") {
-  failures.push("initial chat price questions must answer with the Launch Kit-first offer and CTA");
+for (const [index, check] of [
+  ["price", "How much does it cost?", "$29 AI Agent Launch Kit"],
+  ["uncertainty", "I am not sure this is for me", "$29 AI Agent Launch Kit is a low-risk way"],
+  ["chatbot", "Is this just a chatbot?", "$29 AI Agent Launch Kit helps you map one bounded workflow"],
+].entries()) {
+  const chatObjectionResponse = await handleAgentIdSiteRequest(
+    new Request("https://gptmarketplus.com/api/chat", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ message: check[1], conversationId: `validation-chat-${check[0]}-${index}` }),
+    }),
+    { SITE_URL: "https://gptmarketplus.com", BRAND_NAME: "GPTMarketPlus" },
+    { waitUntil() {} },
+  );
+  const chatObjectionBody = await chatObjectionResponse.json();
+  if (chatObjectionResponse.status !== 200
+    || !String(chatObjectionBody.reply || "").includes(check[2])
+    || chatObjectionBody.cta?.href !== "/ai-agent-launch-kit?source=chat") {
+    failures.push(`initial chat ${check[0]} objection must answer with the Launch Kit-first offer and CTA`);
+  }
 }
 
 const roiResponse = await handleAgentIdSiteRequest(

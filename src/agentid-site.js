@@ -1203,7 +1203,7 @@ const CHAT_OBJECTIONS = [
   {
     match: ["need this", "not sure", "don't know", "dont know", "think about it"],
     reply:
-      "That is normal. The easiest way to tell is to look at what you repeat every week. If you answer the same questions, miss leads, manually follow up, schedule by hand, or copy information between tools, an AI agent can probably save time or increase conversions.",
+      "That is normal. Look at what you repeat every week: answering the same questions, missing leads, manually following up, scheduling by hand, or copying information between tools. If one bottleneck is clear, the $29 AI Agent Launch Kit is a low-risk way to turn it into a usable first workflow; if you still need help deciding, use the free checklist or strategy call.",
   },
   {
     match: ["replace employees", "replace staff"],
@@ -1213,7 +1213,7 @@ const CHAT_OBJECTIONS = [
   {
     match: ["chatgpt", "chatbot", "just chat"],
     reply:
-      "No. A basic chatbot only talks. A properly built AI agent follows a workflow, collects structured information, qualifies leads, triggers automations, sends summaries, and helps move the customer toward the next step.",
+      "No. A basic chatbot only talks. A properly built AI agent follows a workflow, collects structured information, qualifies leads, triggers automations, sends summaries, and helps move the customer toward the next step. The $29 AI Agent Launch Kit helps you map one bounded workflow yourself before you decide whether implementation help is needed.",
   },
   {
     match: ["think about", "later"],
