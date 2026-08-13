@@ -3034,8 +3034,10 @@ export async function sendQueuedCustomerFollowups(env, options = {}) {
   }
   const requestedLimit = Number(options.limit || 10);
   const limit = Number.isFinite(requestedLimit) ? Math.max(1, Math.min(20, requestedLimit)) : 10;
+  const leadId = cleanText(options.leadId || "", 120);
   const now = new Date().toISOString();
-  const result = await env.GMP_DB.prepare(`
+  const leadFilter = leadId ? "AND f.lead_id = ?" : "";
+  const query = `
     SELECT f.*, l.email, l.name, l.crm_stage, l.lead_status, l.contact_consent, l.marketing_consent
     FROM agentid_followups f
     JOIN agentid_leads l ON l.id = f.lead_id
@@ -3043,6 +3045,7 @@ export async function sendQueuedCustomerFollowups(env, options = {}) {
       AND l.crm_stage <> 'test_record'
       AND l.lead_status <> 'TEST'
       AND COALESCE(l.email, '') <> ''
+      ${leadFilter}
       AND (f.consent_required = 0 OR l.marketing_consent = 1)
       AND (
         (f.status = 'queued' AND datetime(f.created_at, '+' || f.send_after_hours || ' hours') <= datetime(?))
@@ -3050,7 +3053,10 @@ export async function sendQueuedCustomerFollowups(env, options = {}) {
       )
     ORDER BY f.step_number ASC, f.created_at ASC
     LIMIT ?
-  `).bind(now, now, limit).all();
+  `;
+  const result = leadId
+    ? await env.GMP_DB.prepare(query).bind(leadId, now, now, limit).all()
+    : await env.GMP_DB.prepare(query).bind(now, now, limit).all();
   const followups = Array.isArray(result.results) ? result.results : [];
   let claimed = 0;
   let delivered = 0;
@@ -5555,7 +5561,7 @@ async function captureLead(env, ctx, body, options = {}) {
   if (!classification.excluded) {
     await dbInsertFollowups(env, saved.id, generateFollowUpSequence(saved, env));
     if (ctx && typeof ctx.waitUntil === "function") {
-      ctx.waitUntil(sendQueuedCustomerFollowups(env, { limit: 1 }).catch((error) => {
+      ctx.waitUntil(sendQueuedCustomerFollowups(env, { limit: 1, leadId: saved.id }).catch((error) => {
         console.warn("gptmarketplus immediate customer follow-up failed", {
           message: cleanText(error instanceof Error ? error.message : error, 160),
         });

@@ -85,7 +85,8 @@ for (const requiredCustomerFollowupControl of [
   "status = 'sending'",
   "send_after_hours",
   "const customerFollowups = await sendQueuedCustomerFollowups(env)",
-  "sendQueuedCustomerFollowups(env, { limit: 1 })",
+  "sendQueuedCustomerFollowups(env, { limit: 1, leadId: saved.id })",
+  "const leadFilter = leadId ? \"AND f.lead_id = ?\" : \"\"",
 ]) {
   if (!`${workerSource}\n${siteSource}`.includes(requiredCustomerFollowupControl)) {
     failures.push(`customer follow-up delivery is missing ${requiredCustomerFollowupControl}`);
