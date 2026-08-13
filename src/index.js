@@ -73,7 +73,7 @@ const MAX_SOURCE_BYTES = 70000;
 const MAX_JSON_BODY_BYTES = 128 * 1024;
 const BODY_TOO_LARGE = Symbol("body-too-large");
 const CANONICAL_HOST = "gptmarketplus.com";
-const PUBLIC_CACHE_KEY_VERSION = "2026-08-13-homepage-attribution-v1";
+const PUBLIC_CACHE_KEY_VERSION = "2026-08-13-social-hub-sales-v1";
 const VERIFIED_REVENUE_GOAL_CENTS = 1_000_000;
 const LEGACY_TLS_VERSIONS = new Set(["TLSv1", "TLSv1.0", "TLSv1.1"]);
 const DOMAIN_CAMPAIGN_REDIRECTS = new Map([
@@ -6079,6 +6079,12 @@ function renderSocialPage(env) {
     ["Newsletter", utmCampaignUrl(env, "/ai-agent-launch-kit", { source: "newsletter", medium: "email", campaign: "agentid_newsletter", content: "launch_kit" })],
     ["Proposal or PDF", utmCampaignUrl(env, "/pricing", { source: "proposal", medium: "document", campaign: "agentid_sales_materials", content: "pricing" })],
   ];
+  const primaryShareUrl = utmCampaignUrl(env, "/ai-agent-launch-kit", {
+    source: "social_hub",
+    medium: "owned",
+    campaign: "agentid_social_hub",
+    content: "launch_kit",
+  });
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -6119,9 +6125,9 @@ ${googleTagGatewayBody(env)}
           <p class="lede">Use these pages when posting on Facebook, TikTok, LinkedIn, X, or anywhere else that previews a link card. They are also the best crawl targets for Google and Bing.</p>
         </div>
         <div class="panel dark">
-          <span class="label">Primary share URL</span>
-          <strong>${siteUrl(env)}/agents/</strong>
-          <p>Dashboard, playbooks, and lead capture.</p>
+          <span class="label">Primary product share URL</span>
+          <strong>${escapeHtml(primaryShareUrl)}</strong>
+          <p>Use this attributed Launch Kit link for social bios, newsletters, and partner posts.</p>
         </div>
       </div>
     </section>
@@ -6130,11 +6136,11 @@ ${googleTagGatewayBody(env)}
       <p class="eyebrow">Best links</p>
       <h2>What to share first</h2>
       <div class="page-list">
-        <article><a href="/agents/"><strong>Agent dashboard</strong></a><p>Main public control panel for the team.</p><span>core share page</span></article>
-        <article><a href="/agents/playbook"><strong>Playbook history</strong></a><p>Daily traffic, ads, and sales action sheets.</p><span>fresh updates</span></article>
-        <article><a href="/submission-status"><strong>Submission status</strong></a><p>Readiness check for the public surfaces used by search and social platforms.</p><span>configuration audit</span></article>
+        <article><a href="${escapeHtml(primaryShareUrl)}"><strong>$29 AI Agent Launch Kit</strong></a><p>Primary self-serve product for a usable first workflow system after purchase.</p><span>share this first</span></article>
+        <article><a href="/free-ai-automation-audit-checklist?source=social-hub"><strong>Free AI Automation Audit Checklist</strong></a><p>Low-friction entry point for people who need help identifying a useful workflow.</p><span>buyer-intent lead magnet</span></article>
+        <article><a href="/book-a-consultation?source=social-hub"><strong>Scoped AI Strategy Call</strong></a><p>Use for buyers who need a written fit check before any custom work is considered.</p><span>honest consultation path</span></article>
+        <article><a href="/agents/"><strong>Owner dashboard</strong></a><p>Internal control panel for the team; do not use this as a customer acquisition URL.</p><span>internal only</span></article>
         <article><a href="/social"><strong>Social share hub</strong></a><p>Share-ready entry points and crawl surface.</p><span>distribution hub</span></article>
-        <article><a href="/sponsor"><strong>Sponsor page</strong></a><p>Direct revenue path for buyers and sponsors.</p><span>monetization</span></article>
       </div>
     </section>
     <section class="section">

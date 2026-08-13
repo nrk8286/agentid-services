@@ -815,6 +815,24 @@ for (const socialSource of ["linkedin", "facebook", "instagram", "tiktok", "x", 
   }
 }
 
+for (const requiredSocialSalesControl of [
+  'const primaryShareUrl = utmCampaignUrl(env, "/ai-agent-launch-kit",',
+  '<span class="label">Primary product share URL</span>',
+  "Use this attributed Launch Kit link for social bios, newsletters, and partner posts.",
+  'href="${escapeHtml(primaryShareUrl)}"><strong>$29 AI Agent Launch Kit</strong>',
+  'href="/free-ai-automation-audit-checklist?source=social-hub"',
+  'href="/book-a-consultation?source=social-hub"',
+  '<strong>Owner dashboard</strong>',
+  "Internal control panel for the team; do not use this as a customer acquisition URL.",
+]) {
+  if (!workerSource.includes(requiredSocialSalesControl)) {
+    failures.push(`social share hub is missing sales distribution control ${requiredSocialSalesControl}`);
+  }
+}
+if (workerSource.includes('<span class="label">Primary share URL</span>')) {
+  failures.push("social share hub must not present the internal dashboard as its primary share URL");
+}
+
 const cancelledCheckoutResponse = await handleAgentIdSiteRequest(
   new Request("https://gptmarketplus.com/ai-agent-launch-kit?paypal=cancel&product=ai_agent_launch_kit"),
   {
