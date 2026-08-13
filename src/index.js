@@ -2726,10 +2726,14 @@ function renderPaypalOrderCompletionPage(env) {
     "Confirming your payment",
     "Keep this page open while GPTMarketPlus verifies the completed PayPal capture.",
     `<p id="paypal-status" role="status">Checking your order…</p>
+     <p id="paypal-fallback" hidden><a class="primary" id="paypal-delivery-link" href="/ai-agent-launch-kit">Open your secure workspace now</a></p>
+     <a class="secondary" href="/contact?intent=paypal-delivery&amp;source=paypal-complete">Need help with delivery?</a>
      <a class="secondary" href="/pricing">Return to pricing</a>
      <script>
        (async function () {
          const status = document.getElementById("paypal-status");
+         const fallback = document.getElementById("paypal-fallback");
+         const deliveryLink = document.getElementById("paypal-delivery-link");
          const params = new URLSearchParams(location.search);
          const orderId = params.get("token") || "";
          if (!orderId) {
@@ -2746,11 +2750,21 @@ function renderPaypalOrderCompletionPage(env) {
            if (!response.ok || result.ok === false || !result.deliveryUrl) {
              throw new Error(result.error || "Payment confirmation failed.");
            }
+           const deliveryUrl = new URL(result.deliveryUrl, location.origin);
+           if (deliveryUrl.origin !== location.origin) {
+             throw new Error("The secure delivery link did not match this site.");
+           }
+           deliveryLink.href = deliveryUrl.toString();
+           if (!result.emailSent) {
+             fallback.hidden = false;
+             status.textContent = "Payment confirmed. Your secure workspace is ready below while delivery email is retried.";
+             return;
+           }
            status.textContent = "Payment confirmed. Opening your next step…";
            if (typeof window.agentidTrackVerifiedPurchase === "function" && result.purchase) {
              await window.agentidTrackVerifiedPurchase(result.purchase);
            }
-           location.replace(result.deliveryUrl);
+           location.replace(deliveryUrl.toString());
          } catch (error) {
            status.textContent = error.message || "Payment confirmation failed. Contact support with your PayPal order ID.";
          }

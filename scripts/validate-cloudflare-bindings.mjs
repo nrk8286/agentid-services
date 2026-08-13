@@ -67,6 +67,17 @@ if (!workerSource.includes('payload.type === "paypal_purchase_fulfillment"')
 if (!workerSource.includes('order?.emailDelivery?.delivered || !order.payerEmail')) {
   failures.push("PayPal customer email retries must remain idempotent after a successful delivery");
 }
+for (const requiredPaypalRecoveryControl of [
+  'id="paypal-fallback" hidden',
+  'id="paypal-delivery-link"',
+  'intent=paypal-delivery&amp;source=paypal-complete',
+  'const deliveryUrl = new URL(result.deliveryUrl, location.origin)',
+  'if (!result.emailSent)',
+]) {
+  if (!workerSource.includes(requiredPaypalRecoveryControl)) {
+    failures.push(`PayPal completion recovery is missing ${requiredPaypalRecoveryControl}`);
+  }
+}
 for (const requiredCustomerFollowupControl of [
   "sendQueuedCustomerFollowups",
   "FROM agentid_followups f",
