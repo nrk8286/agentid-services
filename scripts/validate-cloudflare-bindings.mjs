@@ -536,6 +536,19 @@ for (const requiredPurchaseControl of [
   }
 }
 
+for (const requiredCheckoutMeasurementControl of [
+  "let responseStatus = 0;",
+  "responseStatus = response.status;",
+  'window.agentidTrackEvent("checkout_error"',
+  'error_type: responseStatus ? "server_response" : "network_or_client"',
+  "Checkout takes three steps:",
+  "Access is not granted until PayPal reports the capture as completed.",
+]) {
+  if (!`${workerSource}\n${siteSource}`.includes(requiredCheckoutMeasurementControl)) {
+    failures.push(`checkout path is missing explicit approval and failure measurement control ${requiredCheckoutMeasurementControl}`);
+  }
+}
+
 const securityResponse = await handleAgentIdSiteRequest(
   new Request("https://gptmarketplus.com/.well-known/security.txt"),
   { SITE_URL: "https://gptmarketplus.com", SUPPORT_EMAIL: "admin@gptmarketplus.com", BRAND_NAME: "GPTMarketPlus" },

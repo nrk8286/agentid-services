@@ -4536,6 +4536,7 @@ function renderLaunchKitPage(env, requestUrl = null) {
           <button class="button-primary" type="submit">Buy with PayPal for ${moneyWithCents(product.price)}</button>
           <p class="form-status"></p>
         </form>` : ""}
+      ${paypalReady ? `<p class="form-note checkout-steps"><strong>Checkout takes three steps:</strong> start PayPal, approve the one-time ${moneyWithCents(product.price)} payment, then return here for verified workspace access. Access is not granted until PayPal reports the capture as completed.</p>` : ""}
       ${!paypalReady ? `<a class="button-primary" href="/contact">Request the launch kit</a>` : ""}
     </div>`;
   const body = `
@@ -8081,12 +8082,14 @@ function renderFormsBootstrap(env) {
 
           button.disabled = true;
           if (status) status.textContent = "Sending...";
+          let responseStatus = 0;
           try {
             const response = await fetch(endpoint, {
               method: "POST",
               headers: { "content-type": "application/json" },
               body: JSON.stringify(payload),
             });
+            responseStatus = response.status;
             const result = await response.json();
             if (!response.ok || result.ok === false) {
               throw new Error(result.error || "Submission failed");
@@ -8172,6 +8175,15 @@ function renderFormsBootstrap(env) {
             delete form.dataset.submissionId;
             delete form.dataset.formStartRecorded;
           } catch (error) {
+            if (ecommerceItemId && typeof window.agentidTrackEvent === "function") {
+              window.agentidTrackEvent("checkout_error", {
+                product_id: ecommerceItemId,
+                source_page: location.pathname,
+                checkout_attempt_id: form.dataset.checkoutAttemptId || "",
+                error_type: responseStatus ? "server_response" : "network_or_client",
+                error_status: responseStatus || 0,
+              });
+            }
             if (status) status.textContent = error.message || "Submission failed.";
           } finally {
             button.disabled = false;
