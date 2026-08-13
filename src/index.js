@@ -73,6 +73,7 @@ const MAX_JSON_BODY_BYTES = 128 * 1024;
 const BODY_TOO_LARGE = Symbol("body-too-large");
 const CANONICAL_HOST = "gptmarketplus.com";
 const PUBLIC_CACHE_KEY_VERSION = "2026-08-13-traffic-cta-v1";
+const VERIFIED_REVENUE_GOAL_CENTS = 1_000_000;
 const LEGACY_TLS_VERSIONS = new Set(["TLSv1", "TLSv1.0", "TLSv1.1"]);
 const DOMAIN_CAMPAIGN_REDIRECTS = new Map([
   ["agentid.life", "/use-cases"],
@@ -3116,6 +3117,10 @@ async function revenueSnapshot(env) {
     dollarsPerHour: Math.round(dollarsPerHour * 10000) / 10000,
     targetDollarsPerHour: 1,
     targetMet: dollarsPerHour >= 1,
+    verifiedRevenueGoalCents: VERIFIED_REVENUE_GOAL_CENTS,
+    verifiedRevenueGoalDollars: VERIFIED_REVENUE_GOAL_CENTS / 100,
+    verifiedRevenueGapCents: Math.max(VERIFIED_REVENUE_GOAL_CENTS - totalCents, 0),
+    verifiedRevenueGapDollars: Math.max(VERIFIED_REVENUE_GOAL_CENTS - totalCents, 0) / 100,
     latestEvents: events.slice(0, 10),
   };
 }
@@ -3132,6 +3137,8 @@ function publicRevenueSnapshot(revenue) {
     dollarsPerHour: Number(revenue?.dollarsPerHour || 0),
     targetDollarsPerHour: Number(revenue?.targetDollarsPerHour || 1),
     targetMet: Boolean(revenue?.targetMet),
+    verifiedRevenueGoalDollars: Number(revenue?.verifiedRevenueGoalDollars || VERIFIED_REVENUE_GOAL_CENTS / 100),
+    verifiedRevenueGapDollars: Number(revenue?.verifiedRevenueGapDollars || VERIFIED_REVENUE_GOAL_CENTS / 100),
   };
 }
 
@@ -5419,14 +5426,19 @@ ${googleTagGatewayBody(env)}
 
     <section class="section grid-3">
       <article class="card">
-        <span class="label">$1/hour target</span>
-        <h2>${revenue.targetMet ? "Met" : "Not met yet"}</h2>
-        <p>$${Number(revenue.dollarsPerHour || 0).toFixed(4)} / hour tracked from verified PayPal captures and webhooks.</p>
+        <span class="label">$10,000 verified-revenue goal</span>
+        <h2>$${Number(revenue.verifiedRevenueGoalDollars || 10000).toFixed(2)}</h2>
+        <p>$${Number(revenue.verifiedRevenueGapDollars || 0).toFixed(2)} remains after settled PayPal captures and verified payment events.</p>
       </article>
       <article class="card">
         <span class="label">Verified revenue</span>
         <h2>$${Number(revenue.totalDollars || 0).toFixed(2)}</h2>
         <p>${Number(revenue.paidCheckouts || 0)} paid checkout${Number(revenue.paidCheckouts || 0) === 1 ? "" : "s"} recorded.</p>
+      </article>
+      <article class="card">
+        <span class="label">Hourly benchmark</span>
+        <h2>${revenue.targetMet ? "Met" : "Not met yet"}</h2>
+        <p>$${Number(revenue.dollarsPerHour || 0).toFixed(4)} / hour tracked from verified PayPal captures and webhooks.</p>
       </article>
       <article class="card">
         <span class="label">PayPal payments</span>

@@ -704,6 +704,17 @@ for (const requiredLaunchKitDeliveryCopy of [
   }
 }
 
+for (const requiredRevenueGoalControl of [
+  "const VERIFIED_REVENUE_GOAL_CENTS = 1_000_000",
+  "verifiedRevenueGoalDollars",
+  "verifiedRevenueGapDollars",
+  "$10,000 verified-revenue goal",
+]) {
+  if (!workerSource.includes(requiredRevenueGoalControl)) {
+    failures.push(`revenue reporting is missing the explicit $10,000 goal control ${requiredRevenueGoalControl}`);
+  }
+}
+
 const agentIdEnv = {
   SITE_URL: "https://agentid.services",
   SUPPORT_EMAIL: "admin@gptmarketplus.com",
