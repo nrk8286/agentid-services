@@ -6270,7 +6270,9 @@ ${googleTagGatewayBody(env)}
       <p>These links preserve source, medium, and campaign data for social bios, email, and digital documents. Keep normal internal navigation untagged.</p>
       <div class="page-list">
         ${shareLinks.map(([label, url]) => {
-          const postCopy = `Build your first AI agent starter system for $29. Get a guided workflow brief, starter prompt, intake and consent fields, handoff rules, follow-up messages, QA tests, and a 30-day scorecard: ${url}`;
+          const postCopy = label === "Partner or community post"
+            ? `For owners who want to choose one practical AI workflow before paying for implementation: the $29 AI Agent Launch Kit is a self-serve workspace for a workflow brief, starter prompt, consent-aware intake and follow-up, launch QA, and a 30-day scorecard. It is not a performance guarantee: ${url}`
+            : `Build your first AI agent starter system for $29. Get a guided workflow brief, starter prompt, intake and consent fields, handoff rules, follow-up messages, QA tests, and a 30-day scorecard: ${url}`;
           return `<article>
           <strong>${escapeHtml(label)}</strong>
           <div class="share-control">

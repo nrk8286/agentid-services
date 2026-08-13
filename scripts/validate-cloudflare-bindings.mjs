@@ -905,6 +905,8 @@ for (const requiredPartnerDistributionControl of [
   'campaign: "agentid_partner_distribution"',
   'content: "launch_kit"',
   '"Partner or community post"',
+  "For owners who want to choose one practical AI workflow before paying for implementation",
+  "It is not a performance guarantee",
 ]) {
   if (!`${workerSource}\n${siteSource}`.includes(requiredPartnerDistributionControl)) {
     failures.push(`partner distribution is missing attributed Launch Kit control ${requiredPartnerDistributionControl}`);
