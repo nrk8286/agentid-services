@@ -2724,6 +2724,35 @@ async function sendCloudflareOwnerEmail(env, subject, text, html, replyTo = "") 
   }
 }
 
+async function sendCloudflareCustomerEmail(env, recipient, subject, text, html) {
+  const binding = env.CUSTOMER_EMAIL;
+  const sender = cleanEmail(supportEmail(env));
+  if (!binding || typeof binding.send !== "function") {
+    return emailDeliveryResult({ provider: "cloudflare_customer_email", code: "provider_not_configured" });
+  }
+  if (!sender || !cleanEmail(recipient)) {
+    return emailDeliveryResult({ provider: "cloudflare_customer_email", code: "provider_misconfigured" });
+  }
+
+  try {
+    const result = await binding.send({
+      from: { name: brandName(env), email: sender },
+      to: cleanEmail(recipient),
+      subject: cleanText(subject, 300),
+      text: String(text || ""),
+      html: String(html || ""),
+    });
+    return {
+      ...emailDeliveryResult({ delivered: true, provider: "cloudflare_customer_email", code: "accepted" }),
+      ...(result?.messageId ? { messageId: cleanText(result.messageId, 200) } : {}),
+    };
+  } catch (error) {
+    const detail = emailFailureDetail(error);
+    console.warn("gptmarketplus customer email delivery failed", { provider: "cloudflare_customer_email", detail });
+    return emailDeliveryResult({ provider: "cloudflare_customer_email", code: "provider_error", detail });
+  }
+}
+
 function combineEmailDeliveryFailures(results) {
   const attempts = results.map((result) => ({ provider: result.provider, code: result.code }));
   const providerFailure = results.find((result) => result.code === "provider_error" || result.code === "provider_misconfigured");
@@ -2865,11 +2894,13 @@ export async function sendOwnerTransactionalEmail(env, subject, text, html, repl
 export async function sendCustomerTransactionalEmail(env, to, subject, text, html) {
   const recipient = cleanEmail(to);
   if (!recipient) return emailDeliveryResult({ code: "invalid_recipient" });
+  const cloudflareResult = await sendCloudflareCustomerEmail(env, recipient, subject, text, html);
+  if (cloudflareResult.delivered) return cloudflareResult;
   const gmailResult = await sendGmailOAuthEmail(env, recipient, subject, text, html, "");
   if (gmailResult.delivered) return gmailResult;
   const resendResult = await sendResendEmail(env, [recipient], subject, text, html, "");
   if (resendResult.delivered) return resendResult;
-  return combineEmailDeliveryFailures([gmailResult, resendResult]);
+  return combineEmailDeliveryFailures([cloudflareResult, gmailResult, resendResult]);
 }
 
 async function maybeSendOwnerEmail(env, subject, text, html, replyTo = "") {

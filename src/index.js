@@ -2633,6 +2633,11 @@ function launchKitWorkspaceCredentials(request, body = {}) {
 }
 
 async function customerEmailDeliveryStatus(env) {
+  const cloudflareReady = Boolean(
+    env.CUSTOMER_EMAIL
+    && typeof env.CUSTOMER_EMAIL.send === "function"
+    && cleanEmail(supportEmail(env)),
+  );
   let gmailReady = false;
   try {
     const connection = await googleOAuthGmailConnection(env);
@@ -2648,8 +2653,9 @@ async function customerEmailDeliveryStatus(env) {
     && cleanEmail(env.EMAIL_FROM || supportEmail(env)),
   );
   return {
-    ready: gmailReady || resendReady,
+    ready: cloudflareReady || gmailReady || resendReady,
     providers: {
+      cloudflare: cloudflareReady,
       gmailOAuth: gmailReady,
       resend: resendReady,
     },

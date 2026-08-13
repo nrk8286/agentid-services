@@ -185,6 +185,13 @@
       "allowed_sender_addresses": [
         "admin@gptmarketplus.com"
       ]
+    },
+    {
+      "name": "CUSTOMER_EMAIL",
+      "remote": true,
+      "allowed_sender_addresses": [
+        "admin@gptmarketplus.com"
+      ]
     }
   ],
   "ratelimits": [

@@ -919,13 +919,18 @@ for (const requiredRevenueGoalControl of [
   }
 }
 for (const requiredCustomerDeliveryStatusControl of [
+  '"name": "CUSTOMER_EMAIL"',
+  "async function sendCloudflareCustomerEmail(env, recipient, subject, text, html)",
+  'provider: "cloudflare_customer_email"',
+  "const cloudflareResult = await sendCloudflareCustomerEmail(env, recipient, subject, text, html)",
   "async function customerEmailDeliveryStatus(env)",
   "customerEmailDeliveryReady: customerEmailDelivery.ready",
   "customerEmailProviders: customerEmailDelivery.providers",
+  "cloudflare: cloudflareReady",
   "gmailOAuth: gmailReady",
   "resend: resendReady",
 ]) {
-  if (!workerSource.includes(requiredCustomerDeliveryStatusControl)) {
+  if (!`${raw}\n${workerSource}\n${siteSource}`.includes(requiredCustomerDeliveryStatusControl)) {
     failures.push(`PayPal status is missing customer delivery readiness control ${requiredCustomerDeliveryStatusControl}`);
   }
 }
