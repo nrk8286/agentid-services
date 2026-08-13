@@ -6395,18 +6395,9 @@ function renderTrafficPage(env, page) {
   const showSponsorRail = page.path === "/sponsor" || page.path === "/advertise" || page.path === "/ad-network" || page.path === "/pricing";
   const buyerIntentPage = !["/sponsor", "/advertise", "/ad-network"].includes(page.path);
   const trafficSlug = page.path.replace(/^\/+/, "").replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase() || "traffic-page";
-  const launchKitHref = utmCampaignUrl(env, "/ai-agent-launch-kit", {
-    source: "organic_search",
-    medium: "seo",
-    campaign: "launch_kit",
-    content: trafficSlug,
-  });
-  const consultationHref = utmCampaignUrl(env, "/book-a-consultation", {
-    source: "organic_search",
-    medium: "seo",
-    campaign: "consultation",
-    content: trafficSlug,
-  });
+  const trafficSource = `traffic-${trafficSlug}`;
+  const launchKitHref = `/ai-agent-launch-kit?source=${encodeURIComponent(trafficSource)}`;
+  const consultationHref = `/book-a-consultation?source=${encodeURIComponent(trafficSource)}`;
   const primaryCtaHref = buyerIntentPage ? launchKitHref : page.path === "/pricing" ? "#pricing-packages" : "/pricing";
   const primaryCtaLabel = buyerIntentPage ? "Build the $29 Launch Kit" : page.path === "/pricing" ? "Review options" : "View pricing";
   const primaryCtaTracking = buyerIntentPage ? ` data-launch-kit-cta="${escapeHtml(`${trafficSlug}-hero`)}"` : "";
