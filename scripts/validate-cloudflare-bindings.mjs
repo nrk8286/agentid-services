@@ -89,6 +89,15 @@ for (const requiredChatCtaControl of [
     failures.push(`chat conversion path is missing ${requiredChatCtaControl}`);
   }
 }
+for (const requiredBookingHonestyControl of [
+  "const hasDirectBooking = Boolean(calendarEmbedUrl(env) || bookingUrl(env))",
+  "Request My Free AI Strategy Call",
+  "const bookingHeading = hasDirectBooking",
+]) {
+  if (!siteSource.includes(requiredBookingHonestyControl)) {
+    failures.push(`booking path honesty is missing ${requiredBookingHonestyControl}`);
+  }
+}
 
 if (!/"durable_objects"\s*:\s*\{[\s\S]{0,220}?"name"\s*:\s*"AGENT_SCHEDULER"[\s\S]{0,120}?"class_name"\s*:\s*"AgentScheduler"/.test(raw)) {
   failures.push("AGENT_SCHEDULER Durable Object binding is missing");

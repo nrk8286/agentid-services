@@ -1276,6 +1276,12 @@ function campaignLinkCatalog(env) {
       }),
     },
     documents: {
+      lead_magnet: campaignUrl(env, "/free-ai-automation-audit-checklist", {
+        source: "sales_materials",
+        medium: "document",
+        campaign: "agentid_lead_magnet",
+        content: "automation_checklist",
+      }),
       launch_kit_one_pager: campaignUrl(env, "/ai-agent-launch-kit", {
         source: "sales_materials",
         medium: "document",
@@ -5113,6 +5119,12 @@ function renderContactPage(env, requestUrl = null) {
 }
 
 function renderBookingPage(env) {
+  const hasDirectBooking = Boolean(calendarEmbedUrl(env) || bookingUrl(env));
+  const bookingCta = hasDirectBooking ? "Book My Free AI Strategy Call" : "Request My Free AI Strategy Call";
+  const bookingHeading = hasDirectBooking ? "Book a Free AI Strategy Call" : "Request a Free AI Strategy Call";
+  const bookingDescription = hasDirectBooking
+    ? "We’ll look at your business, identify what can be automated, and recommend the best AI agent setup."
+    : "Tell us what you want to automate and we’ll follow up to confirm a call time and recommend the best AI agent setup.";
   const bookingEmbed = calendarEmbedUrl(env)
     ? `<iframe class="calendar-embed" src="${escapeHtml(calendarEmbedUrl(env))}" title="Booking calendar" loading="lazy"></iframe>`
     : `
@@ -5126,7 +5138,7 @@ function renderBookingPage(env) {
   const form = renderLeadForm({
     action: "/api/book-consultation",
     formId: "booking-form",
-    cta: "Book My Free AI Strategy Call",
+    cta: bookingCta,
     note: "We’ll look at your business, identify what can be automated, and recommend the best AI agent setup.",
     turnstileHtml: renderTurnstileWidget(env),
     dataAttrs: 'data-form-type="consultation"',
@@ -5147,7 +5159,7 @@ function renderBookingPage(env) {
   const body = `
     <section class="page-hero split-section">
       <div>
-        ${renderPageTitle("Book a Consultation", "Book a Free AI Strategy Call", "We’ll look at your business, identify what can be automated, and recommend the best AI agent setup.")}
+        ${renderPageTitle("Book a Consultation", bookingHeading, bookingDescription)}
         <ul class="benefit-list compact">
           ${BOOKING_COVERS.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
         </ul>
