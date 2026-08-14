@@ -786,7 +786,7 @@ const smallBusinessGuideResponse = await handleAgentIdSiteRequest(
 );
 const smallBusinessGuideBody = await smallBusinessGuideResponse.text();
 for (const requiredGuideControl of [
-  "AI Agents for Small Business: Costs &amp; 30-Day Plan",
+  "AI Agents for Small Business: Costs, Uses &amp; $29 Kit",
   'data-conversion-bridge="Small Business AI Guide"',
   "/book-a-consultation?source=Small%20Business%20AI%20Guide-bridge",
   'href="/pricing"',

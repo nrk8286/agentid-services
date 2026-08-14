@@ -77,7 +77,7 @@ const MAX_JSON_BODY_BYTES = 128 * 1024;
 const BODY_TOO_LARGE = Symbol("body-too-large");
 const CANONICAL_HOST = "gptmarketplus.com";
 // Bump this whenever public HTML or public metadata changes so a deployment does not serve stale sales copy.
-const PUBLIC_CACHE_KEY_VERSION = "2026-08-14-launch-kit-follow-up-v1";
+const PUBLIC_CACHE_KEY_VERSION = "2026-08-14-search-snippet-v1";
 const VERIFIED_REVENUE_GOAL_CENTS = 1_000_000;
 const LEGACY_TLS_VERSIONS = new Set(["TLSv1", "TLSv1.0", "TLSv1.1"]);
 const DOMAIN_CAMPAIGN_REDIRECTS = new Map([
@@ -204,7 +204,7 @@ const TRAFFIC_PAGES = [
   {
     path: "/ai-marketing-automation",
     title: "AI Marketing Automation for Small Business",
-    description: "Build a practical AI marketing automation system for lead capture, qualification, follow-up, sales handoff, and measurable pipeline results.",
+    description: "Build AI marketing automation for lead capture, qualification, follow-up, sales handoff, and measurable results. Map one bounded workflow with the $29 Launch Kit.",
     keywords: "AI marketing automation for small business, AI powered marketing automation, automated lead follow up",
     intent: "small businesses looking for a practical AI marketing setup",
     bullets: ["Capture qualified leads", "Create follow-up tasks", "Keep revenue work moving"],
@@ -228,7 +228,7 @@ const TRAFFIC_PAGES = [
   {
     path: "/ai-receptionist-software",
     title: "AI Receptionist Software Comparison for Small Business (2026)",
-    description: "Compare AI receptionist software by channel, booking, human handoff, compliance, agency resale, and current pricing before choosing a product.",
+    description: "Compare AI receptionist software by channel, booking, handoff, compliance, resale, and price, then map a bounded first workflow with the $29 Launch Kit.",
     keywords: "AI receptionist software comparison, small business virtual receptionist, AI phone answering software",
     intent: "small businesses and agencies comparing practical AI receptionist products",
     bullets: ["Match the channel to customers", "Verify booking and handoff", "Test with real call scenarios"],
@@ -244,7 +244,7 @@ const TRAFFIC_PAGES = [
   {
     path: "/ai-sales-funnel",
     title: "AI Sales Funnel Automation: 7-Stage Playbook",
-    description: "Build an AI sales funnel that captures demand, qualifies leads, follows up, routes human decisions, and measures revenue without deceptive automation.",
+    description: "Build an AI sales funnel for demand, qualification, follow-up, human decisions, and verified attribution. Map one bounded workflow with the $29 Launch Kit.",
     keywords: "AI sales funnel automation, AI marketing funnel, automated lead qualification",
     intent: "founders who want a sales funnel tied directly to checkout and follow-up",
     bullets: ["Clarify offer paths", "Sell sponsor slots", "Connect checkout to follow-up"],
