@@ -982,7 +982,7 @@ export default {
 
     const softwareBuild = SOFTWARE_BUILDS.find((item) => url.pathname === `/software-builds/${item.id}` || pagePath === `/software-builds/${item.id}`);
     if (softwareBuild) {
-      return cacheResponse(request, htmlResponse(renderSoftwareBuildPage(env, softwareBuild), 200, isAgentIdSite(env) ? {
+      return cacheResponse(request, htmlResponse(renderSoftwareBuildPage(env, softwareBuild, url), 200, isAgentIdSite(env) ? {
         "x-robots-tag": "noindex,nofollow,noarchive",
       } : {}));
     }
@@ -8388,7 +8388,7 @@ ${googleTagGatewayBody(env)}
 </html>`;
 }
 
-function renderSoftwareBuildPage(env, build) {
+function renderSoftwareBuildPage(env, build, requestUrl = null) {
   const launchKitUrl = utmCampaignUrl(env, "/ai-agent-launch-kit", {
     source: `software_build_${build.id}`,
     medium: "owned",
@@ -8403,17 +8403,23 @@ function renderSoftwareBuildPage(env, build) {
   });
   const isSelfServeReport = isSelfServeSoftwareReport(build);
   const reportCheckoutReady = isSelfServeReport && paypalCredentialsReady(env) && Boolean(env.GMP_KV);
+  const reportCheckoutCancelled = isSelfServeReport
+    && String(requestUrl?.searchParams?.get("paypal") || "").toLowerCase() === "cancel"
+    && requestUrl?.searchParams?.get("product") === build.id;
+  const reportCheckoutFeedback = reportCheckoutCancelled
+    ? `<p class="form-status checkout-feedback" role="status" aria-live="polite">PayPal checkout was canceled. No payment was captured. You can restart whenever you’re ready.</p>`
+    : "";
   const heroEyebrow = isSelfServeReport ? "Self-serve digital report" : "Fixed-scope software build";
   const heroActions = isSelfServeReport
     ? reportCheckoutReady
-      ? `<form id="software-report-checkout" class="checkout-form" data-report-id="${escapeHtml(build.id)}">
+      ? `${reportCheckoutFeedback}<form id="software-report-checkout" class="checkout-form" data-report-id="${escapeHtml(build.id)}"${reportCheckoutCancelled ? ' data-sales-funnel-restart="true"' : ""}>
           <input type="hidden" name="productId" value="${escapeHtml(build.id)}">
           <button class="button link-button sales-funnel-cta" type="submit" data-sales-funnel-event="begin_checkout"
             data-offer-id="${escapeHtml(build.id)}" data-offer-value="${Number(build.price)}"
             data-cta-location="software_report_detail">Buy the $24 report with PayPal</button>
           <p id="software-report-checkout-status" class="form-status" role="status"></p>
         </form>`
-      : `<a class="button link-button" href="/contact?interest=${encodeURIComponent(build.id)}">Request report access</a>`
+      : `${reportCheckoutFeedback}<a class="button link-button" href="/contact?interest=${encodeURIComponent(build.id)}">Request report access</a>`
     : `<a class="button link-button sales-funnel-cta" href="/contact?interest=${encodeURIComponent(build.id)}"
         data-sales-funnel-event="scope_request_start" data-offer-id="${escapeHtml(build.id)}"
         data-offer-value="${Number(build.price)}" data-cta-location="software_build_detail">Request a written scope</a>`;
@@ -8518,18 +8524,19 @@ ${googleTagGatewayBody(env)}
       <p><a href="/software-builds">Back to all builds</a></p>
     </section>
     ${renderAdInventorySection(env, "Sponsor applications", "The build page accepts reviewed sponsor applications alongside the proposed implementation scope.")}
-    ${renderSalesFunnelTrackingScript(env, { pageType: "software_build_detail", offerId: build.id, offerName: build.name, offerValue: build.price })}
+    ${renderSalesFunnelTrackingScript(env, { pageType: "software_build_detail", offerId: build.id, offerName: build.name, offerValue: build.price, checkoutCancelled: reportCheckoutCancelled })}
     ${reportCheckoutScript}
   </main>
 </body>
 </html>`;
 }
 
-function renderSalesFunnelTrackingScript(env, { pageType, offerId = "", offerName = "", offerValue = 0 } = {}) {
+function renderSalesFunnelTrackingScript(env, { pageType, offerId = "", offerName = "", offerValue = 0, checkoutCancelled = false } = {}) {
   return `<script>
     (function () {
       var pageType = ${JSON.stringify(cleanText(pageType || "sales_page", 80))};
       var defaultOffer = ${JSON.stringify({ offerId, offerName, offerValue: Number(offerValue || 0) / 100 })};
+      var checkoutCancelled = ${checkoutCancelled ? "true" : "false"};
       var sessionId = "";
       try {
         sessionId = sessionStorage.getItem("gptmarketplus.session.v1") || "";
@@ -8571,9 +8578,17 @@ function renderSalesFunnelTrackingScript(env, { pageType, offerId = "", offerNam
 
       document.addEventListener("DOMContentLoaded", function () {
         if (defaultOffer.offerId) emit("view_item");
+        if (checkoutCancelled) emit("checkout_cancelled");
         document.querySelectorAll("[data-sales-funnel-event]").forEach(function (element) {
           element.addEventListener("click", function () {
-            emit(element.dataset.salesFunnelEvent || "select_offer", element);
+            var eventName = element.dataset.salesFunnelEvent || "select_offer";
+            emit(eventName, element);
+          });
+        });
+        document.querySelectorAll("[data-sales-funnel-restart]").forEach(function (form) {
+          form.addEventListener("submit", function () {
+            var restartButton = form.querySelector("[data-sales-funnel-event='begin_checkout']");
+            emit("checkout_restart", restartButton || form);
           });
         });
       });

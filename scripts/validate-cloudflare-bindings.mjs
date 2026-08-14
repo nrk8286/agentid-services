@@ -198,6 +198,9 @@ for (const requiredSoftwareReportControl of [
   'sourcePage: location.pathname })',
   'url.pathname === "/software-opportunity-report/access"',
   'url.pathname === "/api/paypal/digital-products/ai-software-opportunity-report"',
+  'requestUrl?.searchParams?.get("paypal") || "").toLowerCase() === "cancel"',
+  'requestUrl?.searchParams?.get("product") === build.id',
+  'PayPal checkout was canceled. No payment was captured. You can restart whenever you’re ready.',
 ]) {
   if (!workerSource.includes(requiredSoftwareReportControl)) {
     failures.push(`self-serve software report protection is missing ${requiredSoftwareReportControl}`);
@@ -210,6 +213,10 @@ for (const requiredSalesFunnelControl of [
   'Compare software opportunities for $24',
   'Choose what to validate for $24',
   'Scanner Opportunity Report CTA',
+  'if (checkoutCancelled) emit("checkout_cancelled");',
+  'data-sales-funnel-restart="true"',
+  'emit("checkout_restart", restartButton || form);',
+  'checkoutCancelled: reportCheckoutCancelled',
   'const leadSpider = await runLeadSpider(env, { trigger, force: false });',
   'leadSpider: summarizeLeadSpider(leadSpider)',
   'async function persistLeadSpiderTasks(env, tasks)',
