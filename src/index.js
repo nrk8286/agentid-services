@@ -5584,6 +5584,7 @@ ${googleTagGatewayBody(env)}
         <a class="brand" href="/agents/">${escapeHtml(brandName(env))}</a>
         <a href="/">Main site</a>
         <a href="/pricing">Pricing</a>
+        <a href="/ai-agent-launch-kit?utm_source=agents_dashboard&utm_medium=owned&utm_campaign=agentid_internal_discovery&utm_content=launch_kit">$29 Launch Kit</a>
         <a href="/security.txt">security.txt</a>
         <a href="/social">Social</a>
         <a href="/submission-status">Submission status</a>
@@ -5594,6 +5595,7 @@ ${googleTagGatewayBody(env)}
           <h1>AI agents for leads, follow-up, sales, and operations</h1>
           <p class="lede">Tell us where work is getting stuck—missed leads, slow responses, scheduling, CRM handoff, customer questions, or repetitive admin—and the system will route you to the right agent and plan.</p>
           <form class="inline-run" id="run-form">
+            <a class="button link-button" href="/ai-agent-launch-kit?utm_source=agents_dashboard&utm_medium=owned&utm_campaign=agentid_internal_discovery&utm_content=launch_kit">Start with the $29 Launch Kit</a>
             <a class="button link-button" href="/pricing">Compare plans &amp; pricing</a>
             <a class="button link-button" href="/ai-agents">Find the right agent</a>
             <span id="run-status"></span>
@@ -6592,6 +6594,12 @@ ${googleTagGatewayBody(env)}
 function renderPlaybookPage(env, snapshot) {
   const latest = snapshot.latest || null;
   const history = snapshot.history || [];
+  const launchKitUrl = utmCampaignUrl(env, "/ai-agent-launch-kit", {
+    source: "playbook",
+    medium: "owned",
+    campaign: "agentid_internal_discovery",
+    content: "launch_kit",
+  });
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -6622,6 +6630,7 @@ ${googleTagGatewayBody(env)}
         <a class="brand" href="/agents/">${escapeHtml(brandName(env))}</a>
         <a href="/agents/">Agents</a>
         <a href="/pricing">Pricing</a>
+        <a href="${escapeHtml(launchKitUrl)}">$29 Launch Kit</a>
       </nav>
       <div class="hero-grid">
         <div>
@@ -7087,6 +7096,18 @@ function renderTrafficSpecialSection(env, page) {
 }
 
 function renderSoftwareBuildsPage(env) {
+  const launchKitUrl = utmCampaignUrl(env, "/ai-agent-launch-kit", {
+    source: "software_builds",
+    medium: "owned",
+    campaign: "agentid_internal_discovery",
+    content: "launch_kit",
+  });
+  const consultationUrl = utmCampaignUrl(env, "/book-a-consultation", {
+    source: "software_builds",
+    medium: "owned",
+    campaign: "agentid_internal_discovery",
+    content: "consultation",
+  });
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -7112,12 +7133,14 @@ ${googleTagGatewayBody(env)}
         <a class="brand" href="/">${escapeHtml(brandName(env))}</a>
         <a href="/agents/">Agents</a>
         <a href="/pricing">Pricing</a>
+        <a href="${escapeHtml(launchKitUrl)}">$29 Launch Kit</a>
       </nav>
       <div class="hero-grid">
         <div>
           <p class="eyebrow">Agent Foundry builds</p>
           <h1>Software implementation scopes built around recurring business problems</h1>
           <p class="lede">A scheduled research loop groups public demand signals into starting scopes. A written proposal is required before any custom-service payment.</p>
+          <p><a class="button link-button" href="${escapeHtml(launchKitUrl)}">Start with the $29 Launch Kit</a> <a class="button link-button" href="${escapeHtml(consultationUrl)}">Request a scoped consultation</a></p>
         </div>
         <div class="panel dark">
           <span class="label">Current inventory</span>
@@ -7146,6 +7169,18 @@ ${googleTagGatewayBody(env)}
 }
 
 function renderSoftwareBuildPage(env, build) {
+  const launchKitUrl = utmCampaignUrl(env, "/ai-agent-launch-kit", {
+    source: `software_build_${build.id}`,
+    medium: "owned",
+    campaign: "agentid_internal_discovery",
+    content: "launch_kit",
+  });
+  const consultationUrl = utmCampaignUrl(env, "/book-a-consultation", {
+    source: `software_build_${build.id}`,
+    medium: "owned",
+    campaign: "agentid_internal_discovery",
+    content: "consultation",
+  });
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -7171,13 +7206,14 @@ ${googleTagGatewayBody(env)}
         <a class="brand" href="/software-builds">Software Builds</a>
         <a href="/agents/">Agents</a>
         <a href="/pricing">Pricing</a>
+        <a href="${escapeHtml(launchKitUrl)}">$29 Launch Kit</a>
       </nav>
       <div class="hero-grid">
         <div>
           <p class="eyebrow">Fixed-scope software build</p>
           <h1>${escapeHtml(build.name)}</h1>
           <p class="lede">${escapeHtml(build.summary)}</p>
-          <p><a class="button link-button" href="/contact?interest=${escapeHtml(build.id)}">Request a written scope</a></p>
+          <p><a class="button link-button" href="/contact?interest=${escapeHtml(build.id)}">Request a written scope</a> <a class="button link-button" href="${escapeHtml(launchKitUrl)}">Start with the $29 Launch Kit</a></p>
         </div>
         <div class="panel dark">
           <span class="label">${escapeHtml(build.priceLabel)}</span>
@@ -7200,6 +7236,7 @@ ${googleTagGatewayBody(env)}
       <p class="eyebrow">Proof path</p>
       <h2>Why this can sell</h2>
       <p>This proposal starting point is generated from public demand patterns and designed for buyers who need a working implementation rather than a generic AI demo. Price and delivery terms require written confirmation.</p>
+      <p>Need a plan before implementation? <a href="${escapeHtml(launchKitUrl)}">Start with the private $29 Launch Kit workspace</a>. Need installation or integrations? <a href="${escapeHtml(consultationUrl)}">Request a written consultation scope</a>.</p>
       <p><a href="/software-builds">Back to all builds</a></p>
     </section>
     ${renderAdInventorySection(env, "Sponsor applications", "The build page accepts reviewed sponsor applications alongside the proposed implementation scope.")}

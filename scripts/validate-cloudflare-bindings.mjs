@@ -1031,6 +1031,11 @@ for (const requiredAcquisitionRoutingControl of [
   'const selfServeCta = utmCampaignUrl(env, "/ai-agent-launch-kit"',
   'selfServe: "Use the Launch Kit when the buyer wants a usable first workflow without implementation help."',
   'custom: "Use the consultation link when the buyer needs installation, integrations, or ongoing support; do not request payment before written scope."',
+  'function renderSoftwareBuildsPage(env)',
+  'source: "software_builds"',
+  'Start with the $29 Launch Kit',
+  'Request a scoped consultation',
+  'utm_source=agents_dashboard&utm_medium=owned&utm_campaign=agentid_internal_discovery&utm_content=launch_kit',
 ]) {
   if (!workerSource.includes(requiredAcquisitionRoutingControl)) {
     failures.push(`acquisition routing is missing ${requiredAcquisitionRoutingControl}`);
