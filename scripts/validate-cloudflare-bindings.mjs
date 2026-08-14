@@ -439,9 +439,9 @@ for (const requiredPattern of [
   if (!routePatterns.includes(requiredPattern)) failures.push(`missing production route: ${requiredPattern}`);
 }
 for (const [hostname, targetPath] of [
-  ["agentid.life", "/use-cases"],
+  ["agentid.life", "/ai-agent-launch-kit"],
   ["agentid.solutions", "/services"],
-  ["agentid.website", "/ai-agents"],
+  ["agentid.website", "/ai-agent-launch-kit"],
   ["agentid.world", "/resources"],
 ]) {
   if (!workerSource.includes(`["${hostname}", "${targetPath}"]`)) {
@@ -450,6 +450,9 @@ for (const [hostname, targetPath] of [
 }
 if (!workerSource.includes('url.searchParams.set("utm_medium", "domain_redirect")')) {
   failures.push("campaign domains must retain first-party redirect attribution");
+}
+if (!workerSource.includes('url.searchParams.set("utm_content", "launch_kit")')) {
+  failures.push("Launch Kit campaign-domain roots must retain product attribution");
 }
 if (!workerSource.includes("LEGACY_WEBHOOK_HOSTS.has(requestHost) && LEGACY_WEBHOOK_PATHS.has(url.pathname)")) {
   failures.push("campaign domains must not inherit legacy payment-webhook routing");

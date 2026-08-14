@@ -81,12 +81,12 @@ const PUBLIC_CACHE_KEY_VERSION = "2026-08-13-buyer-intent-cta-v1";
 const VERIFIED_REVENUE_GOAL_CENTS = 1_000_000;
 const LEGACY_TLS_VERSIONS = new Set(["TLSv1", "TLSv1.0", "TLSv1.1"]);
 const DOMAIN_CAMPAIGN_REDIRECTS = new Map([
-  ["agentid.life", "/use-cases"],
-  ["www.agentid.life", "/use-cases"],
+  ["agentid.life", "/ai-agent-launch-kit"],
+  ["www.agentid.life", "/ai-agent-launch-kit"],
   ["agentid.solutions", "/services"],
   ["www.agentid.solutions", "/services"],
-  ["agentid.website", "/ai-agents"],
-  ["www.agentid.website", "/ai-agents"],
+  ["agentid.website", "/ai-agent-launch-kit"],
+  ["www.agentid.website", "/ai-agent-launch-kit"],
   ["agentid.world", "/resources"],
   ["www.agentid.world", "/resources"],
 ]);
@@ -656,12 +656,16 @@ export default {
       url.hostname = isAgentIdServicesHost ? "agentid.services" : CANONICAL_HOST;
       url.port = "";
       if (campaignTargetPath) {
-        if (url.pathname === "/" || !url.pathname) url.pathname = campaignTargetPath;
+        const isCampaignRoot = url.pathname === "/" || !url.pathname;
+        if (isCampaignRoot) url.pathname = campaignTargetPath;
         if (!url.searchParams.has("utm_source")) {
           url.searchParams.set("utm_source", requestHost.replace(/^www\./, ""));
         }
         if (!url.searchParams.has("utm_medium")) url.searchParams.set("utm_medium", "domain_redirect");
         if (!url.searchParams.has("utm_campaign")) url.searchParams.set("utm_campaign", "agentid_brand_domains");
+        if (isCampaignRoot && campaignTargetPath === "/ai-agent-launch-kit" && !url.searchParams.has("utm_content")) {
+          url.searchParams.set("utm_content", "launch_kit");
+        }
       }
       return new Response(null, {
         status: 301,

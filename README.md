@@ -58,8 +58,8 @@ journey and adds first-party UTM attribution; non-root paths are preserved.
 | Domain | Canonical destination |
 | --- | --- |
 | `agentid.solutions` | `https://gptmarketplus.com/services` |
-| `agentid.website` | `https://gptmarketplus.com/ai-agents` |
-| `agentid.life` | `https://gptmarketplus.com/use-cases` |
+| `agentid.website` | `https://gptmarketplus.com/ai-agent-launch-kit` |
+| `agentid.life` | `https://gptmarketplus.com/ai-agent-launch-kit` |
 | `agentid.world` | `https://gptmarketplus.com/resources` |
 
 Both apex and `www` hostnames are attached. Verify the public redirect contract
