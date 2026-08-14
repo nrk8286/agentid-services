@@ -2,7 +2,7 @@
 
 ## Development
 
-Use Node.js 20 or newer for the Cloudflare Worker and Python 3.11–3.13 with `uv` for the Google agent project.
+Use Node.js 22 or newer for the Cloudflare Worker and Python 3.11-3.13 with `uv` for the Google agent project. The release toolchain uses npm 12 and the project-pinned Wrangler version; run `npm ci` for reproducible installs.
 
 ```bash
 npm ci

@@ -36,7 +36,7 @@ Known local issue: the `wrangler dev --port 8787` interface is not a reliable pr
 ## Deploy
 
 ```bash
-npm install
+npm ci
 npm run check
 npx wrangler deploy --dry-run
 npm run deploy
