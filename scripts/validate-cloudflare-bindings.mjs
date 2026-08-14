@@ -154,8 +154,25 @@ if (!workerSource.includes('payload.type === "paypal_purchase_fulfillment"')
     || !workerSource.includes('await fulfillPaypalPurchaseEmail(env, payload.payload?.orderId)')) {
   failures.push("failed PayPal customer delivery must use the retryable fulfillment queue");
 }
-if (!workerSource.includes('order?.emailDelivery?.delivered || !order.payerEmail')) {
+if (!workerSource.includes('paypalOrderEntitlementActive(order)')
+    || !workerSource.includes('order?.emailDelivery?.delivered || !order.payerEmail')) {
   failures.push("PayPal customer email retries must remain idempotent after a successful delivery");
+}
+for (const requiredPaypalEntitlementControl of [
+  'function paypalOneTimeWebhookEvents()',
+  '"PAYMENT.CAPTURE.REFUNDED"',
+  '"PAYMENT.CAPTURE.REVERSED"',
+  'async function ensurePaypalOneTimeWebhook(env, catalog = null)',
+  'entitlementStatus: "ACTIVE"',
+  'async function revokePaypalOrderAccess(env, orderId, reason, event = {})',
+  'entitlementStatus: "REVOKED"',
+  'await deleteJson(env, launchKitWorkspaceStorageKey(normalizedOrderId))',
+  'async function recordPaypalEntitlementReversal(env, order, eventType, event, resource)',
+  'This PayPal purchase has been revoked and cannot be reopened.',
+]) {
+  if (!workerSource.includes(requiredPaypalEntitlementControl)) {
+    failures.push(`PayPal one-time entitlement protection is missing ${requiredPaypalEntitlementControl}`);
+  }
 }
 for (const requiredPaypalRecoveryControl of [
   'id="paypal-fallback" hidden',

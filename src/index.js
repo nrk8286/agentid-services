@@ -1591,6 +1591,7 @@ async function paypalCatalog(env) {
 async function paypalPublicStatus(env) {
   const catalog = await paypalCatalog(env);
   const cpcWebhook = await paypalCpcWebhookStatus(env, catalog);
+  const oneTimeWebhook = await paypalOneTimeWebhookStatus(env, catalog);
   const sponsorCheckoutEnabled = String(env.SPONSOR_CHECKOUT_ENABLED || "").trim().toLowerCase() === "true";
   const approvalScopedSubscriptionsEnabled = paypalApprovalFeatureEnabled(env);
   const serviceCheckoutEnabled = String(env.SERVICE_CHECKOUT_ENABLED || "").trim().toLowerCase() === "true";
@@ -1610,7 +1611,7 @@ async function paypalPublicStatus(env) {
   }));
   const subscriptionPackages = packages.filter((item) => item.billingMode === "subscription");
   const cpcCampaignsReady = credentialsConfigured && Boolean(env.GMP_DB) && cpcWebhook.ready;
-  const digitalProductReady = credentialsConfigured && storageConfigured && Boolean(catalog.webhookId);
+  const digitalProductReady = credentialsConfigured && storageConfigured && oneTimeWebhook.ready;
   const servicePaymentsReady = serviceCheckoutEnabled && credentialsConfigured && storageConfigured && Boolean(catalog.webhookId);
   return {
     ok: true,
@@ -1619,6 +1620,10 @@ async function paypalPublicStatus(env) {
     credentialsConfigured,
     productConfigured: Boolean(catalog.productId),
     webhookConfigured: Boolean(catalog.webhookId),
+    oneTimeWebhookConfigured: oneTimeWebhook.configured,
+    oneTimeWebhookReady: oneTimeWebhook.ready,
+    oneTimeWebhookEvents: oneTimeWebhook.subscribedEvents,
+    oneTimeWebhookRequiredEvents: oneTimeWebhook.requiredEvents,
     sponsorCheckoutEnabled,
     approvalScopedSubscriptionsEnabled,
     publicSubscriptionCheckoutEnabled: false,
@@ -1763,6 +1768,57 @@ async function ensurePaypalCpcWebhook(env, catalog = null) {
     };
   }
   return paypalCpcWebhookStatus(env, currentCatalog);
+}
+
+function paypalOneTimeWebhookEvents() {
+  return ["PAYMENT.CAPTURE.REFUNDED", "PAYMENT.CAPTURE.REVERSED"];
+}
+
+async function paypalOneTimeWebhookStatus(env, catalog = null) {
+  const currentCatalog = catalog || await paypalCatalog(env);
+  const webhookId = String(currentCatalog.webhookId || "").trim();
+  const requiredEvents = paypalOneTimeWebhookEvents();
+  if (!webhookId || !paypalCredentialsReady(env)) {
+    return { configured: false, ready: false, requiredEvents, subscribedEvents: [] };
+  }
+  const response = await paypalApiRequest(env, `/v1/notifications/webhooks/${encodeURIComponent(webhookId)}`);
+  if (!response.ok) {
+    return { configured: true, ready: false, requiredEvents, subscribedEvents: [], providerStatus: response.status || null };
+  }
+  const subscribedEvents = Array.isArray(response.result?.event_types)
+    ? response.result.event_types.map((item) => cleanText(item?.name || "", 120)).filter(Boolean)
+    : [];
+  return {
+    configured: true,
+    ready: requiredEvents.every((name) => subscribedEvents.includes(name)),
+    requiredEvents,
+    subscribedEvents,
+  };
+}
+
+async function ensurePaypalOneTimeWebhook(env, catalog = null) {
+  const currentCatalog = catalog || await paypalCatalog(env);
+  const current = await paypalOneTimeWebhookStatus(env, currentCatalog);
+  if (current.ready || !current.configured) return current;
+
+  const webhookId = String(currentCatalog.webhookId || "").trim();
+  const mergedEvents = [...new Set([...current.subscribedEvents, ...current.requiredEvents])];
+  const response = await paypalApiRequest(env, `/v1/notifications/webhooks/${encodeURIComponent(webhookId)}`, {
+    method: "PATCH",
+    body: [{
+      op: "replace",
+      path: "/event_types",
+      value: mergedEvents.map((name) => ({ name })),
+    }],
+  });
+  if (!response.ok) {
+    return {
+      ...current,
+      error: response.error,
+      providerStatus: response.status || null,
+    };
+  }
+  return paypalOneTimeWebhookStatus(env, currentCatalog);
 }
 
 function cpcCampaignId() {
@@ -2272,6 +2328,8 @@ async function bootstrapPaypalSponsorCatalog(env) {
           "PAYMENT.SALE.DENIED",
           "PAYMENT.SALE.REFUNDED",
           "PAYMENT.SALE.REVERSED",
+          "PAYMENT.CAPTURE.REFUNDED",
+          "PAYMENT.CAPTURE.REVERSED",
           "INVOICING.INVOICE.PAID",
           "INVOICING.INVOICE.REFUNDED",
         ].map((name) => ({ name })),
@@ -2297,6 +2355,14 @@ async function bootstrapPaypalSponsorCatalog(env) {
       ok: false,
       error: cpcWebhook.error || "PayPal CPC invoice webhook events could not be verified.",
       requiredEvents: cpcWebhook.requiredEvents,
+    };
+  }
+  const oneTimeWebhook = await ensurePaypalOneTimeWebhook(env, catalog);
+  if (!oneTimeWebhook.ready) {
+    return {
+      ok: false,
+      error: oneTimeWebhook.error || "PayPal one-time purchase refund and reversal webhook events could not be verified.",
+      requiredEvents: oneTimeWebhook.requiredEvents,
     };
   }
   return {
@@ -2556,6 +2622,11 @@ function paypalOrderAccessToken() {
   return `${crypto.randomUUID().replaceAll("-", "")}${crypto.randomUUID().replaceAll("-", "")}`;
 }
 
+function paypalOrderEntitlementActive(order) {
+  const entitlementStatus = cleanText(order?.entitlementStatus || "", 40).toUpperCase();
+  return order?.status === "COMPLETED" && (!entitlementStatus || entitlementStatus === "ACTIVE");
+}
+
 function paypalOrderDeliveryUrl(env, order) {
   const params = new URLSearchParams({
     provider: "paypal",
@@ -2614,7 +2685,7 @@ function paypalEmailRetryAllowed(order) {
 }
 
 async function deliverAndRecordPaypalCustomerEmail(env, order, force = false) {
-  if (order?.emailDelivery?.delivered || !order.payerEmail || (!force && !paypalEmailRetryAllowed(order))) return order;
+  if (!paypalOrderEntitlementActive(order) || order?.emailDelivery?.delivered || !order.payerEmail || (!force && !paypalEmailRetryAllowed(order))) return order;
   try {
     const email = paypalCustomerEmail(env, order);
     const result = await sendCustomerTransactionalEmail(
@@ -2640,7 +2711,9 @@ async function deliverAndRecordPaypalCustomerEmail(env, order, force = false) {
 
 async function fulfillPaypalPurchaseEmail(env, orderId) {
   const order = await getJson(env, `paypal:order:${cleanText(orderId || "", 80)}`);
-  if (!order || order.status !== "COMPLETED") throw new Error("Completed PayPal order was not found for fulfillment.");
+  if (!order) throw new Error("Completed PayPal order was not found for fulfillment.");
+  if (order.status === "REVOKED" || order.entitlementStatus === "REVOKED") return order;
+  if (!paypalOrderEntitlementActive(order)) throw new Error("Active completed PayPal order was not found for fulfillment.");
   const fulfilled = await deliverAndRecordPaypalCustomerEmail(env, order, true);
   if (!fulfilled.emailDelivery?.delivered) throw new Error("PayPal customer delivery email was not delivered.");
   return fulfilled;
@@ -2818,6 +2891,9 @@ async function handlePaypalOrderCapture(request, env, ctx) {
   if (!pending || pending.id !== orderId) {
     return jsonResponse({ ok: false, error: "This PayPal order is unknown or expired." }, 404);
   }
+  if (pending.status === "REVOKED" || pending.entitlementStatus === "REVOKED") {
+    return jsonResponse({ ok: false, error: "This PayPal purchase has been revoked and cannot be reopened." }, 402);
+  }
   if (pending.status === "COMPLETED" && pending.accessToken) {
     const completedOrder = await deliverAndRecordPaypalCustomerEmail(env, pending);
     await recordVerifiedPurchaseAnalytics(env, completedOrder).catch((error) => {
@@ -2889,12 +2965,18 @@ async function handlePaypalOrderCapture(request, env, ctx) {
   const paidOrder = {
     ...pending,
     status: "COMPLETED",
+    entitlementStatus: "ACTIVE",
     captureId: cleanText(capture.id, 120),
     payerEmail: cleanEmail(result.payer?.email_address || ""),
     accessToken: paypalOrderAccessToken(),
     completedAt: cleanText(capture.update_time || result.update_time || new Date().toISOString(), 80),
   };
   await putJson(env, `paypal:order:${orderId}`, paidOrder, 60 * 60 * 24 * 365);
+  await putJson(env, `paypal:capture:${paidOrder.captureId}`, {
+    orderId,
+    captureId: paidOrder.captureId,
+    indexedAt: new Date().toISOString(),
+  }, 60 * 60 * 24 * 365);
 
   const revenueEvent = {
     id: `paypal:capture:${paidOrder.captureId}`,
@@ -2952,6 +3034,9 @@ async function verifyPaypalOrderAccess(request, env, expectedProductId, credenti
   const order = await getJson(env, `paypal:order:${orderId}`);
   if (!order || order.status !== "COMPLETED") {
     return { ok: false, status: 402, error: "Payment has not been confirmed." };
+  }
+  if (!paypalOrderEntitlementActive(order)) {
+    return { ok: false, status: 402, error: "This purchase access is no longer active." };
   }
   if (order.productId !== expectedProductId) {
     return { ok: false, status: 403, error: "This purchase does not include the requested download." };
@@ -3619,6 +3704,73 @@ async function handlePaypalCpcInvoiceWebhookEvent(env, eventType, resource) {
   };
 }
 
+function paypalOrderIdFromResource(resource) {
+  const relatedIds = resource?.supplementary_data?.related_ids && typeof resource.supplementary_data.related_ids === "object"
+    ? resource.supplementary_data.related_ids
+    : {};
+  const orderId = cleanText(relatedIds.order_id || resource?.order_id || "", 80);
+  return /^[A-Za-z0-9-]{8,80}$/.test(orderId) ? orderId : "";
+}
+
+async function paypalOrderIdForCaptureEntitlementEvent(env, resource) {
+  const directOrderId = paypalOrderIdFromResource(resource);
+  if (directOrderId) return directOrderId;
+  const relatedIds = resource?.supplementary_data?.related_ids && typeof resource.supplementary_data.related_ids === "object"
+    ? resource.supplementary_data.related_ids
+    : {};
+  const captureId = cleanText(relatedIds.capture_id || resource?.id || "", 120);
+  if (!captureId) return "";
+  const indexed = await getJson(env, `paypal:capture:${captureId}`);
+  const orderId = cleanText(indexed?.orderId || "", 80);
+  return /^[A-Za-z0-9-]{8,80}$/.test(orderId) ? orderId : "";
+}
+
+async function revokePaypalOrderAccess(env, orderId, reason, event = {}) {
+  const normalizedOrderId = cleanText(orderId || "", 80);
+  if (!normalizedOrderId) return { handled: false, reason: "order_id_missing" };
+  const order = await getJson(env, `paypal:order:${normalizedOrderId}`);
+  if (!order) return { handled: false, reason: "order_not_found", orderId: normalizedOrderId };
+
+  const wasActive = paypalOrderEntitlementActive(order);
+  const revokedAt = new Date().toISOString();
+  const revokedOrder = {
+    ...order,
+    status: "REVOKED",
+    entitlementStatus: "REVOKED",
+    accessRevokedAt: order.accessRevokedAt || revokedAt,
+    accessRevocationReason: order.accessRevocationReason || cleanText(reason || "paypal_payment_reversed", 120),
+    accessRevocationEventId: order.accessRevocationEventId || cleanText(event.id || "", 120),
+  };
+  await putJson(env, `paypal:order:${normalizedOrderId}`, revokedOrder, 60 * 60 * 24 * 365);
+  await deleteJson(env, launchKitWorkspaceStorageKey(normalizedOrderId));
+  return { handled: true, orderId: normalizedOrderId, wasActive, order: revokedOrder };
+}
+
+async function recordPaypalEntitlementReversal(env, order, eventType, event, resource) {
+  const originalAmountCents = Math.max(Number(order?.amountCents || 0), 0);
+  if (!originalAmountCents) return { recorded: false, reason: "order_amount_missing" };
+  const providerAmount = Number(resource?.amount?.value || resource?.amount?.total || 0);
+  const reversedAmountCents = providerAmount > 0 && Number.isFinite(providerAmount)
+    ? Math.min(originalAmountCents, Math.max(Math.round(providerAmount * 100), 0))
+    : originalAmountCents;
+  return recordRevenueEvent(env, {
+    id: `paypal:reversal:${cleanText(event.id || `${order.id}:${eventType}`, 160)}`,
+    type: eventType,
+    sessionId: order.id,
+    createdAt: cleanText(event.create_time || new Date().toISOString(), 80),
+    amountCents: -reversedAmountCents,
+    currency: cleanText(order.currency || "USD", 12).toLowerCase(),
+    customerEmail: cleanEmail(order.payerEmail || ""),
+    paymentStatus: eventType.endsWith("REFUNDED") ? "refunded" : "reversed",
+    source: "paypal_order_reversal",
+    buildId: "",
+    packageId: cleanText(order.productId || "", 120),
+    delivery: cleanText(order.delivery || "", 120),
+    mode: "payment",
+    countCheckout: false,
+  });
+}
+
 async function handlePaypalWebhook(request, env, ctx) {
   if (!paypalCredentialsReady(env)) {
     return jsonResponse({ ok: false, error: "PayPal API credentials are not configured." }, 503);
@@ -3662,6 +3814,36 @@ async function handlePaypalWebhook(request, env, ctx) {
   const cpcInvoiceEvent = await handlePaypalCpcInvoiceWebhookEvent(env, eventType, resource);
   if (cpcInvoiceEvent.handled) {
     return jsonResponse({ ok: true, verified: true, recorded: true, type: eventType, cpc: cpcInvoiceEvent });
+  }
+
+  if (eventType === "PAYMENT.CAPTURE.REFUNDED" || eventType === "PAYMENT.CAPTURE.REVERSED") {
+    const orderId = await paypalOrderIdForCaptureEntitlementEvent(env, resource);
+    const revocation = await revokePaypalOrderAccess(
+      env,
+      orderId,
+      eventType === "PAYMENT.CAPTURE.REFUNDED" ? "paypal_capture_refunded" : "paypal_capture_reversed",
+      event,
+    );
+    let revenueReversal = { recorded: false, reason: revocation.reason || "entitlement_not_revoked" };
+    if (revocation.handled && revocation.wasActive && !revocation.order.revenueReversalRecordedAt) {
+      revenueReversal = await recordPaypalEntitlementReversal(env, revocation.order, eventType, event, resource);
+      await putJson(env, `paypal:order:${revocation.order.id}`, {
+        ...revocation.order,
+        revenueReversalRecordedAt: new Date().toISOString(),
+      }, 60 * 60 * 24 * 365);
+    }
+    return jsonResponse({
+      ok: true,
+      verified: true,
+      recorded: revocation.handled,
+      type: eventType,
+      entitlement: {
+        orderId: revocation.orderId || orderId || null,
+        revoked: Boolean(revocation.handled),
+        reason: revocation.reason || null,
+      },
+      revenueReversal,
+    });
   }
 
   if (eventType !== "PAYMENT.SALE.COMPLETED") {
@@ -6052,6 +6234,13 @@ async function getJson(env, key) {
 async function putJson(env, key, value, ttl) {
   if (!env.GMP_KV) return;
   await env.GMP_KV.put(storageKey(env, key), JSON.stringify(value), { expirationTtl: ttl });
+}
+
+async function deleteJson(env, key) {
+  if (!env.GMP_KV) return;
+  const scopedKey = storageKey(env, key);
+  await env.GMP_KV.delete(scopedKey);
+  if (scopedKey !== key) await env.GMP_KV.delete(key);
 }
 
 function renderDashboard(env, state) {
