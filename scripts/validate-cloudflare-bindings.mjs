@@ -209,6 +209,7 @@ for (const requiredSalesFunnelControl of [
   'data-opportunity-report-cta',
   'Compare software opportunities for $24',
   'Choose what to validate for $24',
+  'Scanner Opportunity Report CTA',
   'const leadSpider = await runLeadSpider(env, { trigger, force: false });',
   'leadSpider: summarizeLeadSpider(leadSpider)',
   'async function persistLeadSpiderTasks(env, tasks)',
