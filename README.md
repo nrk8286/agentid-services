@@ -209,6 +209,17 @@ curl "https://gptmarketplus.com/paypal/download/ai-agent-launch-kit?order_id=PAY
 curl -OJ "https://gptmarketplus.com/api/paypal/digital-products/ai-agent-launch-kit?order_id=PAYPAL_ORDER_ID&access_token=PRIVATE_ACCESS_TOKEN"
 ```
 
+### Customer application v1
+
+Paid implementation onboarding can provision a tenant-scoped Lead Capture &
+Follow-Up Agent with a hosted form, a same-origin embed script, a private owner
+workspace, consent and Turnstile/rate-limit controls, owner notifications, and
+90-day lead retention with owner deletion. The $29 Launch Kit remains a planning
+product and does not automatically provision this application. See
+[the v1 customer-app contract](docs/gptmarketplus-customer-apps.md) for the
+commercial boundary, data rules, acceptance criteria, and future FAQ/booking/
+operations application paths.
+
 ### PayPal one-time payments and sponsor subscriptions
 
 PayPal is the only payment provider across the $29 AI Agent Launch Kit, fixed-price builds, setup deposits, and recurring sponsor inventory. One-time purchases use PayPal Orders v2: the Worker creates the order from its server-owned product catalog, redirects the buyer to PayPal, captures the approved order on the server, checks the exact product/currency/amount, and only then records revenue or unlocks delivery. Sponsor inventory supports recurring PayPal subscriptions at $49, $99, and $149 per month, but remains approval-gated until placement fulfillment is ready.
@@ -265,6 +276,12 @@ curl -X POST "https://gptmarketplus.com/api/paypal/orders/create" \
 The response contains a PayPal approval URL. PayPal returns the approved buyer to `/paypal/complete`; that page calls `/api/paypal/orders/capture` and opens the correct secure download or onboarding path only after a verified `COMPLETED` capture.
 
 The subscription catalog bootstrap is idempotent through the stored product and plan IDs plus PayPal request IDs. PayPal subscription events are received at `/api/paypal/webhook`; completed recurring payments and verified one-time captures are written into the existing revenue ledger and trigger fulfillment work.
+
+Before creating a one-time order, the Worker reconciles the existing PayPal webhook
+and requires `PAYMENT.CAPTURE.REFUNDED` and `PAYMENT.CAPTURE.REVERSED` to be
+subscribed. If PayPal cannot confirm those refund/reversal events, checkout stops
+before an order is created. The Durable Object alarm repeats this reconciliation
+so the public commerce readiness check stays aligned with provider state.
 
 The public pages emit `scroll_depth` at 25%, 50%, 75%, and 90%, retain first-touch UTM/referrer data for site events and lead source pages, and emit `chat_open` only when a visitor actually opens chat. GA4 property `514250564` uses exactly two Key Events: `generate_lead` and the default `purchase`; no synthetic conversion was fired during verification.
 

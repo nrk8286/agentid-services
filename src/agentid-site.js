@@ -1,3 +1,24 @@
+import {
+  captureCustomerAppLead,
+  createCustomerApp,
+  customerAppForDashboardToken,
+  customerAppStatus,
+  deleteCustomerAppLead,
+  getCustomerAppById,
+  getCustomerAppByTenantId,
+  getPublicCustomerApp,
+  grantCustomerAppDashboardAccess,
+  hashCustomerAppDashboardToken,
+  listCustomerAppLeads,
+  publicCustomerAppConfig,
+  customerAppForDashboardTokenHash,
+  updateCustomerApp,
+} from "./customer-apps.js";
+import {
+  renderCustomerLeadCaptureApp,
+  renderCustomerLeadOwnerView,
+} from "./customer-app-ui.js";
+
 const SECURITY_HEADERS = {
   "strict-transport-security": "max-age=31536000; includeSubDomains; preload",
   "content-security-policy": "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self' https://www.paypal.com https://www.sandbox.paypal.com; script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://pagead2.googlesyndication.com https://*.google.com https://*.googleapis.com https://*.gstatic.com https://challenges.cloudflare.com https://static.cloudflareinsights.com https://*.adtrafficquality.google; style-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://fonts.googleapis.com; img-src 'self' data: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://analytics.google.com https://*.google-analytics.com https://www.google.com https://stats.g.doubleclick.net https://*.adtrafficquality.google https://*.cloudflareinsights.com https://track.hubspot.com https://*.paypal.com; frame-src https://challenges.cloudflare.com https://*.adtrafficquality.google https://*.google.com https://*.googlesyndication.com https://*.doubleclick.net https://*.paypal.com; upgrade-insecure-requests",
@@ -60,6 +81,9 @@ const FORM_RATE_LIMIT = {
   maxPerWindow: 5,
   maxPerDay: 20,
 };
+
+const CUSTOMER_APP_SESSION_TTL_SECONDS = 30 * 60;
+const CUSTOMER_APP_SESSION_PREFIX = "customer-app:session:";
 
 const EVENT_RATE_LIMIT = {
   windowSeconds: 60,
@@ -2740,9 +2764,9 @@ function emailFailureDetail(error) {
   return cleanText(error instanceof Error ? error.message : error, 240) || "Email provider request failed.";
 }
 
-async function sendCloudflareOwnerEmail(env, subject, text, html, replyTo = "") {
+async function sendCloudflareOwnerEmail(env, subject, text, html, replyTo = "", recipientOverride = "") {
   const binding = env.TRANSACTIONAL_EMAIL;
-  const recipient = cleanEmail(env.OWNER_NOTIFICATION_EMAIL || "");
+  const recipient = cleanEmail(recipientOverride || env.OWNER_NOTIFICATION_EMAIL || "");
   const sender = cleanEmail(supportEmail(env));
   if (!binding || typeof binding.send !== "function") {
     return emailDeliveryResult({ provider: "cloudflare_send_email", code: "provider_not_configured" });
@@ -2961,6 +2985,18 @@ export async function sendOwnerTransactionalEmail(env, subject, text, html, repl
   if (gmailResult.delivered) return gmailResult;
 
   const resendResult = await sendResendEmail(env, [ownerEmail(env)], subject, text, html, replyTo);
+  if (resendResult.delivered) return resendResult;
+  return combineEmailDeliveryFailures([cloudflareResult, gmailResult, resendResult]);
+}
+
+export async function sendTransactionalEmailTo(env, recipient, subject, text, html, replyTo = "") {
+  const destination = cleanEmail(recipient);
+  if (!destination) return emailDeliveryResult({ code: "invalid_recipient" });
+  const cloudflareResult = await sendCloudflareOwnerEmail(env, subject, text, html, replyTo, destination);
+  if (cloudflareResult.delivered) return cloudflareResult;
+  const gmailResult = await sendGmailOAuthEmail(env, destination, subject, text, html, replyTo);
+  if (gmailResult.delivered) return gmailResult;
+  const resendResult = await sendResendEmail(env, [destination], subject, text, html, replyTo);
   if (resendResult.delivered) return resendResult;
   return combineEmailDeliveryFailures([cloudflareResult, gmailResult, resendResult]);
 }
@@ -6090,6 +6126,77 @@ function renderOnboardingAccessRequiredPage(env) {
   });
 }
 
+function customerAppList(value, maxItems = 12, maxLength = 140) {
+  return [...new Set(String(value || "")
+    .split(/[\n,|]+/)
+    .map((item) => cleanText(item.replace(/^[\u2022*-]\s*/, ""), maxLength))
+    .filter(Boolean))].slice(0, maxItems);
+}
+
+function firstEmailInText(value) {
+  return cleanEmail(String(value || "").match(/[^\s,;<>]+@[^\s,;<>]+\.[^\s,;<>]+/)?.[0] || "");
+}
+
+function customerAppOwnerEmail({ purchase, lead, onboarding } = {}) {
+  return cleanEmail(purchase?.customer_email || lead?.email || "")
+    || firstEmailInText(onboarding?.staff_alerts)
+    || firstEmailInText(onboarding?.contact_methods);
+}
+
+function customerAppEligibleForOnboarding(onboarding) {
+  const packageText = `${onboarding?.package_tier || ""} ${onboarding?.package_name || ""}`.toLowerCase();
+  return !packageText.includes("digital_product") && !packageText.includes("launch kit");
+}
+
+function customerAppInputFromOnboarding(onboarding, ownerEmail = "") {
+  const businessName = cleanText(onboarding?.business_name || "Your business", 160);
+  const mainService = cleanText(onboarding?.main_service || "your services", 200);
+  const services = customerAppList(onboarding?.services_offered, 12, 140);
+  const serviceOptions = services.length ? services : [mainService];
+  return {
+    tenantId: onboarding.id,
+    name: `${businessName} Lead Agent`,
+    status: "active",
+    publicConfig: {
+      title: businessName,
+      description: `Contact ${businessName} about ${mainService}.`,
+      brandTagline: `Tell us what you need help with ${mainService}.`,
+      serviceSummary: serviceOptions.slice(0, 6),
+      serviceOptions,
+      consentLabel: `I agree that ${businessName} may contact me about this request.`,
+      responseTime: onboarding.business_hours
+        ? `We typically respond during ${cleanText(onboarding.business_hours, 160)}.`
+        : "We will review your request and follow up as soon as possible.",
+      fields: { name: true, email: true, phone: true, message: true },
+      requiredFields: ["name", "email", "message"],
+    },
+    privateConfig: {
+      onboardingId: onboarding.id,
+      purchaseId: cleanText(onboarding.purchase_id || "", 120),
+      ownerEmail: cleanEmail(ownerEmail),
+      notificationPolicy: "notify_configured_owner_only",
+    },
+  };
+}
+
+async function ensureCustomerLeadApp(env, onboarding, { dashboardToken = "", purchase = null, lead = null } = {}) {
+  if (!env.GMP_DB || !onboarding?.id || !dashboardToken || !customerAppEligibleForOnboarding(onboarding)) return null;
+  const ownerEmail = customerAppOwnerEmail({ purchase, lead, onboarding });
+  const input = customerAppInputFromOnboarding(onboarding, ownerEmail);
+  let app = await getCustomerAppByTenantId(env, onboarding.id);
+  if (app) {
+    const updated = await updateCustomerApp(env, app.id, input);
+    if (!updated.ok) return null;
+    app = updated.app;
+  } else {
+    const created = await createCustomerApp(env, input);
+    if (!created.ok) return null;
+    app = created.app;
+  }
+  await grantCustomerAppDashboardAccess(env, app.id, dashboardToken);
+  return app;
+}
+
 async function handleOnboarding(request, env, ctx) {
   const body = await readJson(request);
   if (body === BODY_TOO_LARGE) return payloadTooLargeResponse();
@@ -6258,6 +6365,20 @@ async function handleOnboarding(request, env, ctx) {
     user_agent: request.headers.get("user-agent") || "",
   });
 
+  let customerApp = null;
+  try {
+    customerApp = await ensureCustomerLeadApp(env, onboarding, {
+      dashboardToken,
+      purchase: access.purchase,
+      lead: leadId ? await dbGetLeadById(env, leadId) : null,
+    });
+  } catch (error) {
+    console.warn("customer lead app provisioning deferred", {
+      onboardingId: onboarding.id,
+      detail: cleanText(error instanceof Error ? error.message : error, 180),
+    });
+  }
+
   ctx && ctx.waitUntil && ctx.waitUntil(sendWebhook(env, "onboarding_completed", onboarding));
 
   const response = {
@@ -6275,6 +6396,14 @@ async function handleOnboarding(request, env, ctx) {
     onboardingId: onboarding.id,
     packageTier: packageName,
     trackEvent: "agent_blueprint_generated",
+    ...(customerApp ? {
+      customerApp: {
+        name: customerApp.name,
+        publicUrl: `${siteUrl(env)}/apps/lead-agent?key=${encodeURIComponent(customerApp.publicKey)}`,
+        ownerUrl: `${siteUrl(env)}/customer-app/lead-agent?token=${encodeURIComponent(dashboardToken)}`,
+        embedUrl: `${siteUrl(env)}/embed/lead-agent.js?key=${encodeURIComponent(customerApp.publicKey)}`,
+      },
+    } : {}),
   };
 
   return jsonResponse(response);
@@ -10358,6 +10487,180 @@ main {
   }
 }
 
+.customer-agent {
+  width: min(760px, 100%);
+  margin: 24px auto;
+  padding: clamp(22px, 4vw, 42px);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xl);
+  background: linear-gradient(145deg, rgba(11, 27, 45, 0.96), rgba(7, 16, 29, 0.96));
+  box-shadow: var(--shadow);
+}
+
+.customer-agent__header,
+.customer-agent__inquiry,
+.customer-agent__services,
+.customer-agent__app-status,
+.customer-agent__recent-leads {
+  display: grid;
+  gap: 12px;
+}
+
+.customer-agent__header h1,
+.customer-agent__header p,
+.customer-agent__services h2,
+.customer-agent__inquiry h2,
+.customer-agent__app-status h2,
+.customer-agent__recent-leads h2 {
+  margin: 0;
+}
+
+.customer-agent__eyebrow {
+  color: var(--accent);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.customer-agent__header > p:not(.customer-agent__eyebrow),
+.customer-agent__inquiry > p,
+.customer-agent__privacy,
+.customer-agent__app-status p {
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.customer-agent__services,
+.customer-agent__inquiry,
+.customer-agent__app-status,
+.customer-agent__recent-leads {
+  margin-top: 26px;
+  padding-top: 22px;
+  border-top: 1px solid var(--line);
+}
+
+.customer-agent__services ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 20px;
+  color: var(--muted);
+}
+
+.customer-agent__form {
+  display: grid;
+  gap: 14px;
+}
+
+.customer-agent__form label {
+  display: grid;
+  gap: 7px;
+  color: var(--text);
+  font-weight: 700;
+}
+
+.customer-agent__form input:not([type="checkbox"]),
+.customer-agent__form select,
+.customer-agent__form textarea {
+  width: 100%;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  padding: 12px 13px;
+  background: rgba(4, 11, 20, 0.75);
+  color: var(--text);
+  font: inherit;
+}
+
+.customer-agent__form textarea {
+  resize: vertical;
+}
+
+.customer-agent__consent {
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  font-size: 0.92rem;
+  font-weight: 500 !important;
+}
+
+.customer-agent__consent input {
+  margin-top: 4px;
+}
+
+.customer-agent__form button {
+  width: fit-content;
+  border: 0;
+  border-radius: 999px;
+  padding: 12px 18px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: #03101d;
+  font: inherit;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.customer-agent__form button:disabled {
+  cursor: wait;
+  opacity: 0.62;
+}
+
+.customer-agent__status {
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: rgba(113, 214, 255, 0.1);
+  color: var(--text);
+}
+
+.customer-agent__status[data-state="success"] {
+  background: rgba(109, 240, 198, 0.12);
+  color: var(--success);
+}
+
+.customer-agent__status[data-state="error"] {
+  background: rgba(255, 126, 141, 0.12);
+  color: var(--danger);
+}
+
+.customer-agent__honeypot {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.customer-agent__privacy {
+  margin: 0;
+  font-size: 0.86rem;
+}
+
+.customer-agent__recent-leads {
+  overflow-x: auto;
+}
+
+.customer-agent__recent-leads table {
+  width: 100%;
+  min-width: 620px;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.customer-agent__recent-leads th,
+.customer-agent__recent-leads td {
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.customer-agent__recent-leads th {
+  color: var(--accent);
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
 @media (max-width: 1120px) {
   .nav-optional:not(.active) {
     display: none;
@@ -11017,6 +11320,379 @@ function applyPublicBrand(env, html) {
     .replaceAll("GPTMarketPlus", brandName(env));
 }
 
+function customerAppEmbedResponse(env, html, status = 200) {
+  const { ["x-frame-options"]: ignoredFrameHeader, ...embedHeaders } = HTML_HEADERS;
+  return new Response(applyPublicBrand(env, html), {
+    status,
+    headers: {
+    ...embedHeaders,
+    "cache-control": "public, max-age=300",
+    "content-security-policy": SECURITY_HEADERS["content-security-policy"].replace("frame-ancestors 'self'", "frame-ancestors *"),
+    "cross-origin-resource-policy": "cross-origin",
+    "x-robots-tag": "noindex,nofollow,noarchive",
+    },
+  });
+}
+
+function customerAppNotFoundPage(env) {
+  return renderShell(env, {
+    path: "/apps/lead-agent",
+    title: "Customer App Not Found",
+    description: "This customer application is not available.",
+    body: `
+      <section class="page-hero">
+        ${renderSectionTitle("Customer application", "This app is not available", "The link may be inactive, expired, or incomplete.")}
+        <p>Ask the business owner for a current application link, or return to the GPTMarketPlus home page.</p>
+        <a class="button-secondary" href="/">Return home</a>
+      </section>`,
+    robots: "noindex,nofollow,noarchive",
+    bodyClass: "page-customer-app",
+  });
+}
+
+async function renderCustomerLeadAppPage(env, url, { embed = false } = {}) {
+  const publicKey = cleanText(url.searchParams.get("key") || "", 160);
+  let app = null;
+  try {
+    app = await getPublicCustomerApp(env, publicKey);
+  } catch (error) {
+    console.warn("customer lead app lookup failed", { detail: cleanText(error instanceof Error ? error.message : error, 160) });
+    return { html: customerAppNotFoundPage(env), status: 503, embed };
+  }
+  if (!app) return { html: customerAppNotFoundPage(env), status: 404, embed };
+
+  const config = app.config || {};
+  const body = renderCustomerLeadCaptureApp({
+    apiPath: `/api/customer-apps/lead-agent/leads?key=${encodeURIComponent(app.publicKey)}`,
+    businessName: config.title || app.name,
+    brandTagline: config.brandTagline || config.description || "Tell us how we can help.",
+    serviceSummary: config.serviceSummary,
+    serviceOptions: config.serviceOptions,
+    consentLabel: config.consentLabel,
+    responseTime: config.responseTime,
+    turnstileHtml: renderTurnstileWidget(env),
+  });
+  const html = renderShell(env, {
+    path: "/apps/lead-agent",
+    title: `${config.title || app.name} Lead Agent`,
+    description: config.description || "Send a request to this business.",
+    body,
+    robots: "noindex,nofollow,noarchive",
+    bodyClass: "page-customer-app page-customer-lead-app",
+  });
+  return { html, status: 200, embed };
+}
+
+function cookieValue(request, name) {
+  const cookies = String(request.headers.get("cookie") || "").split(";");
+  const prefix = `${name}=`;
+  const match = cookies.map((cookie) => cookie.trim()).find((cookie) => cookie.startsWith(prefix));
+  if (!match) return "";
+  try {
+    return decodeURIComponent(match.slice(prefix.length));
+  } catch {
+    return "";
+  }
+}
+
+function customerAppSessionKey(sessionId) {
+  return scopedKvKey({}, `${CUSTOMER_APP_SESSION_PREFIX}${sessionId}`);
+}
+
+async function issueCustomerAppSession(env, dashboardToken) {
+  if (!env.GMP_KV || !dashboardToken) return null;
+  const access = await customerAppForDashboardToken(env, dashboardToken);
+  const app = access?.apps?.[0];
+  if (!app) return null;
+  const tokenHash = await hashCustomerAppDashboardToken(dashboardToken);
+  const sessionId = crypto.randomUUID().replaceAll("-", "");
+  await env.GMP_KV.put(customerAppSessionKey(sessionId), JSON.stringify({ appId: app.id, tokenHash }), {
+    expirationTtl: CUSTOMER_APP_SESSION_TTL_SECONDS,
+  });
+  return { sessionId };
+}
+
+async function customerAppAccessForSession(env, sessionId) {
+  if (!env.GMP_KV || !sessionId) return null;
+  const session = await env.GMP_KV.get(customerAppSessionKey(sessionId), "json");
+  if (!session?.appId || !session?.tokenHash) return null;
+  return customerAppForDashboardTokenHash(env, session.tokenHash, session.appId);
+}
+
+async function handleCustomerAppOwnerRoute(request, env) {
+  const url = new URL(request.url);
+  const dashboardToken = cleanText(url.searchParams.get("token") || "", 180);
+  if (dashboardToken) {
+    try {
+      const session = await issueCustomerAppSession(env, dashboardToken);
+      if (!session) return new Response("Private customer app sessions are temporarily unavailable.", { status: 503, headers: PRIVATE_HTML_HEADERS });
+      const location = new URL("/customer-app/lead-agent", request.url).toString();
+      return new Response(null, {
+        status: 303,
+        headers: {
+          location,
+          "set-cookie": `gmp_customer_app_session=${encodeURIComponent(session.sessionId)}; Max-Age=${CUSTOMER_APP_SESSION_TTL_SECONDS}; Path=/customer-app/lead-agent; HttpOnly; Secure; SameSite=Lax`,
+          "cache-control": "no-store",
+          "referrer-policy": "no-referrer",
+          "x-robots-tag": "noindex,nofollow,noarchive",
+        },
+      });
+    } catch (error) {
+      console.warn("customer app session exchange failed", { detail: cleanText(error instanceof Error ? error.message : error, 160) });
+      return new Response("Private customer app sessions are temporarily unavailable.", { status: 503, headers: PRIVATE_HTML_HEADERS });
+    }
+  }
+
+  const sessionId = cookieValue(request, "gmp_customer_app_session");
+  const html = await renderCustomerLeadOwnerPage(env, { sessionId });
+  return htmlResponse(html, 200, PRIVATE_HTML_HEADERS);
+}
+
+function renderCustomerAppOwnerLeadDetails(leads = []) {
+  const rows = leads.length
+    ? leads.map((lead) => `
+      <tr>
+        <td>${escapeHtml(lead.createdAt || "-")}</td>
+        <td>${escapeHtml(lead.name || "-")}</td>
+        <td>${escapeHtml(lead.email || "-")}</td>
+        <td>${escapeHtml(lead.phone || "-")}</td>
+        <td>${escapeHtml(lead.service || "-")}</td>
+        <td>${escapeHtml(String(lead.message || "-").slice(0, 500))}</td>
+        <td><button class="button-secondary" type="button" data-delete-lead="${escapeHtml(lead.id)}">Delete</button></td>
+      </tr>`).join("")
+    : `<tr><td colspan="7">No lead details are available.</td></tr>`;
+  return `
+    <section class="section customer-app-owner-details">
+      ${renderSectionTitle("Lead records", "Review or remove captured inquiries", "Lead records are automatically removed after 90 days. Delete a record sooner when the visitor asks or the request is no longer needed.")}
+      <div class="customer-agent__recent-leads">
+        <table>
+          <thead><tr><th>Received</th><th>Name</th><th>Email</th><th>Phone</th><th>Service</th><th>Request</th><th>Action</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </section>
+    <script>
+      (() => {
+        document.querySelectorAll('[data-delete-lead]').forEach((button) => {
+          button.addEventListener('click', async () => {
+            if (!window.confirm('Delete this lead record?')) return;
+            button.disabled = true;
+            try {
+              const response = await fetch('/api/customer-apps/lead-agent/leads/delete', {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({ leadId: button.dataset.deleteLead }),
+              });
+              if (!response.ok) throw new Error('Delete failed');
+              window.location.reload();
+            } catch {
+              button.disabled = false;
+              window.alert('The lead could not be deleted. Please try again.');
+            }
+          });
+        });
+      })();
+    </script>`;
+}
+
+async function renderCustomerLeadOwnerPage(env, { token = "", sessionId = "" } = {}) {
+  let access;
+  try {
+    access = sessionId
+      ? await customerAppAccessForSession(env, sessionId)
+      : token
+        ? await customerAppForDashboardToken(env, token)
+        : null;
+  } catch (error) {
+    console.warn("customer app owner access lookup failed", { detail: cleanText(error instanceof Error ? error.message : error, 160) });
+    access = { apps: [] };
+  }
+  const app = access?.apps?.[0] || null;
+  if (!app) {
+    return renderShell(env, {
+      path: "/customer-app/lead-agent",
+      title: "Customer App Access Required",
+      description: "Open the private customer application with a verified dashboard token.",
+      body: `
+        <section class="page-hero">
+          ${renderSectionTitle("Private customer app", "Verified access required", "Use the dashboard token from your paid onboarding or delivery email.")}
+          <p>This page does not accept a business name or email as authentication. Open the private customer dashboard first if you need to locate your token.</p>
+          <a class="button-secondary" href="/customer-dashboard">Open customer dashboard</a>
+        </section>`,
+      robots: "noindex,nofollow,noarchive",
+      bodyClass: "page-customer-app page-customer-app-owner",
+      privatePage: true,
+    });
+  }
+
+  const [leadsResult, statusResult] = await Promise.all([
+    listCustomerAppLeads(env, app.id, { limit: 50 }),
+    customerAppStatus(env, app.id),
+  ]);
+  const publicApp = publicCustomerAppConfig(app);
+  const config = publicApp?.config || {};
+  const status = statusResult?.app || {};
+  const publicUrl = `${siteUrl(env)}/apps/lead-agent?key=${encodeURIComponent(app.publicKey)}`;
+  const recentLeads = leadsResult?.leads || [];
+  const body = `
+    <section class="section customer-app-owner-links">
+      ${renderSectionTitle("Lead Capture & Follow-Up Agent", "Your private lead workspace", "Review recent inquiries and share the hosted form or embed it on your website.")}
+      <div class="button-row">
+        <a class="button-primary" href="${escapeHtml(publicUrl)}" target="_blank" rel="noopener">Open public form</a>
+        <a class="button-secondary" href="/customer-dashboard">Back to dashboard</a>
+      </div>
+      <p class="form-note">Status: ${escapeHtml(status.status || app.status)} Â· ${escapeHtml(String(status.leadCount || 0))} captured lead(s). Notification email is sent only when a customer owner address is configured.</p>
+    </section>
+    ${renderCustomerLeadOwnerView({
+      businessName: config.title || app.name,
+      appStatus: status.status || app.status,
+      statusDetail: `${status.leadCount || 0} lead(s) captured`,
+      recentLeads: recentLeads.map((lead) => ({
+        createdAt: lead.createdAt,
+        name: lead.name,
+        email: lead.email,
+        phone: lead.phone,
+        service: lead.service,
+        message: lead.message,
+        status: lead.followUpStatus,
+      })),
+    })}
+    ${renderCustomerAppOwnerLeadDetails(recentLeads)}`;
+  return renderShell(env, {
+    path: "/customer-app/lead-agent",
+    title: `${config.title || app.name} Private Lead Workspace`,
+    description: "Review private lead-capture activity for your customer application.",
+    body,
+    robots: "noindex,nofollow,noarchive",
+    bodyClass: "page-customer-app page-customer-app-owner",
+    privatePage: true,
+  });
+}
+
+async function notifyCustomerAppOwner(env, appId, lead) {
+  const app = await getCustomerAppById(env, appId);
+  const recipient = cleanEmail(app?.privateConfig?.ownerEmail || "");
+  if (!recipient) return { ok: false, code: "owner_email_not_configured" };
+  const appName = cleanText(app.name || "Customer lead app", 160);
+  const subject = `New inquiry for ${appName}`;
+  const text = [
+    `A new inquiry was submitted to ${appName}.`,
+    `Name: ${lead.name || "Not provided"}`,
+    `Email: ${lead.email || "Not provided"}`,
+    `Phone: ${lead.phone || "Not provided"}`,
+    `Service: ${lead.service || "Not specified"}`,
+    `Message: ${lead.message || "Not provided"}`,
+    "Open the private customer app workspace to review the lead and decide on follow-up.",
+  ].join("\n");
+  const html = `
+    <div style="font-family:Arial,sans-serif;line-height:1.55;color:#17211d;max-width:640px">
+      <h1 style="font-size:24px">New inquiry for ${escapeHtml(appName)}</h1>
+      <p><strong>Name:</strong> ${escapeHtml(lead.name || "Not provided")}<br>
+      <strong>Email:</strong> ${escapeHtml(lead.email || "Not provided")}<br>
+      <strong>Phone:</strong> ${escapeHtml(lead.phone || "Not provided")}<br>
+      <strong>Service:</strong> ${escapeHtml(lead.service || "Not specified")}</p>
+      <p><strong>Message</strong></p>
+      <p>${escapeHtml(lead.message || "Not provided").replaceAll("\n", "<br>")}</p>
+      <p>Review this lead in the private customer app workspace.</p>
+    </div>`;
+  return sendTransactionalEmailTo(env, recipient, subject, text, html, lead.email || "");
+}
+
+async function handleCustomerAppLeadDeletion(request, env) {
+  const origin = String(request.headers.get("origin") || "").trim();
+  if (origin && origin !== new URL(request.url).origin) return jsonResponse({ ok: false, error: "Cross-origin requests are not allowed." }, 403);
+  const sessionId = cookieValue(request, "gmp_customer_app_session");
+  const access = await customerAppAccessForSession(env, sessionId);
+  const app = access?.apps?.[0];
+  if (!app) return jsonResponse({ ok: false, error: "Private customer app access required." }, 401, { "www-authenticate": "Bearer" });
+  const body = await readJson(request);
+  if (body === BODY_TOO_LARGE) return payloadTooLargeResponse();
+  const leadId = cleanText(body?.leadId || "", 160);
+  if (!leadId) return jsonResponse({ ok: false, error: "Lead ID required." }, 400);
+  const result = await deleteCustomerAppLead(env, app.id, leadId);
+  return jsonResponse({ ok: true, deleted: Boolean(result.deleted) });
+}
+
+async function handleCustomerAppLeadSubmission(request, env, ctx) {
+  const body = await readJson(request);
+  if (body === BODY_TOO_LARGE) return payloadTooLargeResponse();
+  if (!body || typeof body !== "object") return jsonResponse({ ok: false, error: "Invalid JSON." }, 400);
+
+  const url = new URL(request.url);
+  const publicKey = cleanText(url.searchParams.get("key") || body.publicKey || "", 160);
+  let publicApp;
+  try {
+    publicApp = await getPublicCustomerApp(env, publicKey);
+  } catch (error) {
+    console.warn("customer lead app submission lookup failed", { detail: cleanText(error instanceof Error ? error.message : error, 160) });
+    return jsonResponse({ ok: false, error: "Customer application is temporarily unavailable." }, 503);
+  }
+  if (!publicApp) return jsonResponse({ ok: false, error: "Customer application not found." }, 404);
+
+  if (!env.GMP_KV && !(env.FORM_RATE_LIMITER && typeof env.FORM_RATE_LIMITER.limit === "function")) {
+    return jsonResponse({ ok: false, error: "Customer application submissions are temporarily unavailable." }, 503);
+  }
+  const rate = await rateLimit(env, request, `customer_app_lead:${publicApp.id}`);
+  if (!rate.ok) return jsonResponse({ ok: false, error: "Rate limited.", retryAfter: rate.retryAfter }, 429);
+
+  // The honeypot deliberately returns a generic success so automated submitters do not learn the rule.
+  if (String(body.website || "").trim()) return jsonResponse({ ok: true, message: "Your inquiry has been received." }, 202);
+
+  const name = cleanText(body.name || "", 120);
+  const rawEmail = cleanText(body.email || "", 254);
+  const email = cleanEmail(rawEmail);
+  const phone = cleanPhone(body.phone || "");
+  const service = cleanText(body.service || "", 160);
+  const message = cleanText(body.message || "", 4000);
+  const consent = body.consent === true || body.consent === "yes" || body.consent === "true";
+  if (!name || !email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail) || !message || !consent) {
+    return jsonResponse({ ok: false, error: "Name, a valid email, message, and contact consent are required." }, 400);
+  }
+
+  let result;
+  try {
+    result = await captureCustomerAppLead(env, publicKey, {
+      name,
+      email,
+      phone,
+      service,
+      message,
+      source: cleanText(url.pathname, 120),
+      metadata: {},
+      contactConsent: true,
+      followUpStatus: "queued",
+    });
+  } catch (error) {
+    console.warn("customer lead capture failed", { appId: publicApp.id, detail: cleanText(error instanceof Error ? error.message : error, 160) });
+    return jsonResponse({ ok: false, error: "We could not save your inquiry right now." }, 503);
+  }
+  if (!result?.ok) return jsonResponse({ ok: false, error: result.error || "We could not save your inquiry." }, result.status === "storage_unavailable" ? 503 : 400);
+
+  const notify = notifyCustomerAppOwner(env, publicApp.id, result.lead);
+  if (ctx?.waitUntil) ctx.waitUntil(notify.catch((error) => console.warn("customer app owner notification failed", { detail: String(error?.message || error) })));
+  else await notify.catch(() => null);
+  return jsonResponse({ ok: true, message: "Thanks - your inquiry has been received. We will be in touch soon." });
+}
+
+function customerAppEmbedScript(env, publicKey) {
+  const src = `${siteUrl(env)}/apps/lead-agent?key=${encodeURIComponent(publicKey)}&embed=1`;
+  return `(() => {
+  const script = document.currentScript || document.querySelector('script[src*="/embed/lead-agent.js"]');
+  if (!script || document.querySelector('[data-gptmarketplus-lead-agent]')) return;
+  const frame = document.createElement('iframe');
+  frame.src = ${JSON.stringify(src)};
+  frame.title = 'Contact form';
+  frame.loading = 'lazy';
+  frame.referrerPolicy = 'no-referrer';
+  frame.style.width = '100%';
+  frame.style.minHeight = '720px';
+  frame.style.border = '0';
+  frame.setAttribute('data-gptmarketplus-lead-agent', 'true');
+  script.insertAdjacentElement('afterend', frame);
+})();\n`;
+}
+
 export async function handleAgentIdSiteRequest(request, env, ctx) {
   const url = new URL(request.url);
   const path = normalizePath(url.pathname);
@@ -11186,6 +11862,41 @@ export async function handleAgentIdSiteRequest(request, env, ctx) {
     return handleOnboarding(request, env, ctx);
   }
 
+  if (path === "/api/customer-apps/lead-agent/leads" && method === "POST") {
+    return handleCustomerAppLeadSubmission(request, env, ctx);
+  }
+
+  if (path === "/api/customer-apps/lead-agent/leads/delete" && method === "POST") {
+    return handleCustomerAppLeadDeletion(request, env);
+  }
+
+  if (path === "/embed/lead-agent.js" && method === "GET") {
+    const publicKey = cleanText(url.searchParams.get("key") || "", 160);
+    if (!publicKey) return textResponse("Customer app key required.", 400);
+    return new Response(customerAppEmbedScript(env, publicKey), {
+      headers: {
+        ...SECURITY_HEADERS,
+        "content-type": "application/javascript; charset=utf-8",
+        "cache-control": "public, max-age=300",
+        "x-robots-tag": "noindex,nofollow,noarchive",
+      },
+    });
+  }
+
+  if (path === "/apps/lead-agent" && method === "GET") {
+    const rendered = await renderCustomerLeadAppPage(env, url, { embed: url.searchParams.get("embed") === "1" });
+    return rendered.embed
+      ? customerAppEmbedResponse(env, rendered.html, rendered.status)
+      : htmlResponse(applyPublicBrand(env, rendered.html), rendered.status, {
+        "cache-control": "no-store",
+        "x-robots-tag": "noindex,nofollow,noarchive",
+      });
+  }
+
+  if (path === "/customer-app/lead-agent" && method === "GET") {
+    return handleCustomerAppOwnerRoute(request, env);
+  }
+
   if (path === "/") {
     const state = await publicAgentState(env);
     return respondHtml(renderHomePage(env, state));
@@ -11289,6 +12000,21 @@ export async function handleAgentIdSiteRequest(request, env, ctx) {
 async function renderCustomerDashboardPage(env, context = {}) {
   const workspace = await resolveCustomerWorkspace(env, context);
   const { lead, purchase, onboarding } = workspace;
+  let customerApp = null;
+  if (workspace.token && onboarding) {
+    try {
+      customerApp = await ensureCustomerLeadApp(env, onboarding, {
+        dashboardToken: workspace.token,
+        purchase,
+        lead,
+      });
+    } catch (error) {
+      console.warn("customer lead app dashboard provisioning deferred", {
+        onboardingId: onboarding.id,
+        detail: cleanText(error instanceof Error ? error.message : error, 180),
+      });
+    }
+  }
 
   if (!workspace.token && !lead && !purchase && !onboarding) {
     const body = `
@@ -11426,6 +12152,13 @@ async function renderCustomerDashboardPage(env, context = {}) {
     { label: "Lead status", value: lead?.lead_status || purchase?.status || "Active" },
     { label: "Launch date", value: formatDateShort(onboarding?.desired_launch_date || null) },
   ];
+  const customerAppPublic = customerApp ? publicCustomerAppConfig(customerApp) : null;
+  const customerAppUrl = customerAppPublic
+    ? `/apps/lead-agent?key=${encodeURIComponent(customerAppPublic.publicKey)}`
+    : "";
+  const customerAppOwnerUrl = customerAppPublic
+    ? `/customer-app/lead-agent?token=${encodeURIComponent(workspace.token)}`
+    : "";
 
   const body = `
     <section class="page-hero split-section">
@@ -11453,6 +12186,16 @@ async function renderCustomerDashboardPage(env, context = {}) {
         { kicker: "Next action", title: "Keep onboarding moving", description: onboarding?.launch_notes || lead?.next_action || "Review the build plan, confirm integrations, and move into implementation." },
       ])}
     </section>
+
+    ${customerAppPublic ? `
+    <section class="section dashboard-section customer-app-dashboard-card">
+      ${renderSectionTitle("Customer application", "Your Lead Capture & Follow-Up Agent is ready", "Share the hosted form, embed it on your website, and review captured inquiries in the private workspace.")}
+      <div class="button-row">
+        <a class="button-primary" href="${escapeHtml(customerAppUrl)}" target="_blank" rel="noopener">Open hosted app</a>
+        <a class="button-secondary" href="${escapeHtml(customerAppOwnerUrl)}">Review private leads</a>
+      </div>
+      <p class="form-note">Embed script: <code>${escapeHtml(`${siteUrl(env)}/embed/lead-agent.js?key=${customerAppPublic.publicKey}`)}</code></p>
+    </section>` : ""}
 
     <section class="section split-section">
       <div>

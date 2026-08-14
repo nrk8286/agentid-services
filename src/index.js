@@ -1318,6 +1318,15 @@ export class AgentScheduler extends DurableObject {
         }
         await this.ctx.storage.delete("paypalCpcWebhookPending");
       }
+      const paypalOneTimeWebhook = await ensurePaypalOneTimeWebhook(scopedEnv).catch((error) => ({
+        ready: false,
+        configured: true,
+        error: cleanText(error instanceof Error ? error.message : error, 240),
+      }));
+      await this.ctx.storage.put({
+        paypalOneTimeWebhookLastCheckedAt: new Date().toISOString(),
+        paypalOneTimeWebhookLastOutcome: paypalOneTimeWebhook,
+      });
       const plan = await runAgentLoop(scopedEnv, "durable_object_alarm", bootstrapPending);
       const growthSnapshot = await runDailyGrowthSnapshot(scopedEnv, {
         trigger: growthSnapshotBootstrapPending ? "durable_object_alarm_bootstrap" : "durable_object_alarm",
@@ -2742,6 +2751,24 @@ async function handlePaypalOrderCreate(request, env) {
   if (product.id !== "ai_agent_launch_kit"
       && String(env.SERVICE_CHECKOUT_ENABLED || "").trim().toLowerCase() !== "true") {
     return jsonResponse({ ok: false, error: "Custom service checkout requires an approved scope. Use the contact or consultation flow first." }, 503);
+  }
+
+  // Reconcile the existing PayPal webhook before creating an order. One-time
+  // purchases must receive refund/reversal events so a later provider refund
+  // can revoke delivery access and reverse the verified revenue event.
+  let oneTimeWebhook;
+  try {
+    oneTimeWebhook = await ensurePaypalOneTimeWebhook(env);
+  } catch (error) {
+    console.warn("paypal one-time webhook reconciliation failed", {
+      message: cleanText(error instanceof Error ? error.message : error, 240),
+    });
+  }
+  if (!oneTimeWebhook?.ready) {
+    return jsonResponse({
+      ok: false,
+      error: "PayPal checkout is temporarily unavailable while purchase protection is being verified. Please try again shortly.",
+    }, 503);
   }
 
   const returnUrl = `${siteUrl(env)}/paypal/complete?product=${encodeURIComponent(product.id)}`;
