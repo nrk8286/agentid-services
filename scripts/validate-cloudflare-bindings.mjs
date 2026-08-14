@@ -1140,6 +1140,11 @@ for (const requiredLaunchKitDeliveryCopy of [
   "production testing",
   "Before you buy",
   "Clear answers about the $29 Launch Kit",
+  "One-time PayPal payment; no subscription.",
+  "Buying the kit does not create an implementation contract",
+  'data-track-event="lead_magnet_view"',
+  "free-ai-automation-audit-checklist?utm_source=launch_kit_page",
+  'data-track-label="Launch Kit Consultation Alternative"',
   'href="/book-a-consultation?source=launch-kit-page"',
   'href="/refund-policy"',
 ]) {

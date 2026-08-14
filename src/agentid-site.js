@@ -4558,6 +4558,12 @@ function renderRoiCalculatorPage(env) {
 function renderLaunchKitPage(env, requestUrl = null) {
   const product = DIGITAL_PRODUCTS[0];
   const paypalReady = paypalCheckoutReady(env);
+  const checklistUrl = campaignUrl(env, "/free-ai-automation-audit-checklist", {
+    source: "launch_kit_page",
+    medium: "owned",
+    campaign: "launch_kit_nurture",
+    content: "free_checklist",
+  });
   const paypalCancelled = requestUrl?.searchParams.get("paypal") === "cancel";
   const paymentNotice = paypalCancelled
     ? `<p class="form-status" role="status">PayPal checkout was canceled. No payment was captured and you can restart whenever you are ready.</p>`
@@ -4579,8 +4585,8 @@ function renderLaunchKitPage(env, requestUrl = null) {
       <div>
         ${renderPageTitle("AI Agent Launch Kit · $29 one-time", "Build a usable AI agent starter system", product.summary)}
         ${paymentNotice}
-        <div class="cta-row">${checkout}<a class="button-secondary" href="/resources">Read the free guides first</a></div>
-        <p class="trust-line">One-time PayPal payment. Your private workspace opens after PayPal confirms the completed capture, and you can download the generated starter pack. <a href="/refund-policy">Review the refund policy.</a> No revenue or performance guarantees.</p>
+        <div class="cta-row">${checkout}<a class="button-secondary" href="${escapeHtml(checklistUrl)}" data-track-event="lead_magnet_view" data-track-label="Launch Kit Free Checklist">Get the free workflow checklist first</a><a class="button-secondary" href="/resources" data-track-event="resource_click" data-track-label="Launch Kit Free Guides">Read the free guides</a></div>
+        <p class="trust-line">One-time PayPal payment; no subscription. Your private workspace opens after PayPal confirms the completed capture, and you can download the generated starter pack. Buying the kit does not create an implementation contract; installation, integrations, and ongoing support require a separate written scope. <a href="/refund-policy">Review the refund policy.</a> No revenue or performance guarantees.</p>
       </div>
       <div class="kit-preview">
         <p class="card-kicker">AI Agent Launch Kit</p>
@@ -4638,7 +4644,7 @@ function renderLaunchKitPage(env, requestUrl = null) {
       <div class="cta-box">
         <strong>Ready to build it?</strong>
         ${checkout}
-        <a class="button-secondary" href="/book-a-consultation?source=launch-kit-page">Have GPTMarketPlus build it with you</a>
+        <a class="button-secondary" href="/book-a-consultation?source=launch-kit-page" data-track-event="cta_click" data-track-label="Launch Kit Consultation Alternative">Have GPTMarketPlus build it with you</a>
       </div>
     </section>
     ${renderViewItemTracking(product)}`;
