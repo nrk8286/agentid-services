@@ -1449,6 +1449,35 @@ function cleanUrl(value) {
   }
 }
 
+function analyticsAttributionProperties(value, sourcePage = "") {
+  const input = value && typeof value === "object" ? value : {};
+  let parsed = null;
+  try {
+    const absoluteSourcePage = /^https?:\/\//i.test(String(sourcePage || ""));
+    parsed = absoluteSourcePage
+      ? new URL(String(sourcePage))
+      : new URL(String(sourcePage || ""), "https://gptmarketplus.com");
+  } catch {
+    parsed = null;
+  }
+  const queryValue = (name) => parsed?.searchParams.get(name) || "";
+  const absoluteHost = /^https?:\/\//i.test(String(sourcePage || "")) ? parsed?.hostname || "" : "";
+  const valueFor = (name, fallback = "", maxLength = 160) => cleanText(input[name] || fallback, maxLength);
+  return {
+    page_hostname: valueFor("page_hostname", input.landing_host || absoluteHost, 160),
+    landing_host: valueFor("landing_host", input.page_hostname || absoluteHost, 160),
+    landing_page: valueFor("landing_page", sourcePage, 240),
+    page_referrer: valueFor("page_referrer", input.referrer || "", 500),
+    utm_source: valueFor("utm_source", queryValue("utm_source"), 120),
+    utm_medium: valueFor("utm_medium", queryValue("utm_medium"), 120),
+    utm_campaign: valueFor("utm_campaign", queryValue("utm_campaign"), 160),
+    utm_content: valueFor("utm_content", queryValue("utm_content"), 160),
+    utm_term: valueFor("utm_term", queryValue("utm_term"), 160),
+    source: valueFor("source", queryValue("source"), 160),
+    traffic_type: valueFor("traffic_type", "", 80),
+  };
+}
+
 function cleanPhone(value) {
   return String(value ?? "").replace(/[^0-9+(). -]/g, "").trim().slice(0, 40);
 }
@@ -5753,6 +5782,7 @@ function buildLeadResponse(savedLead, options = {}) {
 async function captureLead(env, ctx, body, options = {}) {
   const sourcePage = cleanText(body.sourcePage || options.sourcePage || "/", 200) || "/";
   const submissionType = cleanText(options.submissionType || body.submissionType || "lead", 80);
+  const attribution = analyticsAttributionProperties(body.attribution, sourcePage);
   const required = options.requiredFields || [];
   const missing = validateRequiredFields(body, required);
   if (missing.length) {
@@ -5881,6 +5911,7 @@ async function captureLead(env, ctx, body, options = {}) {
     lead_id: saved.id,
     conversation_id: saved.conversation_id,
     properties_json: {
+      ...attribution,
       leadTag: effectiveLeadTag,
       packageName,
       agentType: agentRecommendation.agentType,
@@ -6682,7 +6713,11 @@ async function loadAttributionHealth(env, requestedDays = 7) {
   )`;
   const internalSourceExpression = "NULLIF(TRIM(json_extract(properties_json, '$.source')), '')";
   const productionPredicate = `COALESCE(LOWER(TRIM(json_extract(properties_json, '$.utm_medium'))), '') <> 'qa'
-    AND COALESCE(LOWER(TRIM(json_extract(properties_json, '$.traffic_type'))), '') <> 'internal'`;
+    AND COALESCE(LOWER(TRIM(json_extract(properties_json, '$.traffic_type'))), '') <> 'internal'
+    AND event_name <> 'test_submission'
+    AND LOWER(source_page) NOT LIKE '%utm_medium=qa%'
+    AND LOWER(source_page) NOT LIKE '%debug_mode=true%'
+    AND LOWER(source_page) NOT LIKE '%gtm_debug=%'`;
   const [
     summaryRow,
     channelRows,

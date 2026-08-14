@@ -998,6 +998,7 @@ if (roiBody.includes('render();\n          window.agentidTrackEvent("roi_calcula
 }
 
 for (const requiredIntentAttributionControl of [
+  'function analyticsAttributionProperties(value, sourcePage = "")',
   'const trafficSource = `traffic-${trafficSlug}`',
   'data-launch-kit-cta=',
   'eventName: "product_view"',
@@ -1005,6 +1006,8 @@ for (const requiredIntentAttributionControl of [
   'source: search.get("source") || ""',
   'source: cleanText(submittedAttribution.source || "", 160)',
   'source: cleanText(attribution.source || "", 160)',
+  "AND event_name <> 'test_submission'",
+  "AND LOWER(source_page) NOT LIKE '%utm_medium=qa%'",
 ]) {
   if (!`${workerSource}\n${siteSource}`.includes(requiredIntentAttributionControl)) {
     failures.push(`buyer-intent attribution is missing ${requiredIntentAttributionControl}`);
