@@ -543,13 +543,13 @@ const DIGITAL_PRODUCTS = [
     packageTier: "digital_product",
     checkoutType: "digital_product",
     delivery: "secure_download",
-    summary: "A guided workspace that turns your business inputs into a usable AI agent starter system, with a prompt, workflow map, lead intake, follow-up sequence, QA checklist, and 30-day scorecard.",
+    summary: "A guided workspace that turns your business inputs into a usable AI agent starter system, with a launch setup brief, prompt, workflow map, lead intake, follow-up sequence, QA checklist, and 30-day scorecard.",
     includes: [
       "First workflow brief and completion definition",
       "Business-specific starter system prompt",
       "Lead-intake, consent, and human-handoff field plan",
       "Follow-up message sequence with opt-out rules",
-      "Launch QA and failure tests",
+      "Launch setup brief, QA, and failure tests",
       "30-day performance scorecard",
       "Private workspace with copy and download actions",
     ],
@@ -559,7 +559,7 @@ const DIGITAL_PRODUCTS = [
 const LAUNCH_KIT_FAQS = [
   {
     question: "What do I receive after I buy the $29 Launch Kit?",
-    answer: "After PayPal confirms the completed capture, you receive access to a private workspace. Your answers become a first workflow brief, tailored starter system prompt, lead-intake and consent plan, handoff rules, follow-up messages, launch QA tests, and a 30-day scorecard that you can copy or download.",
+    answer: "After PayPal confirms the completed capture, you receive access to a private workspace. Your answers become a launch setup brief, first workflow brief, tailored starter system prompt, lead-intake and consent plan, handoff rules, follow-up messages, scenario-based launch QA tests, and a 30-day scorecard that you can copy or download.",
   },
   {
     question: "Can I use the Launch Kit without hiring GPTMarketPlus?",
@@ -1198,7 +1198,7 @@ const CHAT_OBJECTIONS = [
   {
     match: ["how much", "cost", "price"],
     reply:
-      "If you want to build the first workflow yourself, the $29 AI Agent Launch Kit is the primary self-serve starting point. It gives you a private guided workspace with a tailored starter prompt, workflow brief, lead intake, consent-aware follow-up, launch QA, and a 30-day scorecard. If you want GPTMarketPlus to install integrations or build the system with you, custom work starts at the separately scoped service tiers and requires a free strategy call before any payment is requested.",
+      "If you want to build the first workflow yourself, the $29 AI Agent Launch Kit is the primary self-serve starting point. It gives you a private guided workspace with a launch setup brief, tailored starter prompt, workflow brief, lead intake, consent-aware follow-up, scenario-based launch QA, and a 30-day scorecard. If you want GPTMarketPlus to install integrations or build the system with you, custom work starts at the separately scoped service tiers and requires a free strategy call before any payment is requested.",
   },
   {
     match: ["need this", "not sure", "don't know", "dont know", "think about it"],
@@ -4652,7 +4652,7 @@ function renderLaunchKitPage(env, requestUrl = null) {
   return renderShell(env, {
     path: "/ai-agent-launch-kit",
     title: "AI Agent Launch Kit: Build Your First AI Workflow for $29",
-    description: "Build a usable first AI workflow for $29: private PayPal-gated workspace, tailored starter prompt, workflow brief, lead intake, follow-up, QA, and 30-day scorecard.",
+    description: "Build a usable first AI workflow for $29: private PayPal-gated workspace, launch setup brief, tailored starter prompt, lead intake, follow-up, QA, and 30-day scorecard.",
     body,
     schema: [
       organizationSchema(env),
@@ -4674,6 +4674,13 @@ Goal: Respond to new quote requests and route qualified requests to a human.
 Trigger: A website form, chat message, or missed-call follow-up.
 Collect: Service needed, location, timing, contact method, and consent.
 Handoff: Send a short summary to the owner when the request is qualified or unclear.
+
+LAUNCH SETUP BRIEF
+First channel: Website form or chat
+Success metric: Median time to first useful response and qualified handoffs
+Baseline: Record current inquiry volume and response time before launch
+30-day target: Set a conservative target after the baseline is recorded
+Boundary: Start with one channel; keep pricing, availability, policy, and sensitive decisions with a human.
 
 STARTER SYSTEM PROMPT
 You are the assistant for [BUSINESS NAME]. Help [TARGET CUSTOMER] with [MAIN OFFER].
@@ -4743,6 +4750,7 @@ Wrong answers or misroutes: ____   Opt-outs or complaints: ____   Hours saved: _
       <div class="blueprint-grid">
         <article class="blueprint-card"><p class="card-kicker">Workflow brief</p><h3>One measurable first job</h3><p>Respond to new quote requests, collect the right details, and route qualified requests to a human.</p></article>
         <article class="blueprint-card"><p class="card-kicker">Starter prompt</p><h3>Bounded business behavior</h3><p>Approved facts, minimum necessary questions, honest uncertainty, and explicit escalation rules.</p></article>
+        <article class="blueprint-card"><p class="card-kicker">Launch setup</p><h3>One channel and one measure</h3><p>Record the baseline, choose a 30-day target, confirm the owner and handoff destination, then test before connecting more tools.</p></article>
         <article class="blueprint-card"><p class="card-kicker">Measurement</p><h3>Proof before expansion</h3><p>Track workflow starts, handoffs, bookings, errors, opt-outs, and hours saved for 30 days.</p></article>
       </div>
       <details class="review-panel">
@@ -4929,6 +4937,10 @@ const LAUNCH_KIT_WORKSPACE_FIELDS = [
   ["mainOffer", "Main offer", "textarea", "What do you sell, who is it for, and what should a good customer do next?"],
   ["targetCustomer", "Best-fit customer", "textarea", "Who should the agent prioritize? Include location, job size, urgency, or other fit signals."],
   ["primaryGoal", "First workflow goal", "textarea", "Choose one job: capture a lead, answer questions, book a call, recover missed leads, or another measurable outcome."],
+  ["launchChannel", "First launch channel", "text", "Website form, chat, email, phone/SMS, CRM, or another channel."],
+  ["successMetric", "Success metric", "text", "What should improve? Response time, qualified handoffs, bookings, completed requests, or another measure."],
+  ["currentBaseline", "Current baseline", "textarea", "What happens today? Add a recent count, time, rate, or honest estimate if you have one."],
+  ["thirtyDayTarget", "30-day target", "textarea", "Set a conservative target to review after 30 days. Do not treat it as a guarantee."],
   ["customerQuestions", "Top customer questions", "textarea", "Paste the questions customers ask most often and the answers you already trust."],
   ["approvedKnowledge", "Approved facts and boundaries", "textarea", "List prices, services, hours, service area, policies, claims, and anything the agent may or may not say."],
   ["handoff", "Human handoff", "textarea", "Who receives a qualified lead, how they are notified, and when the agent must stop and escalate."],
@@ -4955,7 +4967,7 @@ function normalizeLaunchKitWorkspaceInput(input = {}) {
 export function buildLaunchKitWorkspace(input = {}) {
   const values = normalizeLaunchKitWorkspaceInput(input);
   return {
-    version: 1,
+    version: 2,
     updatedAt: new Date().toISOString(),
     ...values,
   };
@@ -4980,12 +4992,23 @@ Owner: Assign one person who is responsible for the next step.
 Trigger: A website visit, question, form submission, missed call, or other agreed customer signal.
 Completion: The request is answered, qualified, booked, handed off, or safely closed.
 
+1A. LAUNCH SETUP BRIEF
+First channel: ${values.launchChannel || "Choose one channel before launch."}
+Tools and contact points: ${values.tools || "List the tools, inboxes, calendars, forms, or task boards involved."}
+Success metric: ${values.successMetric || "Choose one measure that shows whether this workflow helps."}
+Current baseline: ${values.currentBaseline || "Record the current count, time, rate, or outcome before launch."}
+30-day target: ${values.thirtyDayTarget || "Set a conservative target after recording the baseline; this is not a guarantee."}
+Launch boundary: Start with one channel and one workflow. Keep pricing, availability, policy, sensitive, regulated, and high-consequence decisions with a human unless explicitly approved.
+Pre-launch owner check: Confirm approved knowledge, consent language, handoff destination, response window, and the test scenarios below.
+
 2. STARTER SYSTEM PROMPT
 You are the AI assistant for ${business}.
 Your first job is to help with this workflow: ${values.primaryGoal || "capture and route the next customer request"}.
+Launch channel: ${values.launchChannel || "not specified"}.
 Business type: ${values.businessType || "not specified"}.
 Main offer: ${values.mainOffer || "not specified"}.
 Best-fit customer: ${values.targetCustomer || "not specified"}.
+Success metric: ${values.successMetric || "not specified"}.
 Use this tone: ${tone}.
 Use only approved business information. Never invent prices, availability, policies, credentials, or outcomes.
 Ask only for the information needed to move the request to the next step.
@@ -5039,6 +5062,12 @@ Marketing or reactivation (marketing consent required separately):
 Hi [FIRST NAME] - because you opted in to updates from ${business}, here is one relevant next step: [APPROVED TIP OR OFFER]. Reply "stop" to end these updates.
 
 6. LAUNCH QA CHECKLIST
+Run these scenario tests before connecting a live channel:
+- Happy path: submit a realistic ${values.launchChannel || "customer"} request that fits the offer; confirm the required fields, consent record, response, and human handoff summary.
+- Missing information: omit one required detail; confirm the assistant asks only for that detail and does not invent an answer.
+- Unknown or out-of-scope request: ask about an unapproved price, policy, availability, or capability; confirm an honest boundary and human escalation.
+- Sensitive or urgent request: use a high-consequence, regulated, or urgent example; confirm the workflow stops and routes to the named human owner.
+- Opt-out and failure recovery: request no further contact and simulate a timeout or duplicate submission; confirm the sequence stops, no duplicate handoff is created, and the failure is visible to the owner.
 - The agent identifies itself as automated when appropriate.
 - Answers match the approved knowledge above.
 - Prices, availability, policies, and outcomes are never invented.
@@ -5080,7 +5109,9 @@ export function renderLaunchKitWorkspaceOutput(workspace = {}) {
       </header>
       <div class="blueprint-grid">
         <article class="blueprint-card"><h3>First workflow</h3><p>${escapeHtml(values.primaryGoal || "Complete the workflow brief above.")}</p></article>
+        <article class="blueprint-card"><h3>First launch channel</h3><p>${escapeHtml(values.launchChannel || "Choose one channel before launch.")}</p></article>
         <article class="blueprint-card"><h3>Best-fit customer</h3><p>${escapeHtml(values.targetCustomer || "Add the customer you want to prioritize.")}</p></article>
+        <article class="blueprint-card"><h3>Success measure</h3><p>${escapeHtml(values.successMetric || "Choose one measure and record the baseline.")}</p></article>
         <article class="blueprint-card"><h3>Human handoff</h3><p>${escapeHtml(values.handoff || "Add who receives qualified requests and when to escalate.")}</p></article>
       </div>
       <h3>Starter prompt and launch checklist</h3>
@@ -5120,6 +5151,10 @@ export function renderLaunchKitWorkspacePage(env, context = {}) {
       mainOffer: "Our main offer is [service or product] for [best-fit customer]. The next action is to request a quote or schedule a call.",
       targetCustomer: "People who need [offer] in [service area] and are ready to discuss timing and fit.",
       primaryGoal: "Capture a new inquiry, collect consent and the minimum qualification details, then send a concise handoff to a human.",
+      launchChannel: "Website form or chat",
+      successMetric: "Median time to first useful response and qualified handoffs per week",
+      currentBaseline: "Record current weekly inquiry volume and response time before launch.",
+      thirtyDayTarget: "Set a conservative response-time and qualified-handoff target after recording the baseline.",
       approvedKnowledge: "Add approved services, prices, hours, service area, policies, and response window before launch.",
       handoff: "Send qualified or uncertain requests to [owner or team] through [channel] within [response window].",
     },
@@ -5128,6 +5163,10 @@ export function renderLaunchKitWorkspacePage(env, context = {}) {
       mainOffer: "We help [best-fit customer] with [service]. A missed call should lead to a helpful reply and a clear next step.",
       targetCustomer: "People who called about [service] and need a response, qualification, or booking option.",
       primaryGoal: "Recover a missed inquiry, ask what the caller needs and whether it is urgent, record contact consent, then route the request to a human.",
+      launchChannel: "Phone or SMS missed-call follow-up",
+      successMetric: "Missed inquiries reached, replies, and qualified handoffs",
+      currentBaseline: "Record missed calls per week, current callback time, and current response rate.",
+      thirtyDayTarget: "Set a conservative target for response time and qualified recovered inquiries after baseline review.",
       tools: "Add the approved phone, SMS, email, CRM, calendar, and task tools used for missed-call follow-up.",
       handoff: "Urgent, sensitive, uncertain, or qualified requests go to [owner or team] through [channel] within [response window].",
     },
@@ -5136,6 +5175,10 @@ export function renderLaunchKitWorkspacePage(env, context = {}) {
       mainOffer: "We provide [service or product] for [best-fit customer]. Approved answers should help a customer decide whether to take the next step.",
       targetCustomer: "People asking about [services, fit, timing, location, or booking] who may need a human decision.",
       primaryGoal: "Answer approved common questions, offer the next step to book or request information, and escalate uncertainty to a human.",
+      launchChannel: "Website chat or FAQ intake",
+      successMetric: "Approved questions answered, booking starts, and human handoffs",
+      currentBaseline: "Record common question volume, current response time, and booking or handoff baseline.",
+      thirtyDayTarget: "Set a conservative target for useful answers and safe handoffs after baseline review.",
       customerQuestions: "List the five most common questions and the approved answer for each one.",
       approvedKnowledge: "Add approved prices, availability, policies, service area, booking rules, and claims before launch.",
     },
@@ -5144,10 +5187,10 @@ export function renderLaunchKitWorkspacePage(env, context = {}) {
   const body = `
     <section class="page-hero split-section">
       <div>
-        ${renderPageTitle("Private customer workspace", "Build the first version of your AI agent now", "Answer the guided questions and get a business-specific starter system you can hand to your team, paste into an AI tool, or use as the exact brief for implementation.")}
+        ${renderPageTitle("Private customer workspace", "Build the first version of your AI agent now", "Answer the guided questions and get a business-specific launch setup brief, starter system, and test plan you can hand to your team, paste into an AI tool, or use as the exact brief for implementation.")}
         <p class="status-pill">Verified purchase · AI Agent Launch Kit</p>
       </div>
-      <div class="info-card"><p class="card-kicker">You leave with</p><ul><li>A first workflow brief</li><li>A usable starter system prompt</li><li>Lead intake and handoff rules</li><li>Follow-up, QA, and 30-day measurement pack</li></ul></div>
+      <div class="info-card"><p class="card-kicker">You leave with</p><ul><li>A launch setup and first workflow brief</li><li>A usable starter system prompt</li><li>Lead intake and handoff rules</li><li>Scenario-based QA tests</li><li>Follow-up and 30-day measurement pack</li></ul></div>
     </section>
     <section class="section split-section">
       <div>
@@ -6825,7 +6868,7 @@ const AGENTID_PUBLIC_PAGES = [
   { path: "/resources", title: "AI Agent Resources", description: "Practical guides, templates, comparisons, and tools for planning useful business AI agents." },
   ...RESOURCE_PAGES.map((page) => ({ path: page.path, title: page.title, description: page.description })),
   { path: "/tools/ai-automation-roi-calculator", title: "AI Automation ROI Calculator: Estimate Payback and Savings", description: "Estimate time savings, recovered contribution, operating cost, payback, and first-year ROI, then map a bounded first workflow with the $29 Launch Kit." },
-  { path: "/ai-agent-launch-kit", title: "AI Agent Launch Kit: Build Your First AI Workflow for $29", description: "Build a usable first AI workflow for $29: private PayPal-gated workspace, tailored starter prompt, workflow brief, lead intake, follow-up, QA, and 30-day scorecard." },
+  { path: "/ai-agent-launch-kit", title: "AI Agent Launch Kit: Build Your First AI Workflow for $29", description: "Build a usable first AI workflow for $29: private PayPal-gated workspace, launch setup brief, tailored starter prompt, lead intake, follow-up, QA, and 30-day scorecard." },
   { path: "/about", title: "About", description: "Practical AI implementation for real businesses." },
   { path: "/contact", title: "Contact", description: "Request your AI agent plan with a validated lead form." },
   { path: "/book-a-consultation", title: "Book a Consultation", description: "Book a free AI strategy call." },
