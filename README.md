@@ -430,6 +430,28 @@ curl -X POST https://gptmarketplus.com/api/agents/lead-spider/run \
 
 The spider is intentionally bounded: HTTPS public pages only, capped source count, capped response bytes, deduped domains, no private-network crawling, and no automated bulk outreach. Its job is to find and score sales opportunities, then queue reviewed sponsor checkout or AI revenue-audit follow-up tasks.
 
+The agent planner and the sales queue are separate. Recurring plan recommendations are stored with the latest agent state; only a specific inbound lead, public prospect, or paid fulfillment item becomes an actionable sales task. Admins can inspect the durable queue and record human-owned progress:
+
+```bash
+curl https://gptmarketplus.com/api/agents/tasks \
+  -H "Authorization: Bearer $ADMIN_TOKEN"
+
+curl https://gptmarketplus.com/api/agents/sales/funnel \
+  -H "Authorization: Bearer $ADMIN_TOKEN"
+
+curl -X POST https://gptmarketplus.com/api/agents/tasks/claim \
+  -H 'content-type: application/json' \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  --data '{"id":"TASK_ID","claimedBy":"operator"}'
+
+curl -X POST https://gptmarketplus.com/api/agents/tasks/complete \
+  -H 'content-type: application/json' \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  --data '{"id":"TASK_ID","claimedBy":"operator","outcomeCode":"qualified","outcomeNote":"Buyer requested a scoped implementation review."}'
+```
+
+Supported outcome codes are `submitted`, `contacted`, `replied`, `qualified`, `meeting_booked`, `checkout_started`, `paid`, `lost`, and `not_actionable`. A task must be claimed before completion, and the completing operator must match the claim label. These endpoints do not send cold outreach or manufacture conversions; they make approved human sales work claimable, auditable, and measurable. Verified revenue remains sourced only from settled PayPal events.
+
 Set these optional secrets before production use:
 
 ```bash

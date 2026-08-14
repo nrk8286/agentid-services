@@ -5526,6 +5526,7 @@ function renderRefundPolicyPage(env) {
 function renderContactPage(env, requestUrl = null) {
   const intent = cleanText(requestUrl?.searchParams?.get("intent") || "", 40).toLowerCase();
   const requestedPackageId = cleanText(requestUrl?.searchParams?.get("package") || "", 80);
+  const requestedBuildId = cleanText(requestUrl?.searchParams?.get("interest") || "", 120);
   const requestedSponsorPlan = intent === "sponsor"
     ? SPONSOR_SUBSCRIPTIONS.find((plan) => plan.id === requestedPackageId) || SPONSOR_SUBSCRIPTIONS[0]
     : null;
@@ -5572,6 +5573,7 @@ function renderContactPage(env, requestUrl = null) {
         { name: "preferredContactMethod", label: "Preferred contact method", type: "select", required: true, options: ["Email", "Phone", "Text"] },
         { name: "bestTimeToContact", label: "Best time to contact", placeholder: "Morning, afternoon, or evening", required: false },
         { name: "contactConsent", label: "I agree to be contacted about my request.", type: "checkbox", required: true },
+        { name: "requestedBuildId", type: "hidden", value: requestedBuildId },
       ];
   const form = renderLeadForm({
     action: "/api/contact",
@@ -5965,6 +5967,7 @@ async function captureLead(env, ctx, body, options = {}) {
     notes: cleanText([
       body.notes || "",
       body.requestedPackageId ? `requested_package:${cleanText(body.requestedPackageId, 80)}` : "",
+      body.requestedBuildId ? `requested_build:${cleanText(body.requestedBuildId, 120)}` : "",
       classification.excluded ? `classification:${classification.reason}` : "",
     ].filter(Boolean).join(" | "), 1200),
   };
@@ -5989,6 +5992,8 @@ async function captureLead(env, ctx, body, options = {}) {
       leadTag: effectiveLeadTag,
       packageName,
       agentType: agentRecommendation.agentType,
+      requestedPackageId: cleanText(body.requestedPackageId || "", 80),
+      requestedBuildId: cleanText(body.requestedBuildId || "", 120),
       submissionType,
     },
     user_agent: options.request?.headers?.get?.("user-agent") || "",

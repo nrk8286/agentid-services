@@ -94,6 +94,17 @@ const CANONICAL_HOST = "gptmarketplus.com";
 // Bump this whenever public HTML or public metadata changes so a deployment does not serve stale sales copy.
 const PUBLIC_CACHE_KEY_VERSION = "2026-08-14-offer-consistency-v1";
 const VERIFIED_REVENUE_GOAL_CENTS = 1_000_000;
+const SALES_TASK_OUTCOMES = new Set([
+  "submitted",
+  "contacted",
+  "replied",
+  "qualified",
+  "meeting_booked",
+  "checkout_started",
+  "paid",
+  "lost",
+  "not_actionable",
+]);
 const LEGACY_TLS_VERSIONS = new Set(["TLSv1", "TLSv1.0", "TLSv1.1"]);
 const DOMAIN_CAMPAIGN_REDIRECTS = new Map([
   ["agentid.life", "/ai-agent-launch-kit"],
@@ -1063,6 +1074,27 @@ export default {
     if (url.pathname === "/api/agents/tasks") {
       const tasks = await loadTasks(env);
       return jsonResponse((await hasAdminAccess(request, env)) ? tasks : publicTaskSnapshot(tasks));
+    }
+
+    if (url.pathname === "/api/agents/tasks/claim" && request.method === "POST") {
+      if (!(await hasAdminAccess(request, env))) {
+        return jsonResponse({ ok: false, error: "Admin access required." }, 403);
+      }
+      return jsonResponse(...await claimSalesTask(request, env));
+    }
+
+    if (url.pathname === "/api/agents/tasks/complete" && request.method === "POST") {
+      if (!(await hasAdminAccess(request, env))) {
+        return jsonResponse({ ok: false, error: "Admin access required." }, 403);
+      }
+      return jsonResponse(...await completeSalesTask(request, env));
+    }
+
+    if (url.pathname === "/api/agents/sales/funnel" && request.method === "GET") {
+      if (!(await hasAdminAccess(request, env))) {
+        return jsonResponse({ ok: false, error: "Admin access required." }, 403);
+      }
+      return jsonResponse(await salesFunnelSnapshot(env));
     }
 
     if (url.pathname === "/api/agents/ads/packages") {
@@ -4000,6 +4032,9 @@ function publicTaskSnapshot(tasks) {
     total: items.length,
     byStatus,
     byOwner,
+    actionable: items.filter((task) => ["pending", "claimed"].includes(task.status)).length,
+    completed: Number(byStatus.completed || 0),
+    blocked: Number(byStatus.blocked || 0),
     generatedAt: new Date().toISOString(),
   };
 }
@@ -4010,13 +4045,16 @@ async function runLeadSpider(env, options = {}) {
   const elapsed = state.lastRunAt ? (now.getTime() - Date.parse(state.lastRunAt)) / 1000 : Infinity;
 
   if (!options.force && elapsed < LEAD_SPIDER_INTERVAL_SECONDS) {
+    const storedProspects = await loadSpiderProspects(env);
+    const storedTasks = leadSpiderTasks(storedProspects, state.lastRunAt || now.toISOString());
+    await Promise.all(storedTasks.map((task) => upsertSalesTask(env, task)));
     return {
       ok: true,
       skipped: true,
       reason: "recent_spider_run",
       nextEligibleAt: new Date(Date.parse(state.lastRunAt) + LEAD_SPIDER_INTERVAL_SECONDS * 1000).toISOString(),
       latest: await getJson(env, "lead_spider:latest"),
-      prospects: (await loadSpiderProspects(env)).slice(0, 20),
+      prospects: storedProspects.slice(0, 20),
     };
   }
 
@@ -4060,7 +4098,7 @@ async function runLeadSpider(env, options = {}) {
     hotCount: hotProspects.length,
     warmCount: warmProspects.length,
   }, 60 * 60 * 24 * 365);
-  await replaceTasks(env, mergeTasks((await loadTasks(env)).items, tasks));
+  await Promise.all(tasks.map((task) => upsertSalesTask(env, task)));
   await updateMetrics(env, (metrics) => {
     metrics.lead_spider_runs_total = Number(metrics.lead_spider_runs_total || 0) + 1;
     metrics.prospects_total = prospects.length;
@@ -4338,6 +4376,7 @@ function leadSpiderTasks(prospects, createdAt) {
       source: `lead_spider:${prospect.domain}`,
       url: prospect.url,
       ctaUrl: prospect.ctaUrl,
+      details: `Public evidence: ${prospect.evidence || "source page fit signals"}. Sales play: ${prospect.salesPlay || prospect.nextStep}. Review the public page and approve the appropriate submission or partner action before contacting anyone.`,
     }));
 }
 
@@ -4510,19 +4549,14 @@ async function runAgentLoop(env, trigger, force) {
   ]);
 
   const plan = buildPlan(env, trigger, now, siteHealth, metrics, tasks.items);
-  const nextTasks = plan.agents.flatMap((agent) => agent.tasks.map((task) => ({
-    id: crypto.randomUUID(),
-    createdAt: plan.generatedAt,
-    owner: agent.id,
-    title: task,
-    priority: agent.priority,
-    status: "pending",
-    source: `agent:${agent.id}`,
-  })));
-
-  await replaceTasks(env, mergeTasks(tasks.items, nextTasks));
   const leadSpider = await runLeadSpider(env, { trigger, force: false });
-  const finalPlan = { ...plan, leadSpider: summarizeLeadSpider(leadSpider), salesLeadHandoff, customerFollowups };
+  const finalPlan = {
+    ...plan,
+    leadSpider: summarizeLeadSpider(leadSpider),
+    salesLeadHandoff,
+    customerFollowups,
+    salesQueue: publicTaskSnapshot(await loadTasks(env)),
+  };
   await recordPlaybook(env, finalPlan.playbook || dailyPlaybook(env, { latest: finalPlan, tasks: { items: tasks.items }, metrics, spider: null, revenue: null }), finalPlan);
 
   await putJson(env, "agents:latest", finalPlan, 60 * 60 * 24 * 30);
@@ -5203,29 +5237,51 @@ async function playbookSnapshot(env) {
 }
 
 async function loadTasks(env) {
-  const localItems = ((await getJson(env, "agents:tasks")) || []).map((task) => normalizeTaskForBrand(env, task));
-  const d1Items = await loadD1Tasks(env);
-  const items = [...localItems, ...d1Items];
+  if (env.GMP_DB) {
+    await ensureD1Schema(env);
+    const rows = await env.GMP_DB.prepare(`SELECT id, task_type, source_key, owner, title, details, priority, status,
+        lead_id, prospect_url, cta_url, created_at, claimed_by, claimed_at, completed_at,
+        outcome_code, outcome_note, next_due_at
+      FROM sales_tasks
+      ORDER BY CASE status WHEN 'claimed' THEN 0 WHEN 'pending' THEN 1 WHEN 'blocked' THEN 2 ELSE 3 END,
+        priority DESC, created_at ASC
+      LIMIT 200`).all();
+    const items = (rows.results || []).map((row) => normalizeTaskForBrand(env, {
+      id: row.id,
+      taskType: row.task_type,
+      sourceKey: row.source_key,
+      owner: row.owner,
+      title: row.title,
+      details: row.details,
+      priority: Number(row.priority || 0),
+      status: row.status,
+      leadId: row.lead_id,
+      url: row.prospect_url,
+      ctaUrl: row.cta_url,
+      createdAt: row.created_at,
+      claimedBy: row.claimed_by,
+      claimedAt: row.claimed_at,
+      completedAt: row.completed_at,
+      outcomeCode: row.outcome_code,
+      outcomeNote: row.outcome_note,
+      nextDueAt: row.next_due_at,
+      source: row.source_key,
+    }));
+    return {
+      ok: true,
+      items,
+      pending: items.filter((task) => task.status === "pending").length,
+    };
+  }
+
+  // Local development fallback. Production uses the durable lifecycle table.
+  const items = ((await getJson(env, "agents:tasks")) || []).map((task) => normalizeTaskForBrand(env, task));
   const sorted = items.sort((a, b) => (b.priority || 0) - (a.priority || 0));
   return {
     ok: true,
     items: sorted.slice(0, 80),
     pending: sorted.filter((task) => task.status === "pending").length,
   };
-}
-
-async function loadD1Tasks(env) {
-  if (!env.GMP_DB) return [];
-  await ensureD1Schema(env);
-  const rows = await env.GMP_DB.prepare(`SELECT owner, title, priority, created_at FROM agent_tasks ORDER BY priority DESC, id DESC LIMIT 120`).all();
-  return (rows.results || []).map((row) => ({
-    owner: row.owner,
-    title: row.title,
-    priority: Number(row.priority || 0),
-    createdAt: row.created_at,
-    status: "pending",
-    source: "d1:agent_tasks",
-  }));
 }
 
 function normalizeTaskForBrand(env, task) {
@@ -5322,9 +5378,176 @@ function brandDisplayUrl(env, value) {
   }
 }
 
+function salesTaskType(task) {
+  const source = String(task?.source || task?.id || "");
+  if (source.startsWith("paid:")) return "paid_fulfillment";
+  if (source.startsWith("lead_spider:")) return "public_prospect";
+  return "inbound_lead";
+}
+
+function salesTaskRecord(task) {
+  const sourceKey = cleanText(task?.source || task?.id || `${task?.owner || "revenue"}:${task?.title || "sales task"}`, 200);
+  const rawPriority = Number(task?.priority || 0);
+  return {
+    id: cleanText(task?.id || crypto.randomUUID(), 200),
+    taskType: salesTaskType(task),
+    sourceKey,
+    owner: cleanText(task?.owner || "revenue", 80) || "revenue",
+    title: cleanText(task?.title || "Sales follow-up", 240) || "Sales follow-up",
+    details: cleanText(task?.details || "", 2_000),
+    priority: Number.isFinite(rawPriority) ? Math.max(0, Math.min(100, rawPriority)) : 0,
+    leadId: cleanText(task?.leadId || (sourceKey.startsWith("lead:") ? sourceKey.slice(5) : ""), 200) || null,
+    prospectUrl: cleanText(task?.url || task?.prospectUrl || "", 500) || null,
+    ctaUrl: cleanText(task?.ctaUrl || task?.cta_url || "", 500) || null,
+    createdAt: cleanText(task?.createdAt || new Date().toISOString(), 80),
+  };
+}
+
+async function upsertSalesTask(env, task) {
+  const record = salesTaskRecord(task);
+  if (!env.GMP_DB) {
+    const current = (await getJson(env, "agents:tasks")) || [];
+    await replaceTasks(env, mergeTasks(current, [task]));
+    return { ok: true, storage: "kv", id: record.id };
+  }
+
+  await ensureD1Schema(env);
+  await env.GMP_DB.prepare(`INSERT INTO sales_tasks
+      (id, task_type, source_key, owner, title, details, priority, status, lead_id, prospect_url, cta_url, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)
+    ON CONFLICT(source_key) DO UPDATE SET
+      owner=excluded.owner,
+      title=excluded.title,
+      details=excluded.details,
+      priority=MAX(sales_tasks.priority, excluded.priority),
+      lead_id=COALESCE(sales_tasks.lead_id, excluded.lead_id),
+      prospect_url=COALESCE(excluded.prospect_url, sales_tasks.prospect_url),
+      cta_url=COALESCE(excluded.cta_url, sales_tasks.cta_url)`)
+    .bind(
+      record.id,
+      record.taskType,
+      record.sourceKey,
+      record.owner,
+      record.title,
+      record.details,
+      record.priority,
+      record.leadId,
+      record.prospectUrl,
+      record.ctaUrl,
+      record.createdAt,
+    ).run();
+  return { ok: true, storage: "d1", id: record.id };
+}
+
+async function claimSalesTask(request, env) {
+  if (!env.GMP_DB) return [{ ok: false, status: "unavailable", code: "task_storage_unavailable" }, 503];
+  const body = await readJson(request);
+  if (body === BODY_TOO_LARGE) return [{ ok: false, status: "blocked", code: "body_too_large" }, 413];
+  if (!body || typeof body !== "object") return [{ ok: false, status: "blocked", code: "invalid_json" }, 400];
+
+  const id = cleanText(body.id || "", 200);
+  const claimedBy = cleanText(body.claimedBy || body.claimed_by || "operator", 120) || "operator";
+  if (!id) return [{ ok: false, status: "blocked", code: "task_id_required" }, 400];
+  if (claimedBy.length < 2) return [{ ok: false, status: "blocked", code: "claimed_by_required" }, 400];
+
+  const claimedAt = new Date().toISOString();
+  const result = await env.GMP_DB.prepare(`UPDATE sales_tasks
+    SET status = 'claimed', claimed_by = ?, claimed_at = ?
+    WHERE id = ? AND status = 'pending'`).bind(claimedBy, claimedAt, id).run();
+  if (Number(result.meta?.changes || 0) !== 1) {
+    const existing = await env.GMP_DB.prepare(`SELECT id, status, claimed_by, claimed_at FROM sales_tasks WHERE id = ?`).bind(id).first();
+    return [{ ok: false, status: existing ? "conflict" : "not_found", code: existing ? "task_not_pending" : "task_not_found", task: existing || null }, existing ? 409 : 404];
+  }
+  return [{ ok: true, status: "claimed", task: await salesTaskById(env, id) }, 200];
+}
+
+async function completeSalesTask(request, env) {
+  if (!env.GMP_DB) return [{ ok: false, status: "unavailable", code: "task_storage_unavailable" }, 503];
+  const body = await readJson(request);
+  if (body === BODY_TOO_LARGE) return [{ ok: false, status: "blocked", code: "body_too_large" }, 413];
+  if (!body || typeof body !== "object") return [{ ok: false, status: "blocked", code: "invalid_json" }, 400];
+
+  const id = cleanText(body.id || "", 200);
+  const claimedBy = cleanText(body.claimedBy || body.claimed_by || "", 120);
+  const outcomeCode = cleanText(body.outcomeCode || body.outcome_code || "", 40).toLowerCase();
+  const outcomeNote = cleanText(body.outcomeNote || body.outcome_note || "", 1_000);
+  const status = String(body.status || "completed").toLowerCase() === "blocked" ? "blocked" : "completed";
+  if (!id) return [{ ok: false, status: "blocked", code: "task_id_required" }, 400];
+  if (claimedBy.length < 2) return [{ ok: false, status: "blocked", code: "claimed_by_required" }, 400];
+  if (!SALES_TASK_OUTCOMES.has(outcomeCode)) {
+    return [{ ok: false, status: "blocked", code: "invalid_outcome_code", allowed: [...SALES_TASK_OUTCOMES] }, 400];
+  }
+  if (status === "blocked" && !outcomeNote) {
+    return [{ ok: false, status: "blocked", code: "blocked_note_required" }, 400];
+  }
+
+  const completedAt = new Date().toISOString();
+  const result = await env.GMP_DB.prepare(`UPDATE sales_tasks
+    SET status = ?, completed_at = ?, outcome_code = ?, outcome_note = ?, next_due_at = ?
+    WHERE id = ? AND status = 'claimed' AND claimed_by = ?`).bind(
+    status,
+    completedAt,
+    outcomeCode,
+    outcomeNote || null,
+    cleanText(body.nextDueAt || body.next_due_at || "", 80) || null,
+    id,
+    claimedBy,
+  ).run();
+  if (Number(result.meta?.changes || 0) !== 1) {
+    const existing = await env.GMP_DB.prepare(`SELECT id, status, outcome_code FROM sales_tasks WHERE id = ?`).bind(id).first();
+    return [{ ok: false, status: existing ? "conflict" : "not_found", code: existing ? "task_not_open" : "task_not_found", task: existing || null }, existing ? 409 : 404];
+  }
+  return [{ ok: true, status, task: await salesTaskById(env, id) }, 200];
+}
+
+async function salesTaskById(env, id) {
+  const row = await env.GMP_DB.prepare(`SELECT id, task_type, source_key, owner, title, details, priority, status,
+      lead_id, prospect_url, cta_url, created_at, claimed_by, claimed_at, completed_at,
+      outcome_code, outcome_note, next_due_at
+    FROM sales_tasks WHERE id = ?`).bind(id).first();
+  return row ? {
+    id: row.id,
+    taskType: row.task_type,
+    sourceKey: row.source_key,
+    owner: row.owner,
+    title: row.title,
+    details: row.details,
+    priority: Number(row.priority || 0),
+    status: row.status,
+    leadId: row.lead_id,
+    prospectUrl: row.prospect_url,
+    ctaUrl: row.cta_url,
+    createdAt: row.created_at,
+    claimedBy: row.claimed_by,
+    claimedAt: row.claimed_at,
+    completedAt: row.completed_at,
+    outcomeCode: row.outcome_code,
+    outcomeNote: row.outcome_note,
+    nextDueAt: row.next_due_at,
+  } : null;
+}
+
+async function salesFunnelSnapshot(env) {
+  const empty = { ok: true, storage: env.GMP_DB ? "d1" : "unavailable", generatedAt: new Date().toISOString(), byStatus: {}, byOutcome: {}, byType: [] };
+  if (!env.GMP_DB) return empty;
+  await ensureD1Schema(env);
+  const [statusRows, outcomeRows, typeRows] = await Promise.all([
+    env.GMP_DB.prepare("SELECT status, COUNT(*) AS count FROM sales_tasks GROUP BY status").all(),
+    env.GMP_DB.prepare("SELECT COALESCE(outcome_code, 'open') AS outcome_code, COUNT(*) AS count FROM sales_tasks GROUP BY outcome_code ORDER BY count DESC").all(),
+    env.GMP_DB.prepare("SELECT task_type, status, COUNT(*) AS count FROM sales_tasks GROUP BY task_type, status ORDER BY task_type, status").all(),
+  ]);
+  return {
+    ok: true,
+    storage: "d1",
+    generatedAt: new Date().toISOString(),
+    byStatus: Object.fromEntries((statusRows.results || []).map((row) => [row.status, Number(row.count || 0)])),
+    byOutcome: Object.fromEntries((outcomeRows.results || []).map((row) => [row.outcome_code, Number(row.count || 0)])),
+    byType: (typeRows.results || []).map((row) => ({ taskType: row.task_type, status: row.status, count: Number(row.count || 0) })),
+  };
+}
+
 async function appendTask(env, task) {
-  const current = (await loadTasks(env)).items;
-  await replaceTasks(env, mergeTasks(current, [task]));
+  await upsertSalesTask(env, task);
 }
 
 async function replaceTasks(env, tasks) {
@@ -5520,6 +5743,9 @@ async function persistLead(env, lead, task) {
       task.owner,
     ).run();
   }
+  if (task.status === "pending" && task.owner === "revenue") {
+    await upsertSalesTask(env, { ...task, leadId: lead.id });
+  }
 }
 
 async function persistAgentState(env, plan, state) {
@@ -5535,22 +5761,6 @@ async function persistAgentState(env, plan, state) {
     JSON.stringify(state),
     new Date().toISOString(),
   ).run();
-  await env.GMP_DB.prepare(`DELETE FROM agent_tasks`).run();
-  const tasks = Array.isArray(plan && plan.agents)
-    ? plan.agents.flatMap((agent) => agent.tasks.map((task) => ({
-      owner: agent.id,
-      title: task,
-      priority: agent.priority,
-    })))
-    : [];
-  for (const task of tasks.slice(0, 120)) {
-    await env.GMP_DB.prepare(`INSERT INTO agent_tasks (owner, title, priority, created_at) VALUES (?, ?, ?, ?)`).bind(
-      task.owner,
-      task.title,
-      Number(task.priority || 0),
-      new Date().toISOString(),
-    ).run();
-  }
 }
 
 async function ensureD1Schema(env) {
@@ -7900,11 +8110,14 @@ ${googleTagGatewayBody(env)}
           <span>${escapeHtml(build.priceLabel)}</span>
           <p>${escapeHtml(build.summary)}</p>
           <p>${Number(build.evidenceCount)} public demand signals in this cluster.</p>
-          <a class="button link-button" href="/software-builds/${escapeHtml(build.id)}">Open build</a>
+          <a class="button link-button sales-funnel-cta" href="/software-builds/${escapeHtml(build.id)}"
+            data-sales-funnel-event="select_offer" data-offer-id="${escapeHtml(build.id)}"
+            data-offer-value="${Number(build.price)}" data-cta-location="software_build_index">Open build</a>
         </article>`).join("")}
       </div>
     </section>
     ${renderAdInventorySection(env, "Sponsor applications", "Relevant vendors may apply for a reviewed placement alongside these implementation scopes.")}
+    ${renderSalesFunnelTrackingScript(env, { pageType: "software_build_index" })}
   </main>
 </body>
 </html>`;
@@ -7955,7 +8168,12 @@ ${googleTagGatewayBody(env)}
           <p class="eyebrow">Fixed-scope software build</p>
           <h1>${escapeHtml(build.name)}</h1>
           <p class="lede">${escapeHtml(build.summary)}</p>
-          <p><a class="button link-button" href="/contact?interest=${escapeHtml(build.id)}">Request a written scope</a> <a class="button link-button" href="${escapeHtml(launchKitUrl)}">Start with the $29 Launch Kit</a></p>
+          <p><a class="button link-button sales-funnel-cta" href="/contact?interest=${escapeHtml(build.id)}"
+            data-sales-funnel-event="scope_request_start" data-offer-id="${escapeHtml(build.id)}"
+            data-offer-value="${Number(build.price)}" data-cta-location="software_build_detail">Request a written scope</a>
+            <a class="button link-button sales-funnel-cta" href="${escapeHtml(launchKitUrl)}"
+              data-sales-funnel-event="select_offer" data-offer-id="ai_agent_launch_kit"
+              data-offer-value="2900" data-cta-location="software_build_downsell">Start with the $29 Launch Kit</a></p>
         </div>
         <div class="panel dark">
           <span class="label">${escapeHtml(build.priceLabel)}</span>
@@ -7982,9 +8200,66 @@ ${googleTagGatewayBody(env)}
       <p><a href="/software-builds">Back to all builds</a></p>
     </section>
     ${renderAdInventorySection(env, "Sponsor applications", "The build page accepts reviewed sponsor applications alongside the proposed implementation scope.")}
+    ${renderSalesFunnelTrackingScript(env, { pageType: "software_build_detail", offerId: build.id, offerName: build.name, offerValue: build.price })}
   </main>
 </body>
 </html>`;
+}
+
+function renderSalesFunnelTrackingScript(env, { pageType, offerId = "", offerName = "", offerValue = 0 } = {}) {
+  return `<script>
+    (function () {
+      var pageType = ${JSON.stringify(cleanText(pageType || "sales_page", 80))};
+      var defaultOffer = ${JSON.stringify({ offerId, offerName, offerValue: Number(offerValue || 0) / 100 })};
+      var sessionId = "";
+      try {
+        sessionId = sessionStorage.getItem("gptmarketplus.session.v1") || "";
+        if (!sessionId) {
+          sessionId = crypto.randomUUID();
+          sessionStorage.setItem("gptmarketplus.session.v1", sessionId);
+        }
+      } catch (error) {
+        sessionId = "sales-" + Date.now();
+      }
+
+      function emit(eventName, element) {
+        var search = new URLSearchParams(location.search);
+        var offerId = (element && element.dataset.offerId) || defaultOffer.offerId || "";
+        var valueCents = Number((element && element.dataset.offerValue) || defaultOffer.offerValue * 100 || 0);
+        var properties = {
+          page_type: pageType,
+          offer_id: offerId,
+          offer_name: defaultOffer.offerName || offerId,
+          offer_type: "software_build",
+          value: valueCents / 100,
+          currency: "USD",
+          cta_location: (element && element.dataset.ctaLocation) || "",
+          source_page: location.pathname,
+          utm_source: search.get("utm_source") || "",
+          utm_medium: search.get("utm_medium") || "",
+          utm_campaign: search.get("utm_campaign") || "",
+        };
+        if (typeof window.agentidTrackGoogleEvent === "function") {
+          window.agentidTrackGoogleEvent(eventName, properties);
+        }
+        fetch("/api/events", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          keepalive: true,
+          body: JSON.stringify({ eventName: eventName, sourcePage: location.pathname + location.search, sessionId: sessionId, properties: properties }),
+        }).catch(function () {});
+      }
+
+      document.addEventListener("DOMContentLoaded", function () {
+        if (defaultOffer.offerId) emit("view_item");
+        document.querySelectorAll("[data-sales-funnel-event]").forEach(function (element) {
+          element.addEventListener("click", function () {
+            emit(element.dataset.salesFunnelEvent || "select_offer", element);
+          });
+        });
+      });
+    })();
+  </script>`;
 }
 
 function renderSponsorCheckoutSection(env) {
