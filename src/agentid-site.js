@@ -4540,7 +4540,7 @@ function renderRoiCalculatorPage(env) {
   return renderShell(env, {
     path: "/tools/ai-automation-roi-calculator",
     title: "AI Automation ROI Calculator: Estimate Payback and Savings",
-    description: "Estimate monthly time savings, recovered contribution value, operating cost, payback period, and first-year ROI for a proposed AI automation workflow.",
+    description: "Estimate time savings, recovered contribution, operating cost, payback, and first-year ROI, then map a bounded first workflow with the $29 Launch Kit.",
     body,
     schema: [
       organizationSchema(env),
@@ -10527,7 +10527,7 @@ function softwareApplicationSchema(env) {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
     name: "AI Automation ROI Calculator",
-    description: "Estimate monthly time savings, recovered contribution value, operating cost, payback period, and first-year ROI for a proposed AI automation workflow.",
+    description: "Estimate time savings, recovered contribution, operating cost, payback, and first-year ROI, then map a bounded first workflow with the $29 Launch Kit.",
     applicationCategory: "BusinessApplication",
     operatingSystem: "Web",
     url: `${siteUrl(env)}/tools/ai-automation-roi-calculator`,
