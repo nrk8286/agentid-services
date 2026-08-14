@@ -529,6 +529,12 @@ const SOFTWARE_BUILDS = [
   },
 ];
 
+const SELF_SERVE_SOFTWARE_REPORT_ID = "ai-software-opportunity-report";
+
+function isSelfServeSoftwareReport(product) {
+  return product?.id === SELF_SERVE_SOFTWARE_REPORT_ID && product?.delivery === "instant_report";
+}
+
 const FLAGSHIP_APP = {
   id: "4ddd3190-a369-4fea-94f3-d2d480251598",
   name: "agentid-services-agent-foundry",
@@ -811,6 +817,12 @@ export default {
     }
     if (url.pathname === "/api/paypal/digital-products/ai-agent-launch-kit" && request.method === "GET") {
       return handlePaypalDigitalProductDownload(request, env);
+    }
+    if (url.pathname === "/software-opportunity-report/access" && request.method === "GET") {
+      return handleSoftwareOpportunityReportAccess(request, env);
+    }
+    if (url.pathname === "/api/paypal/digital-products/ai-software-opportunity-report" && request.method === "GET") {
+      return handleSoftwareOpportunityReportDownload(request, env);
     }
     if (url.pathname === "/api/paypal/launch-kit/workspace" && ["GET", "POST"].includes(request.method)) {
       return handleLaunchKitWorkspaceApi(request, env);
@@ -1682,7 +1694,17 @@ async function paypalPublicStatus(env) {
       customServices: serviceCheckoutEnabled ? "checkout_enabled" : "written_scope_required",
       recurringSponsors: approvalScopedSubscriptionsEnabled ? "private_approval_link_required" : "written_placement_terms_required",
     },
-    oneTimeProducts: agentIdOneTimeProducts().map((product) => ({
+    oneTimeProducts: [
+      ...agentIdOneTimeProducts(),
+      ...SOFTWARE_BUILDS.filter((build) => isSelfServeSoftwareReport(build)).map((build) => ({
+        id: build.id,
+        name: build.name,
+        price: build.price,
+        mode: "payment",
+        delivery: build.delivery,
+        description: build.summary,
+      })),
+    ].map((product) => ({
       id: product.id,
       name: product.name,
       amount: product.price,
@@ -2678,6 +2700,9 @@ function paypalOrderDeliveryUrl(env, order) {
   if (order.delivery === "secure_download" && order.productId === "ai_agent_launch_kit") {
     return `${siteUrl(env)}/launch-kit/workspace?${params}`;
   }
+  if (order.productId === SELF_SERVE_SOFTWARE_REPORT_ID && order.delivery === "instant_report") {
+    return `${siteUrl(env)}/software-opportunity-report/access?${params}`;
+  }
   return `${siteUrl(env)}/onboarding?${params}`;
 }
 
@@ -2781,6 +2806,7 @@ async function handlePaypalOrderCreate(request, env) {
     return jsonResponse({ ok: false, error: "Unknown one-time PayPal product." }, 400);
   }
   if (product.id !== "ai_agent_launch_kit"
+      && !isSelfServeSoftwareReport(product)
       && String(env.SERVICE_CHECKOUT_ENABLED || "").trim().toLowerCase() !== "true") {
     return jsonResponse({ ok: false, error: "Custom service checkout requires an approved scope. Use the contact or consultation flow first." }, 503);
   }
@@ -2804,7 +2830,11 @@ async function handlePaypalOrderCreate(request, env) {
   }
 
   const returnUrl = `${siteUrl(env)}/paypal/complete?product=${encodeURIComponent(product.id)}`;
-  const cancelPath = product.delivery === "secure_download" ? "/ai-agent-launch-kit" : "/pricing";
+  const cancelPath = product.delivery === "secure_download"
+    ? "/ai-agent-launch-kit"
+    : isSelfServeSoftwareReport(product)
+      ? `/software-builds/${product.id}`
+      : "/pricing";
   const cancelUrl = `${siteUrl(env)}${cancelPath}?paypal=cancel&product=${encodeURIComponent(product.id)}`;
   const orderResponse = await paypalApiRequest(env, "/v2/checkout/orders", {
     method: "POST",
@@ -3114,6 +3144,155 @@ async function handlePaypalDigitalProductDownload(request, env) {
   return privateTextResponse(renderLaunchKitMarkdown(), 200, {
     "content-type": "text/markdown; charset=utf-8",
     "content-disposition": 'attachment; filename="AI-Agent-Launch-Kit.md"',
+  });
+}
+
+function softwareOpportunityReportBuilds() {
+  return SOFTWARE_BUILDS
+    .filter((build) => !isSelfServeSoftwareReport(build))
+    .slice()
+    .sort((left, right) => Number(right.evidenceCount || 0) - Number(left.evidenceCount || 0));
+}
+
+function softwareOpportunityReportMarkdown() {
+  const generatedOn = new Date().toISOString().slice(0, 10);
+  const builds = softwareOpportunityReportBuilds();
+  const recommendation = builds[0];
+  const sections = builds.map((build, index) => [
+    `## ${index + 1}. ${build.name}`,
+    "",
+    `- Niche: ${build.niche}`,
+    `- Public demand signals in this cluster: ${Number(build.evidenceCount || 0)}`,
+    `- Suggested implementation price: ${build.priceLabel}`,
+    `- Buyer and pain summary: ${build.summary}`,
+    `- Planning scope: ${build.bullets.join("; ")}.`,
+  ].join("\n"));
+  return [
+    "# AI Software Opportunity Report",
+    "",
+    `Report date: ${generatedOn}`,
+    "",
+    "## Purpose",
+    "",
+    "This is a short planning artifact for choosing a software product to validate next. It turns GPTMarketPlus Agent Foundry's current public-demand clusters into buyer, pain, pricing, and next-build notes.",
+    "",
+    "## How to read the signals",
+    "",
+    "Signal counts are directional cluster evidence from public sources collected by the site's research loop. They are not unique buyers, contracts, revenue, or a forecast. Validate the buyer, workflow, budget, and willingness to pay before implementation.",
+    "",
+    "## Ranked opportunities",
+    "",
+    sections.join("\n\n"),
+    "",
+    "## Next build recommendation",
+    "",
+    recommendation
+      ? `Start validation with **${recommendation.name}** because it currently has the largest public-demand cluster (${Number(recommendation.evidenceCount || 0)} signals). Interview or pre-sell a narrowly defined buyer workflow before committing to the ${recommendation.priceLabel} implementation scope.`
+      : "No implementation opportunity is currently available in the catalog.",
+    "",
+    "## Suggested validation sequence",
+    "",
+    "1. Name one buyer role and one recurring workflow.",
+    "2. Confirm the current workaround, frequency, and cost of delay.",
+    "3. Offer a narrow implementation scope with a clear success condition.",
+    "4. Collect a paid deposit or signed scope before building integrations.",
+    "",
+    "## Not included",
+    "",
+    "This report does not include private prospect data, outreach, implementation, integrations, legal advice, or a revenue guarantee. A custom build is a separate written-scope engagement.",
+    "",
+    "Generated by GPTMarketPlus Agent Foundry.",
+    "",
+  ].join("\n");
+}
+
+async function verifySoftwareOpportunityReportAccess(request, env) {
+  const access = await verifyPaypalOrderAccess(request, env, SELF_SERVE_SOFTWARE_REPORT_ID);
+  if (!access.ok) return access;
+  if (!isSelfServeSoftwareReport(access.order)) {
+    return { ok: false, status: 403, error: "This purchase does not include the requested report." };
+  }
+  return access;
+}
+
+function renderSoftwareOpportunityReportPage(env, order, accessToken) {
+  const builds = softwareOpportunityReportBuilds();
+  const recommendation = builds[0];
+  const downloadQuery = new URLSearchParams({
+    provider: "paypal",
+    order_id: order.id,
+    access_token: accessToken,
+    product: SELF_SERVE_SOFTWARE_REPORT_ID,
+  });
+  const downloadUrl = `/api/paypal/digital-products/${SELF_SERVE_SOFTWARE_REPORT_ID}?${downloadQuery}`;
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <meta name="referrer" content="no-referrer">
+  <title>AI Software Opportunity Report | ${escapeHtml(brandName(env))}</title>
+  <style>
+    :root{color-scheme:light;--ink:#14201c;--muted:#5d6862;--paper:#f7f6f1;--green:#0e7c66;--line:#d7ddd5;--soft:#edf4ef}
+    *{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    main{width:min(980px,100%);margin:0 auto;padding:clamp(24px,6vw,72px) 20px 80px}.eyebrow{margin:0 0 12px;color:var(--green);font-size:13px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+    h1{max-width:760px;margin:0;font-size:clamp(38px,7vw,72px);line-height:.98;letter-spacing:-.04em}h2{margin:0 0 12px;font-size:clamp(24px,4vw,38px);line-height:1.08}h3{margin:0 0 8px;font-size:21px}p,li{color:var(--muted);font-size:17px;line-height:1.65}.lede{max-width:720px;margin:22px 0 0;font-size:21px}.notice{margin:28px 0;padding:18px 20px;border:1px solid #b9d6c6;border-radius:14px;background:var(--soft)}.notice p{margin:0}.actions{display:flex;flex-wrap:wrap;gap:12px;margin:28px 0 58px}.button{display:inline-flex;min-height:48px;align-items:center;justify-content:center;padding:0 18px;border-radius:8px;font-weight:800;text-decoration:none}.primary{background:var(--green);color:#fff}.secondary{border:1px solid var(--line);background:#fff;color:var(--ink)}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}.card{padding:22px;border:1px solid var(--line);border-radius:14px;background:#fff;box-shadow:0 12px 36px rgba(20,32,28,.05)}.card .meta{margin:0 0 14px;color:var(--green);font-size:13px;font-weight:800;letter-spacing:.05em;text-transform:uppercase}.card p{margin:8px 0}.card ul{margin:12px 0 0;padding-left:20px}.section{margin-top:58px}.small{font-size:14px}.footer{margin-top:58px;padding-top:22px;border-top:1px solid var(--line)}
+  </style>
+</head>
+<body>
+  <main>
+    <p class="eyebrow">Private purchase access</p>
+    <h1>AI Software Opportunity Report</h1>
+    <p class="lede">Your report is ready. Use the ranked opportunities below to choose what to validate next, then download the same report as Markdown for your team.</p>
+    <div class="notice"><p><strong>Planning artifact, not a promise.</strong> Signal counts come from public-demand clusters. They are directional evidence—not private prospect data, signed buyers, revenue, or a guarantee.</p></div>
+    <div class="actions"><a class="button primary" href="${escapeHtml(downloadUrl)}">Download the report</a><a class="button secondary" href="/software-builds">Review implementation options</a></div>
+    <section class="section">
+      <p class="eyebrow">Ranked opportunities</p>
+      <h2>Where to validate first</h2>
+      <div class="grid">
+        ${builds.map((build, index) => `<article class="card">
+          <p class="meta">#${index + 1} · ${escapeHtml(build.niche)}</p>
+          <h3>${escapeHtml(build.name)}</h3>
+          <p><strong>${Number(build.evidenceCount || 0)} public signals</strong> · ${escapeHtml(build.priceLabel)}</p>
+          <p>${escapeHtml(build.summary)}</p>
+          <ul>${build.bullets.map((bullet) => `<li>${escapeHtml(bullet)}</li>`).join("")}</ul>
+        </article>`).join("")}
+      </div>
+    </section>
+    <section class="section">
+      <p class="eyebrow">Recommended next move</p>
+      <h2>${recommendation ? escapeHtml(recommendation.name) : "Validate the next buyer workflow"}</h2>
+      <p>${recommendation ? `Start with the largest current public-demand cluster (${Number(recommendation.evidenceCount || 0)} signals), then interview or pre-sell one narrowly defined buyer workflow before committing to the ${escapeHtml(recommendation.priceLabel)} implementation scope.` : "Choose one buyer workflow, confirm the workaround and budget, and collect a paid deposit or signed scope before building."}</p>
+      <p>Custom implementation, integrations, and installation are separate written-scope engagements. This report does not create an implementation contract.</p>
+    </section>
+    <p class="footer small">Private access is tied to the completed PayPal order. Keep this link and the downloaded report with your team.</p>
+  </main>
+</body>
+</html>`;
+}
+
+async function handleSoftwareOpportunityReportAccess(request, env) {
+  const access = await verifySoftwareOpportunityReportAccess(request, env);
+  if (!access.ok) {
+    return privateHtmlResponse(renderPaypalResultShell(
+      "Report access",
+      "We could not verify this purchase",
+      access.error,
+      '<a class="primary" href="/software-builds/ai-software-opportunity-report">Return to the opportunity report</a>',
+    ), access.status);
+  }
+  const url = new URL(request.url);
+  const accessToken = cleanText(url.searchParams.get("access_token") || "", 180);
+  return privateHtmlResponse(renderSoftwareOpportunityReportPage(env, access.order, accessToken));
+}
+
+async function handleSoftwareOpportunityReportDownload(request, env) {
+  const access = await verifySoftwareOpportunityReportAccess(request, env);
+  if (!access.ok) return privateTextResponse(access.error, access.status);
+  return privateTextResponse(softwareOpportunityReportMarkdown(), 200, {
+    "content-type": "text/markdown; charset=utf-8",
+    "content-disposition": 'attachment; filename="GPTMarketPlus-AI-Software-Opportunity-Report.md"',
   });
 }
 
@@ -8136,6 +8315,61 @@ function renderSoftwareBuildPage(env, build) {
     campaign: "agentid_internal_discovery",
     content: "consultation",
   });
+  const isSelfServeReport = isSelfServeSoftwareReport(build);
+  const reportCheckoutReady = isSelfServeReport && paypalCredentialsReady(env) && Boolean(env.GMP_KV);
+  const heroEyebrow = isSelfServeReport ? "Self-serve digital report" : "Fixed-scope software build";
+  const heroActions = isSelfServeReport
+    ? reportCheckoutReady
+      ? `<form id="software-report-checkout" class="checkout-form" data-report-id="${escapeHtml(build.id)}">
+          <input type="hidden" name="productId" value="${escapeHtml(build.id)}">
+          <button class="button link-button sales-funnel-cta" type="submit" data-sales-funnel-event="begin_checkout"
+            data-offer-id="${escapeHtml(build.id)}" data-offer-value="${Number(build.price)}"
+            data-cta-location="software_report_detail">Buy the $24 report with PayPal</button>
+          <p id="software-report-checkout-status" class="form-status" role="status"></p>
+        </form>`
+      : `<a class="button link-button" href="/contact?interest=${encodeURIComponent(build.id)}">Request report access</a>`
+    : `<a class="button link-button sales-funnel-cta" href="/contact?interest=${encodeURIComponent(build.id)}"
+        data-sales-funnel-event="scope_request_start" data-offer-id="${escapeHtml(build.id)}"
+        data-offer-value="${Number(build.price)}" data-cta-location="software_build_detail">Request a written scope</a>`;
+  const deliveryEyebrow = isSelfServeReport ? "Delivery" : "Delivery";
+  const deliveryHeading = isSelfServeReport ? "What you receive" : "What gets built";
+  const deliveryCopy = isSelfServeReport
+    ? "A private report page and downloadable Markdown artifact with ranked opportunities, buyer and pain summaries, suggested price points, and a validation sequence."
+    : "A narrow MVP, launch page, handoff checklist, and operating plan for this exact workflow.";
+  const proofHeading = isSelfServeReport ? "Use the report to choose a build" : "Why this can sell";
+  const proofCopy = isSelfServeReport
+    ? "This report turns the current public-demand catalog into a practical next-step shortlist. Validate one buyer workflow and budget before treating any opportunity as a committed build."
+    : "This proposal starting point is generated from public demand patterns and designed for buyers who need a working implementation rather than a generic AI demo. Price and delivery terms require written confirmation.";
+  const reportCheckoutScript = reportCheckoutReady ? `<script>
+    (function () {
+      var form = document.getElementById("software-report-checkout");
+      var status = document.getElementById("software-report-checkout-status");
+      if (!form || !status) return;
+      form.addEventListener("submit", async function (event) {
+        event.preventDefault();
+        var button = form.querySelector("button[type=submit]");
+        button.disabled = true;
+        status.textContent = "Opening PayPal...";
+        try {
+          var response = await fetch("/api/paypal/orders/create", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ productId: form.dataset.reportId, sourcePage: location.pathname })
+          });
+          var result = await response.json();
+          if (!response.ok || !result.checkoutUrl) throw new Error(result.error || "PayPal checkout is unavailable.");
+          var checkoutUrl = new URL(result.checkoutUrl, location.origin);
+          if (checkoutUrl.protocol !== "https:" || !/(^|\\.)paypal\\.com$/i.test(checkoutUrl.hostname)) {
+            throw new Error("The PayPal approval link could not be verified.");
+          }
+          location.href = checkoutUrl.toString();
+        } catch (error) {
+          status.textContent = error.message || "Checkout failed. Please try again.";
+          button.disabled = false;
+        }
+      });
+    })();
+  </script>` : "";
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -8165,15 +8399,13 @@ ${googleTagGatewayBody(env)}
       </nav>
       <div class="hero-grid">
         <div>
-          <p class="eyebrow">Fixed-scope software build</p>
+          <p class="eyebrow">${heroEyebrow}</p>
           <h1>${escapeHtml(build.name)}</h1>
           <p class="lede">${escapeHtml(build.summary)}</p>
-          <p><a class="button link-button sales-funnel-cta" href="/contact?interest=${encodeURIComponent(build.id)}"
-            data-sales-funnel-event="scope_request_start" data-offer-id="${escapeHtml(build.id)}"
-            data-offer-value="${Number(build.price)}" data-cta-location="software_build_detail">Request a written scope</a>
+          <div class="cta-row">${heroActions}
             <a class="button link-button sales-funnel-cta" href="${escapeHtml(launchKitUrl)}"
               data-sales-funnel-event="select_offer" data-offer-id="ai_agent_launch_kit"
-              data-offer-value="2900" data-cta-location="software_build_downsell">Start with the $29 Launch Kit</a></p>
+              data-offer-value="2900" data-cta-location="software_build_downsell">Start with the $29 Launch Kit</a></div>
         </div>
         <div class="panel dark">
           <span class="label">${escapeHtml(build.priceLabel)}</span>
@@ -8184,9 +8416,9 @@ ${googleTagGatewayBody(env)}
     </section>
     <section class="section split">
       <div>
-        <p class="eyebrow">Delivery</p>
-        <h2>What gets built</h2>
-        <p>A narrow MVP, launch page, handoff checklist, and operating plan for this exact workflow.</p>
+        <p class="eyebrow">${deliveryEyebrow}</p>
+        <h2>${deliveryHeading}</h2>
+        <p>${deliveryCopy}</p>
       </div>
       <div class="checks">
         ${build.bullets.map((item) => `<div class="check ok"><strong>${escapeHtml(item)}</strong><span>included</span></div>`).join("")}
@@ -8194,13 +8426,14 @@ ${googleTagGatewayBody(env)}
     </section>
     <section class="section">
       <p class="eyebrow">Proof path</p>
-      <h2>Why this can sell</h2>
-      <p>This proposal starting point is generated from public demand patterns and designed for buyers who need a working implementation rather than a generic AI demo. Price and delivery terms require written confirmation.</p>
-      <p>Need a plan before implementation? <a href="${escapeHtml(launchKitUrl)}">Start with the private $29 Launch Kit workspace</a>. Need installation or integrations? <a href="${escapeHtml(consultationUrl)}">Request a written consultation scope</a>.</p>
+      <h2>${proofHeading}</h2>
+      <p>${proofCopy}</p>
+      <p>${isSelfServeReport ? "The report is delivered after verified PayPal capture and does not include private prospect data or implementation." : "Need a plan before implementation?"} <a href="${escapeHtml(launchKitUrl)}">Start with the private $29 Launch Kit workspace</a>. Need installation or integrations? <a href="${escapeHtml(consultationUrl)}">Request a written consultation scope</a>.</p>
       <p><a href="/software-builds">Back to all builds</a></p>
     </section>
     ${renderAdInventorySection(env, "Sponsor applications", "The build page accepts reviewed sponsor applications alongside the proposed implementation scope.")}
     ${renderSalesFunnelTrackingScript(env, { pageType: "software_build_detail", offerId: build.id, offerName: build.name, offerValue: build.price })}
+    ${reportCheckoutScript}
   </main>
 </body>
 </html>`;

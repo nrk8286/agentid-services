@@ -185,6 +185,24 @@ for (const requiredPaypalRecoveryControl of [
     failures.push(`PayPal completion recovery is missing ${requiredPaypalRecoveryControl}`);
   }
 }
+for (const requiredSoftwareReportControl of [
+  'const SELF_SERVE_SOFTWARE_REPORT_ID = "ai-software-opportunity-report"',
+  'function isSelfServeSoftwareReport(product)',
+  'product.id !== "ai_agent_launch_kit"',
+  '!isSelfServeSoftwareReport(product)',
+  'order.productId === SELF_SERVE_SOFTWARE_REPORT_ID && order.delivery === "instant_report"',
+  'async function verifySoftwareOpportunityReportAccess(request, env)',
+  'verifyPaypalOrderAccess(request, env, SELF_SERVE_SOFTWARE_REPORT_ID)',
+  'async function handleSoftwareOpportunityReportDownload(request, env)',
+  'content-disposition": \'attachment; filename="GPTMarketPlus-AI-Software-Opportunity-Report.md"\'',
+  'sourcePage: location.pathname })',
+  'url.pathname === "/software-opportunity-report/access"',
+  'url.pathname === "/api/paypal/digital-products/ai-software-opportunity-report"',
+]) {
+  if (!workerSource.includes(requiredSoftwareReportControl)) {
+    failures.push(`self-serve software report protection is missing ${requiredSoftwareReportControl}`);
+  }
+}
 for (const requiredCustomerFollowupControl of [
   "sendQueuedCustomerFollowups",
   "FROM agentid_followups f",
