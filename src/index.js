@@ -956,7 +956,7 @@ export default {
       if (!(await hasAdminAccess(request, env))) {
         return privateHtmlResponse("<!doctype html><title>Access denied</title><h1>Access denied</h1><p>Administrator authorization is required.</p>", 403);
       }
-      return privateHtmlResponse(renderLeadSpiderPage(env, await leadSpiderState(env)));
+      return privateHtmlResponse(renderLeadSpiderPage(env, await leadSpiderState(env), await loadTasks(env)));
     }
 
     if (pagePath === "/social") {
@@ -5674,6 +5674,16 @@ function brandDisplayUrl(env, value) {
   }
 }
 
+function safeTaskReviewUrl(value) {
+  if (!value) return "";
+  try {
+    const url = new URL(String(value));
+    return url.protocol === "https:" ? url.toString() : "";
+  } catch {
+    return "";
+  }
+}
+
 function salesTaskType(task) {
   const source = String(task?.source || task?.id || "");
   if (source.startsWith("paid:")) return "paid_fulfillment";
@@ -7415,13 +7425,54 @@ function aiCrawlerPolicy(env) {
   };
 }
 
-function renderLeadSpiderPage(env, spider) {
+function renderLeadSpiderPage(env, spider, tasks = { items: [] }) {
   const latest = spider.latest || null;
   const prospects = spider.prospects || [];
+  const taskItems = (Array.isArray(tasks.items) ? tasks.items : [])
+    .filter((task) => task && ["pending", "claimed"].includes(task.status))
+    .sort((a, b) => Number(b.priority || 0) - Number(a.priority || 0));
+  const outcomeOptions = ["submitted", "contacted", "replied", "qualified", "meeting_booked", "checkout_started", "paid", "lost", "not_actionable"];
+  const taskReviewMarkup = taskItems.map((task) => {
+    const taskId = escapeHtml(task.id || "");
+    const taskStatus = escapeHtml(task.status || "pending");
+    const claimedBy = escapeHtml(task.claimedBy || "");
+    const taskTitle = escapeHtml(task.title || "Sales task");
+    const details = escapeHtml(task.details || "Review the public source and choose the appropriate approved action.");
+    const prospectUrlValue = safeTaskReviewUrl(task.url);
+    const ctaUrlValue = safeTaskReviewUrl(task.ctaUrl);
+    const prospectUrl = prospectUrlValue ? `<a href="${escapeHtml(prospectUrlValue)}" target="_blank" rel="nofollow noopener">Open public source</a>` : "";
+    const ctaUrl = ctaUrlValue ? `<a href="${escapeHtml(ctaUrlValue)}" target="_blank" rel="noopener">Open reviewed GPTMarketPlus CTA</a>` : "";
+    const outcomeChoices = outcomeOptions.map((outcome) => `<option value="${outcome}">${outcome.replace(/_/g, " ")}</option>`).join("");
+    return `<article class="card sales-task-card" data-task-card data-task-id="${taskId}" data-task-status="${taskStatus}">
+      <div class="task-card-header">
+        <div>
+          <span class="label">Priority ${Number(task.priority || 0)} · ${taskStatus}</span>
+          <h3>${taskTitle}</h3>
+        </div>
+        <span class="task-claimed-by" data-task-claimed-by>${claimedBy ? `claimed by ${claimedBy}` : "unclaimed"}</span>
+      </div>
+      <p>${details}</p>
+      <p class="task-links">${prospectUrl}${prospectUrl && ctaUrl ? " · " : ""}${ctaUrl}</p>
+      <div class="task-actions">
+        <form data-task-claim-form ${task.claimedBy ? "hidden" : ""}>
+          <button class="button-secondary" type="submit">Claim for review</button>
+        </form>
+        <form data-task-outcome-form ${task.claimedBy ? "" : "hidden"}>
+          <label><span>Outcome</span><select name="outcomeCode" required>${outcomeChoices}</select></label>
+          <label><span>Note</span><textarea name="outcomeNote" rows="3" maxlength="1000" placeholder="Record what actually happened."></textarea></label>
+          <label><span>Next due (optional)</span><input name="nextDueAt" type="datetime-local"></label>
+          <div class="cta-row">
+            <button class="button-secondary" type="submit" data-task-final-status="completed">Record outcome</button>
+            <button class="button-secondary" type="submit" data-task-final-status="blocked">Mark blocked</button>
+          </div>
+        </form>
+        <p class="form-status" data-task-action-status role="status" aria-live="polite"></p>
+      </div>
+    </article>`;
+  }).join("");
   return `<!doctype html>
 <html lang="en">
 <head>
-${googleTagGatewayHead(env)}
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Lead Spider Agent | ${escapeHtml(brandName(env))}</title>
@@ -7431,7 +7482,6 @@ ${googleTagGatewayHead(env)}
   <link rel="stylesheet" href="/agents/styles.css">
 </head>
 <body>
-${googleTagGatewayBody(env)}
   <main>
     <section class="hero compact-hero">
       <nav>
@@ -7463,14 +7513,38 @@ ${googleTagGatewayBody(env)}
       <p class="eyebrow">Sales targets</p>
       <h2>Highest fit prospects</h2>
       <div class="prospect-list">
-        ${prospects.slice(0, 40).map((prospect) => `<article>
+        ${prospects.slice(0, 40).map((prospect) => {
+          const sourceUrl = safeTaskReviewUrl(prospect.url);
+          const prospectCtaUrl = safeTaskReviewUrl(prospect.ctaUrl);
+          const prospectName = sourceUrl
+            ? `<a href="${escapeHtml(sourceUrl)}" target="_blank" rel="nofollow noopener">${escapeHtml(prospect.name)}</a>`
+            : escapeHtml(prospect.name);
+          const prospectCta = prospectCtaUrl
+            ? `<a class="checkout-link" href="${escapeHtml(prospectCtaUrl)}" target="_blank" rel="noopener">CTA</a>`
+            : "";
+          return `<article>
           <div>
-            <strong><a href="${escapeHtml(prospect.url)}" rel="nofollow noopener">${escapeHtml(prospect.name)}</a></strong>
+            <strong>${prospectName}</strong>
             <p>${escapeHtml(prospect.salesPlay)}. ${escapeHtml(prospect.nextStep)}</p>
             <span>${escapeHtml(prospect.stage)} / score ${Number(prospect.score || 0)} / ${escapeHtml(prospect.sourceName)} / ${escapeHtml((prospect.signals || []).join(", "))}</span>
           </div>
-          <a class="checkout-link" href="${escapeHtml(prospect.ctaUrl)}">CTA</a>
-        </article>`).join("") || "<p>No prospects stored yet. Run the spider to scan the public source list.</p>"}
+          ${prospectCta}
+        </article>`;
+        }).join("") || "<p>No prospects stored yet. Run the spider to scan the public source list.</p>"}
+      </div>
+    </section>
+
+    <section class="section" id="sales-task-queue">
+      <p class="eyebrow">Operator workflow</p>
+      <h2>Task Review Queue</h2>
+      <p>Review each public prospect, choose only an appropriate permitted action, and record the true outcome. This page never sends a message or submits to a third party automatically.</p>
+      <div class="checkout-panel operator-auth-panel">
+        <label><span>Operator name</span><input id="task-operator-name" autocomplete="off" placeholder="Your name or operator ID"></label>
+        <label><span>Admin token</span><input id="task-admin-token" type="password" autocomplete="off" placeholder="Used in memory for protected task actions"></label>
+        <p class="form-note">The token is not stored or written into the page. It is sent only as a bearer credential to the same-origin task API.</p>
+      </div>
+      <div class="task-list" id="sales-task-list">
+        ${taskReviewMarkup || "<p>No pending or claimed sales tasks are available.</p>"}
       </div>
     </section>
 
@@ -7487,6 +7561,71 @@ ${googleTagGatewayBody(env)}
     </section>
   </main>
   <script>
+    const taskOperatorName = document.querySelector("#task-operator-name");
+    const taskAdminToken = document.querySelector("#task-admin-token");
+    const taskCards = document.querySelectorAll("[data-task-card]");
+    function taskAuthHeaders() {
+      const token = taskAdminToken ? taskAdminToken.value.trim() : "";
+      if (!token) throw new Error("Enter the admin token before changing a task.");
+      return { "content-type": "application/json", authorization: "Bearer " + token };
+    }
+    function taskOperator() {
+      const operator = taskOperatorName ? taskOperatorName.value.trim() : "";
+      if (operator.length < 2) throw new Error("Enter an operator name before claiming a task.");
+      return operator;
+    }
+    async function taskRequest(path, body) {
+      const response = await fetch(path, { method: "POST", headers: taskAuthHeaders(), body: JSON.stringify(body) });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.ok) throw new Error(result.error || result.code || "The task action failed.");
+      return result;
+    }
+    taskCards.forEach((card) => {
+      const taskId = card.dataset.taskId;
+      const claimForm = card.querySelector("[data-task-claim-form]");
+      const outcomeForm = card.querySelector("[data-task-outcome-form]");
+      const status = card.querySelector("[data-task-action-status]");
+      const claimedBy = card.querySelector("[data-task-claimed-by]");
+      if (claimForm) claimForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        status.textContent = "Claiming…";
+        try {
+          const operator = taskOperator();
+          await taskRequest("/api/agents/tasks/claim", { id: taskId, claimedBy: operator });
+          claimForm.hidden = true;
+          if (outcomeForm) outcomeForm.hidden = false;
+          if (claimedBy) claimedBy.textContent = "claimed by " + operator;
+          card.dataset.taskStatus = "claimed";
+          status.textContent = "Claimed. Review the source before recording an outcome.";
+        } catch (error) {
+          status.textContent = error.message || "The task could not be claimed.";
+        }
+      });
+      if (outcomeForm) outcomeForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        status.textContent = "Recording…";
+        try {
+          const operator = taskOperator();
+          const submitter = event.submitter;
+          const formData = new FormData(outcomeForm);
+          const taskStatus = submitter?.dataset.taskFinalStatus === "blocked" ? "blocked" : "completed";
+          const result = await taskRequest("/api/agents/tasks/complete", {
+            id: taskId,
+            claimedBy: operator,
+            outcomeCode: formData.get("outcomeCode"),
+            outcomeNote: formData.get("outcomeNote"),
+            nextDueAt: formData.get("nextDueAt"),
+            status: taskStatus,
+          });
+          outcomeForm.hidden = true;
+          card.dataset.taskStatus = taskStatus;
+          status.textContent = taskStatus === "blocked" ? "Marked blocked with the recorded note." : "Outcome recorded.";
+          if (result.task?.outcomeCode) status.textContent += " Outcome: " + result.task.outcomeCode.replace(/_/g, " ") + ".";
+        } catch (error) {
+          status.textContent = error.message || "The task outcome could not be recorded.";
+        }
+      });
+    });
     const spiderForm = document.querySelector("#spider-form");
     const spiderStatus = document.querySelector("#spider-status");
     spiderForm.addEventListener("submit", async (event) => {

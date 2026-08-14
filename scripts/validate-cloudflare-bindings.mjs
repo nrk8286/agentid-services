@@ -242,6 +242,29 @@ for (const requiredSalesFunnelControl of [
     failures.push(`sales funnel and agent queue synchronization is missing ${requiredSalesFunnelControl}`);
   }
 }
+for (const requiredSalesTaskReviewControl of [
+  'renderLeadSpiderPage(env, await leadSpiderState(env), await loadTasks(env))',
+  'id="sales-task-queue"',
+  'Task Review Queue',
+  'data-task-claim-form',
+  'data-task-outcome-form',
+  'id="task-operator-name"',
+  'id="task-admin-token"',
+  'authorization: "Bearer " + token',
+  'taskRequest("/api/agents/tasks/claim"',
+  'taskRequest("/api/agents/tasks/complete"',
+  'data-task-final-status="blocked"',
+  'This page never sends a message or submits to a third party automatically.',
+  'function safeTaskReviewUrl(value)',
+  'return url.protocol === "https:" ? url.toString() : "";',
+  'const prospectUrlValue = safeTaskReviewUrl(task.url);',
+  'const sourceUrl = safeTaskReviewUrl(prospect.url);',
+  'const prospectCtaUrl = safeTaskReviewUrl(prospect.ctaUrl);',
+]) {
+  if (!workerSource.includes(requiredSalesTaskReviewControl)) {
+    failures.push(`private sales task review workflow is missing ${requiredSalesTaskReviewControl}`);
+  }
+}
 for (const requiredCustomerFollowupControl of [
   "sendQueuedCustomerFollowups",
   "FROM agentid_followups f",
