@@ -74,6 +74,10 @@ done
 
 ## Live endpoints
 
+Daily acquisition and revenue evidence is collected by the existing Durable Object
+alarm. See [daily growth snapshot operations](docs/growth-snapshot-operations.md) for
+metrics, exclusions, change-only alerts, OAuth readiness, and recovery behavior.
+
 ```bash
 curl https://gptmarketplus.com/api/agents/health
 curl https://gptmarketplus.com/api/agents/scheduler

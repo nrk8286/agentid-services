@@ -14,12 +14,18 @@ import {
   summarizeGoogleSearchIntents,
   summarizeGoogleSearchPages,
 } from "../src/google-search-console.js";
+import {
+  canonicalGrowthMetrics,
+  changedGrowthMetricFields,
+  sponsorReplyStatusFromMessages,
+} from "../src/growth-snapshot.js";
 import { tagAssistantDebugResponse } from "../src/response-security.js";
 import { normalizePaypalInvoiceId, summarizePaypalInvoice } from "../src/paypal-invoice.js";
 
 const raw = readFileSync(new URL("../wrangler.jsonc", import.meta.url), "utf8");
 const runtimeMigration = readFileSync(new URL("../migrations/0004_agent_runtime.sql", import.meta.url), "utf8");
 const genericLeadNotificationMigration = readFileSync(new URL("../migrations/0008_generic_lead_notifications.sql", import.meta.url), "utf8");
+const growthSnapshotMigration = readFileSync(new URL("../migrations/0009_daily_growth_snapshots.sql", import.meta.url), "utf8");
 const workerSource = readFileSync(new URL("../src/index.js", import.meta.url), "utf8");
 const siteSource = readFileSync(new URL("../src/agentid-site.js", import.meta.url), "utf8");
 const searchConsoleSource = readFileSync(new URL("../src/google-search-console.js", import.meta.url), "utf8");
@@ -27,6 +33,86 @@ const failures = [];
 
 if (typeof sendQueuedCustomerFollowups !== "function") {
   failures.push("customer follow-up sender must be exported for the scheduler");
+}
+
+if (!growthSnapshotMigration.includes("CREATE TABLE IF NOT EXISTS growth_snapshots")
+    || !growthSnapshotMigration.includes("CREATE TABLE IF NOT EXISTS growth_sponsor_threads")
+    || !growthSnapshotMigration.includes("founding_sponsor_withconnect")
+    || !growthSnapshotMigration.includes("'bounced', 0")) {
+  failures.push("daily growth snapshot migration must persist snapshots and exclude the known bounced sponsor thread");
+}
+
+if (!workerSource.includes('runDailyGrowthSnapshot(scopedEnv, {')
+    || !workerSource.includes('url.pathname === "/api/agents/growth-snapshot"')
+    || !workerSource.includes('growthSnapshotVersion !== GROWTH_SNAPSHOT_VERSION')
+    || !workerSource.includes('"growthSnapshotBootstrapPending"')
+    || !workerSource.includes('"https://www.googleapis.com/auth/gmail.readonly"')) {
+  failures.push("the Durable Object bootstrap alarm, private status route, and Gmail read-only scope must support daily growth snapshots");
+}
+
+const unavailableSponsorBaseline = canonicalGrowthMetrics({
+  searchConsole: { impressions: 10, clicks: 1 },
+  genuineLeads: { total: 2 },
+  paypal: { paidCheckouts: 1, settledRevenueCents: 2900 },
+  sponsorReplies: {
+    campaigns: [
+      { campaignId: "campaign_a", status: "unavailable" },
+      { campaignId: "campaign_b", status: "bounced" },
+    ],
+  },
+});
+const readySponsorBaseline = canonicalGrowthMetrics({
+  searchConsole: { impressions: 10, clicks: 1 },
+  genuineLeads: { total: 2 },
+  paypal: { paidCheckouts: 1, settledRevenueCents: 2900 },
+  sponsorReplies: {
+    campaigns: [
+      { campaignId: "campaign_a", status: "no_reply" },
+      { campaignId: "campaign_b", status: "bounced" },
+    ],
+  },
+});
+const readyDataQuality = { searchConsoleReady: true, paypalLiveMode: true };
+if (changedGrowthMetricFields(unavailableSponsorBaseline, readySponsorBaseline, readyDataQuality, readyDataQuality).length !== 0) {
+  failures.push("Gmail readiness alone must not trigger a growth alert");
+}
+const repliedSponsorMetrics = canonicalGrowthMetrics({
+  searchConsole: { impressions: 10, clicks: 1 },
+  genuineLeads: { total: 2 },
+  paypal: { paidCheckouts: 1, settledRevenueCents: 2900 },
+  sponsorReplies: {
+    campaigns: [
+      { campaignId: "campaign_a", status: "replied" },
+      { campaignId: "campaign_b", status: "bounced" },
+    ],
+  },
+});
+if (!changedGrowthMetricFields(readySponsorBaseline, repliedSponsorMetrics, readyDataQuality, readyDataQuality).includes("sponsorRepliedCampaigns")) {
+  failures.push("a genuine sponsor reply must trigger a growth alert");
+}
+const restoredProviderMetrics = canonicalGrowthMetrics({
+  searchConsole: { impressions: 25, clicks: 2 },
+  genuineLeads: { total: 2 },
+  paypal: { paidCheckouts: 1, settledRevenueCents: 2900 },
+  sponsorReplies: { campaigns: [] },
+});
+if (changedGrowthMetricFields(
+  canonicalGrowthMetrics({ searchConsole: {}, genuineLeads: { total: 2 }, paypal: { paidCheckouts: 1, settledRevenueCents: 2900 }, sponsorReplies: { campaigns: [] } }),
+  restoredProviderMetrics,
+  { searchConsoleReady: false, paypalLiveMode: true },
+  readyDataQuality,
+).some((field) => field.startsWith("searchConsole."))) {
+  failures.push("Search Console recovery must not be reported as a real growth change");
+}
+const replyFixture = sponsorReplyStatusFromMessages([
+  {
+    internalDate: String(Date.parse("2026-08-15T12:00:00Z")),
+    labelIds: ["INBOX"],
+    payload: { headers: [{ name: "From", value: "Partner <partner@example.biz>" }] },
+  },
+], "partner@example.biz", "2026-08-07T05:00:00Z");
+if (replyFixture.status !== "replied" || replyFixture.repliedAt !== "2026-08-15T12:00:00.000Z") {
+  failures.push("sponsor reply status must detect an inbound post-send Gmail message without reading its body");
 }
 
 function cspDirectiveSources(source, directiveName) {

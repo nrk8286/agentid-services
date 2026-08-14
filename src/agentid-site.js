@@ -2772,7 +2772,7 @@ function combineEmailDeliveryFailures(results) {
   });
 }
 
-async function googleOAuthGmailConnection(env) {
+async function googleOAuthGmailConnection(env, requiredScopes = ["https://www.googleapis.com/auth/gmail.send"]) {
   if (!env.GMP_KV || !env.GOOGLE_OAUTH_CLIENT_ID || !env.GOOGLE_OAUTH_CLIENT_SECRET || !env.GOOGLE_OAUTH_TOKEN_KEY) {
     return null;
   }
@@ -2781,7 +2781,7 @@ async function googleOAuthGmailConnection(env) {
     !connection?.ciphertext
     || !connection?.iv
     || !Array.isArray(connection.scopes)
-    || !connection.scopes.includes("https://www.googleapis.com/auth/gmail.send")
+    || !requiredScopes.every((scope) => connection.scopes.includes(scope))
   ) {
     return null;
   }
@@ -2816,6 +2816,30 @@ async function gmailOAuthAccessToken(env, connection) {
   const payload = await response.json().catch(() => ({}));
   if (!response.ok || !payload.access_token) throw new Error(`Google OAuth token refresh returned HTTP ${response.status}`);
   return String(payload.access_token);
+}
+
+export async function googleOAuthGmailAccessToken(env, requiredScopes = []) {
+  if (!env.GMP_KV || !env.GOOGLE_OAUTH_CLIENT_ID || !env.GOOGLE_OAUTH_CLIENT_SECRET || !env.GOOGLE_OAUTH_TOKEN_KEY) {
+    return { ok: false, code: "provider_not_configured" };
+  }
+  const stored = await env.GMP_KV.get("google-oauth:gmail-connection", "json");
+  if (!stored?.ciphertext || !stored?.iv || !Array.isArray(stored.scopes)) {
+    return { ok: false, code: "not_connected" };
+  }
+  if (!requiredScopes.every((scope) => stored.scopes.includes(scope))) {
+    return { ok: false, code: "scope_not_granted" };
+  }
+  try {
+    return {
+      ok: true,
+      accessToken: await gmailOAuthAccessToken(env, stored),
+    };
+  } catch (error) {
+    console.warn("gptmarketplus Gmail OAuth access failed", {
+      detail: cleanText(error instanceof Error ? error.message : error, 160),
+    });
+    return { ok: false, code: "token_refresh_failed" };
+  }
 }
 
 function gmailRawMessage(env, recipient, subject, text, html, replyTo = "") {

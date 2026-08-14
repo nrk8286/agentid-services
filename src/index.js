@@ -18,6 +18,7 @@ import {
   sendOwnerTransactionalEmail,
 } from "./agentid-site.js";
 import { googleSearchConsoleStatus } from "./google-search-console.js";
+import { growthSnapshotStatus, runDailyGrowthSnapshot } from "./growth-snapshot.js";
 import { normalizePaypalInvoiceId, summarizePaypalInvoice } from "./paypal-invoice.js";
 import { tagAssistantDebugResponse } from "./response-security.js";
 import {
@@ -67,6 +68,7 @@ const AGENT_ALARM_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const AGENT_ALARM_BOOTSTRAP_DELAY_MS = 15 * 1000;
 const AGENT_ALARM_RETRY_MS = 5 * 60 * 1000;
 const AGENT_SCHEDULER_NAME = "agentid-primary";
+const GROWTH_SNAPSHOT_VERSION = "v1";
 const RUN_INTERVAL_SECONDS = 60 * 30;
 const LEAD_SPIDER_INTERVAL_SECONDS = 60 * 60 * 6;
 const MAX_SPIDER_SOURCES = 8;
@@ -933,6 +935,13 @@ export default {
       return jsonResponse(scheduler, scheduler.ok ? 200 : 503);
     }
 
+    if (url.pathname === "/api/agents/growth-snapshot" && request.method === "GET") {
+      if (!(await hasAdminAccess(request, env))) {
+        return jsonResponse({ ok: false, error: "Admin access required." }, 403);
+      }
+      return jsonResponse(await growthSnapshotStatus(env, url.searchParams.get("limit") || 14));
+    }
+
     if (url.pathname === "/api/agents/flags") {
       return jsonResponse(await flagshipEvaluationStatus(env, request));
     }
@@ -1143,6 +1152,8 @@ export class AgentScheduler extends DurableObject {
     const initializedAt = await this.ctx.storage.get("initializedAt");
     const paypalCpcWebhookVersion = await this.ctx.storage.get("paypalCpcWebhookVersion");
     const paypalCpcWebhookPending = await this.ctx.storage.get("paypalCpcWebhookPending");
+    const growthSnapshotVersion = await this.ctx.storage.get("growthSnapshotVersion");
+    const growthSnapshotBootstrapPending = await this.ctx.storage.get("growthSnapshotBootstrapPending");
     let nextAlarmAt = await this.ctx.storage.getAlarm();
 
     if (!initializedAt) {
@@ -1167,6 +1178,15 @@ export class AgentScheduler extends DurableObject {
       }
     }
 
+    if (growthSnapshotVersion !== GROWTH_SNAPSHOT_VERSION && !growthSnapshotBootstrapPending) {
+      const setupAlarmAt = Date.now() + AGENT_ALARM_BOOTSTRAP_DELAY_MS;
+      await this.ctx.storage.put("growthSnapshotBootstrapPending", true);
+      if (nextAlarmAt === null || nextAlarmAt > setupAlarmAt) {
+        nextAlarmAt = setupAlarmAt;
+        await this.ctx.storage.setAlarm(nextAlarmAt);
+      }
+    }
+
     return this.status();
   }
 
@@ -1176,12 +1196,18 @@ export class AgentScheduler extends DurableObject {
       lastRunAt,
       lastOutcome,
       lastError,
+      growthSnapshotLastOutcome,
+      growthSnapshotVersion,
+      growthSnapshotBootstrapPending,
       nextAlarmAt,
     ] = await Promise.all([
       this.ctx.storage.get("initializedAt"),
       this.ctx.storage.get("lastRunAt"),
       this.ctx.storage.get("lastOutcome"),
       this.ctx.storage.get("lastError"),
+      this.ctx.storage.get("growthSnapshotLastOutcome"),
+      this.ctx.storage.get("growthSnapshotVersion"),
+      this.ctx.storage.get("growthSnapshotBootstrapPending"),
       this.ctx.storage.getAlarm(),
     ]);
 
@@ -1195,6 +1221,9 @@ export class AgentScheduler extends DurableObject {
       lastRunAt: lastRunAt || null,
       lastOutcome: lastOutcome || null,
       lastError: lastError || null,
+      growthSnapshotLastOutcome: growthSnapshotLastOutcome || null,
+      growthSnapshotVersion: growthSnapshotVersion || null,
+      growthSnapshotBootstrapPending: Boolean(growthSnapshotBootstrapPending),
       duplicateRunGuardSeconds: RUN_INTERVAL_SECONDS,
     };
   }
@@ -1218,6 +1247,7 @@ export class AgentScheduler extends DurableObject {
     try {
       const scopedEnv = requestScopedEnv(this.env, new URL("https://gptmarketplus.com/agents/"));
       const paypalCpcWebhookPending = Boolean(await this.ctx.storage.get("paypalCpcWebhookPending"));
+      const growthSnapshotBootstrapPending = Boolean(await this.ctx.storage.get("growthSnapshotBootstrapPending"));
       if (paypalCpcWebhookPending) {
         const webhook = await ensurePaypalCpcWebhook(scopedEnv);
         await this.ctx.storage.put({
@@ -1230,6 +1260,13 @@ export class AgentScheduler extends DurableObject {
         await this.ctx.storage.delete("paypalCpcWebhookPending");
       }
       const plan = await runAgentLoop(scopedEnv, "durable_object_alarm", bootstrapPending);
+      const growthSnapshot = await runDailyGrowthSnapshot(scopedEnv, {
+        trigger: growthSnapshotBootstrapPending ? "durable_object_alarm_bootstrap" : "durable_object_alarm",
+      }).catch((error) => ({
+        ok: false,
+        status: "snapshot_failed",
+        error: cleanText(error instanceof Error ? error.message : error, 240),
+      }));
       await Promise.allSettled([
         sendWebhook(scopedEnv, "agent_plan", plan),
         pingIndexNow(scopedEnv),
@@ -1246,8 +1283,23 @@ export class AgentScheduler extends DurableObject {
         lastRunAt: completedAt,
         lastOutcome: outcome,
         lastError: null,
+        growthSnapshotLastOutcome: {
+          ok: Boolean(growthSnapshot?.ok),
+          skipped: Boolean(growthSnapshot?.skipped),
+          reason: growthSnapshot?.reason || null,
+          status: growthSnapshot?.status || null,
+          dayKey: growthSnapshot?.snapshot?.dayKey || null,
+          alertStatus: growthSnapshot?.snapshot?.alertStatus || growthSnapshot?.alert?.status || null,
+          completedAt,
+        },
       });
-      await this.ctx.storage.setAlarm(Date.now() + AGENT_ALARM_INTERVAL_MS);
+      if (growthSnapshot?.ok) {
+        await this.ctx.storage.put("growthSnapshotVersion", GROWTH_SNAPSHOT_VERSION);
+        await this.ctx.storage.delete("growthSnapshotBootstrapPending");
+      } else if (growthSnapshotBootstrapPending) {
+        await this.ctx.storage.delete("growthSnapshotBootstrapPending");
+      }
+      await this.ctx.storage.setAlarm(Date.now() + (growthSnapshot?.ok ? AGENT_ALARM_INTERVAL_MS : AGENT_ALARM_RETRY_MS));
       console.log(JSON.stringify({
         event: "agent_scheduler_alarm_completed",
         completedAt,
@@ -4763,6 +4815,7 @@ const GOOGLE_OAUTH = {
     "openid",
     "email",
     "https://www.googleapis.com/auth/gmail.send",
+    "https://www.googleapis.com/auth/gmail.readonly",
   ],
   stateTtlSeconds: 15 * 60,
 };
@@ -4837,6 +4890,11 @@ async function googleOAuthStatus(env) {
       clientConfigured
       && connection?.ciphertext
       && connection?.scopes?.includes("https://www.googleapis.com/auth/gmail.send"),
+    ),
+    gmailReadReady: Boolean(
+      clientConfigured
+      && connection?.ciphertext
+      && connection?.scopes?.includes("https://www.googleapis.com/auth/gmail.readonly"),
     ),
     connectedAt: connection?.connectedAt || null,
     grantedScopes: Array.isArray(connection?.scopes) ? connection.scopes : [],
@@ -4951,10 +5009,13 @@ async function handleGoogleOAuthCallback(url, env) {
   }
 
   const grantedScopes = String(tokenData.scope || "").split(/\s+/).filter(Boolean);
-  if (!grantedScopes.includes("https://www.googleapis.com/auth/gmail.send")) {
+  if (
+    !grantedScopes.includes("https://www.googleapis.com/auth/gmail.send")
+    || !grantedScopes.includes("https://www.googleapis.com/auth/gmail.readonly")
+  ) {
     return privateHtmlResponse(renderGoogleOAuthResult(
-      "Gmail permission was not granted",
-      "The Gmail send permission is required for this adapter, so no connection was stored.",
+      "Gmail permissions were not granted",
+      "Gmail send and read-only permissions are required for delivery and sponsor reply status, so no connection was stored.",
       false,
     ), 403);
   }
@@ -4978,7 +5039,7 @@ async function handleGoogleOAuthCallback(url, env) {
   }));
   return privateHtmlResponse(renderGoogleOAuthResult(
     "Google Gmail connection complete",
-    "The refresh token is encrypted and stored. GPTMarketPlus can now activate the verified Gmail adapter.",
+    "The refresh token is encrypted and stored. GPTMarketPlus can now deliver email and check sponsor reply status without reading message bodies.",
     true,
   ));
 }
