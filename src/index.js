@@ -84,6 +84,7 @@ const AGENT_ALARM_BOOTSTRAP_DELAY_MS = 15 * 1000;
 const AGENT_ALARM_RETRY_MS = 5 * 60 * 1000;
 const AGENT_SCHEDULER_NAME = "agentid-primary";
 const GROWTH_SNAPSHOT_VERSION = "v1";
+const LEAD_SPIDER_TASK_SYNC_VERSION = "v1";
 const RUN_INTERVAL_SECONDS = 60 * 30;
 const LEAD_SPIDER_INTERVAL_SECONDS = 60 * 60 * 6;
 const MAX_SPIDER_SOURCES = 8;
@@ -1257,6 +1258,8 @@ export class AgentScheduler extends DurableObject {
     const paypalCpcWebhookPending = await this.ctx.storage.get("paypalCpcWebhookPending");
     const growthSnapshotVersion = await this.ctx.storage.get("growthSnapshotVersion");
     const growthSnapshotBootstrapPending = await this.ctx.storage.get("growthSnapshotBootstrapPending");
+    const leadSpiderTaskSyncVersion = await this.ctx.storage.get("leadSpiderTaskSyncVersion");
+    const leadSpiderTaskSyncPending = await this.ctx.storage.get("leadSpiderTaskSyncPending");
     let nextAlarmAt = await this.ctx.storage.getAlarm();
 
     if (!initializedAt) {
@@ -1290,6 +1293,15 @@ export class AgentScheduler extends DurableObject {
       }
     }
 
+    if (leadSpiderTaskSyncVersion !== LEAD_SPIDER_TASK_SYNC_VERSION && !leadSpiderTaskSyncPending) {
+      const setupAlarmAt = Date.now() + AGENT_ALARM_BOOTSTRAP_DELAY_MS;
+      await this.ctx.storage.put("leadSpiderTaskSyncPending", true);
+      if (nextAlarmAt === null || nextAlarmAt > setupAlarmAt) {
+        nextAlarmAt = setupAlarmAt;
+        await this.ctx.storage.setAlarm(nextAlarmAt);
+      }
+    }
+
     return this.status();
   }
 
@@ -1302,6 +1314,8 @@ export class AgentScheduler extends DurableObject {
       growthSnapshotLastOutcome,
       growthSnapshotVersion,
       growthSnapshotBootstrapPending,
+      leadSpiderTaskSyncVersion,
+      leadSpiderTaskSyncPending,
       nextAlarmAt,
     ] = await Promise.all([
       this.ctx.storage.get("initializedAt"),
@@ -1311,6 +1325,8 @@ export class AgentScheduler extends DurableObject {
       this.ctx.storage.get("growthSnapshotLastOutcome"),
       this.ctx.storage.get("growthSnapshotVersion"),
       this.ctx.storage.get("growthSnapshotBootstrapPending"),
+      this.ctx.storage.get("leadSpiderTaskSyncVersion"),
+      this.ctx.storage.get("leadSpiderTaskSyncPending"),
       this.ctx.storage.getAlarm(),
     ]);
 
@@ -1327,6 +1343,8 @@ export class AgentScheduler extends DurableObject {
       growthSnapshotLastOutcome: growthSnapshotLastOutcome || null,
       growthSnapshotVersion: growthSnapshotVersion || null,
       growthSnapshotBootstrapPending: Boolean(growthSnapshotBootstrapPending),
+      leadSpiderTaskSyncVersion: leadSpiderTaskSyncVersion || null,
+      leadSpiderTaskSyncPending: Boolean(leadSpiderTaskSyncPending),
       duplicateRunGuardSeconds: RUN_INTERVAL_SECONDS,
     };
   }
@@ -1351,7 +1369,9 @@ export class AgentScheduler extends DurableObject {
       const scopedEnv = requestScopedEnv(this.env, new URL("https://gptmarketplus.com/agents/"));
       const paypalCpcWebhookPending = Boolean(await this.ctx.storage.get("paypalCpcWebhookPending"));
       const growthSnapshotBootstrapPending = Boolean(await this.ctx.storage.get("growthSnapshotBootstrapPending"));
-      if (paypalCpcWebhookPending) {
+      const leadSpiderTaskSyncPending = Boolean(await this.ctx.storage.get("leadSpiderTaskSyncPending"));
+      const taskSyncOnly = leadSpiderTaskSyncPending && !bootstrapPending;
+      if (!taskSyncOnly && paypalCpcWebhookPending) {
         const webhook = await ensurePaypalCpcWebhook(scopedEnv);
         await this.ctx.storage.put({
           paypalCpcWebhookLastCheckedAt: new Date().toISOString(),
@@ -1362,34 +1382,52 @@ export class AgentScheduler extends DurableObject {
         }
         await this.ctx.storage.delete("paypalCpcWebhookPending");
       }
-      const paypalOneTimeWebhook = await ensurePaypalOneTimeWebhook(scopedEnv).catch((error) => ({
-        ready: false,
-        configured: true,
-        error: cleanText(error instanceof Error ? error.message : error, 240),
-      }));
-      await this.ctx.storage.put({
-        paypalOneTimeWebhookLastCheckedAt: new Date().toISOString(),
-        paypalOneTimeWebhookLastOutcome: paypalOneTimeWebhook,
-      });
-      const plan = await runAgentLoop(scopedEnv, "durable_object_alarm", bootstrapPending);
-      const growthSnapshot = await runDailyGrowthSnapshot(scopedEnv, {
-        trigger: growthSnapshotBootstrapPending ? "durable_object_alarm_bootstrap" : "durable_object_alarm",
-      }).catch((error) => ({
-        ok: false,
-        status: "snapshot_failed",
-        error: cleanText(error instanceof Error ? error.message : error, 240),
-      }));
-      await Promise.allSettled([
-        sendWebhook(scopedEnv, "agent_plan", plan),
-        pingIndexNow(scopedEnv),
-      ]);
+      if (!taskSyncOnly) {
+        const paypalOneTimeWebhook = await ensurePaypalOneTimeWebhook(scopedEnv).catch((error) => ({
+          ready: false,
+          configured: true,
+          error: cleanText(error instanceof Error ? error.message : error, 240),
+        }));
+        await this.ctx.storage.put({
+          paypalOneTimeWebhookLastCheckedAt: new Date().toISOString(),
+          paypalOneTimeWebhookLastOutcome: paypalOneTimeWebhook,
+        });
+      }
+      let plan = null;
+      if (!taskSyncOnly) {
+        plan = await runAgentLoop(scopedEnv, "durable_object_alarm", bootstrapPending);
+      }
+      const syncReport = taskSyncOnly ? await reconcileLeadSpiderTasks(scopedEnv) : null;
+      const effectivePlan = taskSyncOnly
+        ? {
+          ok: syncReport.ok,
+          trigger: "lead_spider_task_sync",
+          generatedAt: syncReport.generatedAt,
+          leadSpider: syncReport,
+        }
+        : plan;
+      const growthSnapshot = taskSyncOnly
+        ? { ok: true, skipped: true, reason: "lead_spider_task_sync", status: "not_run" }
+        : await runDailyGrowthSnapshot(scopedEnv, {
+          trigger: growthSnapshotBootstrapPending ? "durable_object_alarm_bootstrap" : "durable_object_alarm",
+        }).catch((error) => ({
+          ok: false,
+          status: "snapshot_failed",
+          error: cleanText(error instanceof Error ? error.message : error, 240),
+        }));
+      if (!taskSyncOnly) {
+        await Promise.allSettled([
+          sendWebhook(scopedEnv, "agent_plan", effectivePlan),
+          pingIndexNow(scopedEnv),
+        ]);
+      }
 
       const completedAt = new Date().toISOString();
       const outcome = {
-        ok: plan?.ok !== false,
-        skipped: Boolean(plan && plan.skipped),
-        reason: plan && plan.reason ? plan.reason : null,
-        generatedAt: plan && plan.generatedAt ? plan.generatedAt : null,
+        ok: effectivePlan?.ok !== false,
+        skipped: Boolean(effectivePlan && effectivePlan.skipped),
+        reason: effectivePlan && effectivePlan.reason ? effectivePlan.reason : null,
+        generatedAt: effectivePlan && effectivePlan.generatedAt ? effectivePlan.generatedAt : null,
       };
       await this.ctx.storage.put({
         lastRunAt: completedAt,
@@ -1405,13 +1443,19 @@ export class AgentScheduler extends DurableObject {
           completedAt,
         },
       });
-      if (growthSnapshot?.ok) {
+      if (!taskSyncOnly && growthSnapshot?.ok) {
         await this.ctx.storage.put("growthSnapshotVersion", GROWTH_SNAPSHOT_VERSION);
         await this.ctx.storage.delete("growthSnapshotBootstrapPending");
-      } else if (growthSnapshotBootstrapPending) {
+      } else if (!taskSyncOnly && growthSnapshotBootstrapPending) {
         await this.ctx.storage.delete("growthSnapshotBootstrapPending");
       }
-      const retryRequired = !outcome.ok || !growthSnapshot?.ok;
+      if (effectivePlan?.leadSpider?.taskPersistenceStatus === "ok") {
+        await this.ctx.storage.put("leadSpiderTaskSyncVersion", LEAD_SPIDER_TASK_SYNC_VERSION);
+        await this.ctx.storage.delete("leadSpiderTaskSyncPending");
+      }
+      const retryRequired = !outcome.ok
+        || (!taskSyncOnly && !growthSnapshot?.ok)
+        || (taskSyncOnly && growthSnapshotBootstrapPending);
       await this.ctx.storage.setAlarm(Date.now() + (retryRequired ? AGENT_ALARM_RETRY_MS : AGENT_ALARM_INTERVAL_MS));
       console.log(JSON.stringify({
         event: "agent_scheduler_alarm_completed",
@@ -4311,6 +4355,38 @@ async function persistLeadSpiderTasks(env, tasks) {
     persistedSalesTasks,
     failedSalesTasks,
     taskPersistenceStatus: failedSalesTasks > 0 ? "degraded" : "ok",
+  };
+}
+
+async function reconcileLeadSpiderTasks(env) {
+  const [state, prospects, latest] = await Promise.all([
+    getJson(env, "lead_spider:state"),
+    loadSpiderProspects(env),
+    getJson(env, "lead_spider:latest"),
+  ]);
+  const tasks = leadSpiderTasks(prospects, state?.lastRunAt || new Date().toISOString());
+  const taskPersistence = await persistLeadSpiderTasks(env, tasks);
+  const generatedAt = new Date().toISOString();
+  const persistedLatest = latest
+    ? {
+      ...latest,
+      ...taskPersistence,
+      queuedSalesTasks: latest.queuedSalesTasks || tasks.length,
+      ok: latest.ok !== false && taskPersistence.failedSalesTasks === 0,
+    }
+    : null;
+  if (persistedLatest) {
+    await putJson(env, "lead_spider:latest", persistedLatest, 60 * 60 * 24 * 30);
+  }
+  return {
+    ok: taskPersistence.failedSalesTasks === 0,
+    trigger: "lead_spider_task_sync",
+    generatedAt,
+    prospectCount: prospects.length,
+    queuedSalesTasks: tasks.length,
+    prospects: prospects.slice(0, 20),
+    latest: persistedLatest,
+    ...taskPersistence,
   };
 }
 

@@ -224,8 +224,19 @@ for (const requiredSalesFunnelControl of [
   'persistedSalesTasks',
   'failedSalesTasks',
   'taskPersistenceStatus: failedSalesTasks > 0 ? "degraded" : "ok"',
-  'ok: plan?.ok !== false',
-  'const retryRequired = !outcome.ok || !growthSnapshot?.ok',
+  'const LEAD_SPIDER_TASK_SYNC_VERSION = "v1"',
+  'leadSpiderTaskSyncVersion',
+  'leadSpiderTaskSyncPending',
+  'const taskSyncOnly = leadSpiderTaskSyncPending && !bootstrapPending;',
+  'async function reconcileLeadSpiderTasks(env)',
+  'const syncReport = taskSyncOnly ? await reconcileLeadSpiderTasks(scopedEnv) : null;',
+  'reason: "lead_spider_task_sync", status: "not_run"',
+  'if (!taskSyncOnly && paypalCpcWebhookPending)',
+  'if (!taskSyncOnly && growthSnapshot?.ok)',
+  'if (effectivePlan?.leadSpider?.taskPersistenceStatus === "ok")',
+  'ok: effectivePlan?.ok !== false',
+  'const retryRequired = !outcome.ok',
+  '(taskSyncOnly && growthSnapshotBootstrapPending)',
 ]) {
   if (!`${workerSource}\n${siteSource}`.includes(requiredSalesFunnelControl)) {
     failures.push(`sales funnel and agent queue synchronization is missing ${requiredSalesFunnelControl}`);
