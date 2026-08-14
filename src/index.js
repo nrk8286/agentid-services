@@ -8168,7 +8168,7 @@ ${googleTagGatewayBody(env)}
           <p class="eyebrow">Fixed-scope software build</p>
           <h1>${escapeHtml(build.name)}</h1>
           <p class="lede">${escapeHtml(build.summary)}</p>
-          <p><a class="button link-button sales-funnel-cta" href="/contact?interest=${escapeHtml(build.id)}"
+          <p><a class="button link-button sales-funnel-cta" href="/contact?interest=${encodeURIComponent(build.id)}"
             data-sales-funnel-event="scope_request_start" data-offer-id="${escapeHtml(build.id)}"
             data-offer-value="${Number(build.price)}" data-cta-location="software_build_detail">Request a written scope</a>
             <a class="button link-button sales-funnel-cta" href="${escapeHtml(launchKitUrl)}"

@@ -112,6 +112,18 @@ let googleAccessTokenCache = {
 
 const SITE_CONTENT_LAST_MODIFIED = "2026-08-14";
 
+// Keep the public scope-request catalog server-authoritative. The software-build
+// index is rendered by the Worker entrypoint, but contact requests are handled
+// in this module and must not trust build labels or prices from query strings.
+const REQUESTABLE_SOFTWARE_BUILDS = new Map([
+  ["ai-software-opportunity-report", { name: "AI Software Opportunity Report", priceLabel: "$24 instant report" }],
+  ["lead-response-and-follow-up-automation", { name: "Lead Response and Follow-Up Automation", priceLabel: "$1,499 fixed setup" }],
+  ["paid-reporting-dashboard-builder", { name: "Paid Reporting Dashboard Builder", priceLabel: "$1,999 fixed setup" }],
+  ["ai-content-operations-planner", { name: "AI Content Operations Planner", priceLabel: "$790 fixed setup" }],
+  ["internal-workflow-automation-console", { name: "Internal Workflow Automation Console", priceLabel: "$1,250 fixed setup" }],
+  ["public-data-monitor-and-alert-service", { name: "Public Data Monitor and Alert Service", priceLabel: "$990 fixed setup" }],
+]);
+
 const BUILD_STAGES = [
   "purchase_received",
   "onboarding_needed",
@@ -5526,7 +5538,12 @@ function renderRefundPolicyPage(env) {
 function renderContactPage(env, requestUrl = null) {
   const intent = cleanText(requestUrl?.searchParams?.get("intent") || "", 40).toLowerCase();
   const requestedPackageId = cleanText(requestUrl?.searchParams?.get("package") || "", 80);
-  const requestedBuildId = cleanText(requestUrl?.searchParams?.get("interest") || "", 120);
+  const requestedBuildCandidate = cleanText(requestUrl?.searchParams?.get("interest") || "", 120);
+  const requestedBuild = REQUESTABLE_SOFTWARE_BUILDS.get(requestedBuildCandidate) || null;
+  const requestedBuildId = requestedBuild ? requestedBuildCandidate : "";
+  const requestedBuildName = requestedBuild?.name || "";
+  const requestedBuildPrice = requestedBuild?.priceLabel || "";
+  const selectedBuildLabel = requestedBuildName || requestedBuildId.replace(/[-_]+/g, " ");
   const requestedSponsorPlan = intent === "sponsor"
     ? SPONSOR_SUBSCRIPTIONS.find((plan) => plan.id === requestedPackageId) || SPONSOR_SUBSCRIPTIONS[0]
     : null;
@@ -5565,6 +5582,9 @@ function renderContactPage(env, requestUrl = null) {
           label: "What do you want to automate?",
           type: "textarea",
           rows: 4,
+          value: requestedBuildId
+            ? `I am interested in ${selectedBuildLabel}${requestedBuildPrice ? ` (${requestedBuildPrice})` : ""}. The workflow I want built is: `
+            : "",
           placeholder: "Tell us what work you want the agent to handle.",
           required: true,
         },
@@ -5574,17 +5594,23 @@ function renderContactPage(env, requestUrl = null) {
         { name: "bestTimeToContact", label: "Best time to contact", placeholder: "Morning, afternoon, or evening", required: false },
         { name: "contactConsent", label: "I agree to be contacted about my request.", type: "checkbox", required: true },
         { name: "requestedBuildId", type: "hidden", value: requestedBuildId },
+        { name: "requestedBuildName", type: "hidden", value: requestedBuildName },
+        { name: "requestedBuildPrice", type: "hidden", value: requestedBuildPrice },
       ];
   const form = renderLeadForm({
     action: "/api/contact",
     formId: "contact-form",
-    cta: isSponsorApplication ? "Submit Sponsor Application" : "Request My AI Agent Plan",
+    cta: isSponsorApplication
+      ? "Submit Sponsor Application"
+      : requestedBuildId
+        ? "Request My Software Build Scope"
+        : "Request My AI Agent Plan",
     note: isSponsorApplication
       ? `Submitting does not create a charge or guarantee placement. We review relevance, inventory, and fulfillment first. ${sponsorPlanBillingLabel(requestedSponsorPlan)}`
       : "By submitting, you agree we can contact you about your request. Add only the information you want us to use for this project.",
     turnstileHtml: renderTurnstileWidget(env),
     fields,
-    dataAttrs: `data-form-type="${isSponsorApplication ? "sponsor_application" : "contact"}"`,
+    dataAttrs: `data-form-type="${isSponsorApplication ? "sponsor_application" : requestedBuildId ? "software_build_scope" : "contact"}"`,
   });
 
   const body = `
@@ -5592,12 +5618,19 @@ function renderContactPage(env, requestUrl = null) {
       <div>
         ${isSponsorApplication
           ? renderPageTitle("Sponsor application", `Apply for ${requestedSponsorPlan.name}`, "A reviewed application with no charge until relevance, inventory, placement, and fulfillment terms are confirmed.")
-          : renderPageTitle("Contact", "Request your AI Agent Plan", "Validated lead capture, CRM-ready structure, and a conversion-focused next step.")}
+          : renderPageTitle(
+            "Contact",
+            requestedBuildId ? `Request a written scope for ${selectedBuildLabel}` : "Request your AI Agent Plan",
+            requestedBuildId
+              ? `You selected ${selectedBuildLabel}${requestedBuildPrice ? ` (${requestedBuildPrice})` : ""}. Tell us about the workflow, systems, owner, timing, and desired outcome so we can prepare a realistic scope.`
+              : "Validated lead capture, CRM-ready structure, and a conversion-focused next step.",
+          )}
         <p>${isSponsorApplication
           ? `The requested placement is ${escapeHtml(requestedSponsorPlan.placement)} at ${escapeHtml(sponsorPlanPriceLabel(requestedSponsorPlan))}. Describe the product and audience fit so we can review it.`
           : "Tell us what you want to automate. We’ll validate the request, generate a lead summary, and prepare the next step."}</p>
       </div>
       <div class="hero-side">
+        ${requestedBuildId ? `<p class="form-note">Scope request selected: <strong>${escapeHtml(selectedBuildLabel)}</strong>${requestedBuildPrice ? ` · ${escapeHtml(requestedBuildPrice)}` : ""}</p>` : ""}
         <article class="info-card">
           <p class="card-kicker">What happens on submit</p>
           <ul>${isSponsorApplication
@@ -5851,7 +5884,7 @@ function buildLeadResponse(savedLead, options = {}) {
     ...(nextStep ? { nextStep } : {}),
     customerBlueprintHtml: options.customerBlueprintHtml || "",
     internalBlueprintJson: options.internalBlueprintJson || null,
-    trackEvent: options.trackEvent || "lead_captured",
+    trackEvent: options.scopeTrackEvent || options.trackEvent || "lead_captured",
   };
 }
 
@@ -5876,7 +5909,7 @@ async function captureLead(env, ctx, body, options = {}) {
         deduplicated: true,
         leadId: existingLead.id,
         message: "This request was already received. No duplicate lead or notification was created.",
-        trackEvent: options.trackEvent || `${submissionType}_submit`,
+        trackEvent: options.scopeTrackEvent || options.trackEvent || `${submissionType}_submit`,
       },
     };
   }
@@ -5968,6 +6001,8 @@ async function captureLead(env, ctx, body, options = {}) {
       body.notes || "",
       body.requestedPackageId ? `requested_package:${cleanText(body.requestedPackageId, 80)}` : "",
       body.requestedBuildId ? `requested_build:${cleanText(body.requestedBuildId, 120)}` : "",
+      body.requestedBuildName ? `requested_build_name:${cleanText(body.requestedBuildName, 180)}` : "",
+      body.requestedBuildPrice ? `requested_build_price:${cleanText(body.requestedBuildPrice, 80)}` : "",
       classification.excluded ? `classification:${classification.reason}` : "",
     ].filter(Boolean).join(" | "), 1200),
   };
@@ -5983,7 +6018,7 @@ async function captureLead(env, ctx, body, options = {}) {
     }
   }
   await dbInsertEvent(env, {
-    event_name: classification.excluded ? "test_submission" : `${submissionType}_submit`,
+    event_name: classification.excluded ? "test_submission" : options.eventName || `${submissionType}_submit`,
     source_page: sourcePage,
     lead_id: saved.id,
     conversation_id: saved.conversation_id,
@@ -6009,7 +6044,7 @@ async function captureLead(env, ctx, body, options = {}) {
     message: classification.excluded
       ? "Internal or test submission recorded without a sales notification."
       : options.message || "Received. We’ll follow up with the next step.",
-    trackEvent: classification.excluded ? "test_submission" : options.trackEvent || "lead_captured",
+    trackEvent: classification.excluded ? "test_submission" : options.scopeTrackEvent || options.trackEvent || "lead_captured",
     customerBlueprintHtml: options.customerBlueprintHtml || "",
     internalBlueprintJson: options.internalBlueprintJson || null,
   });
@@ -8480,13 +8515,13 @@ function renderFormsBootstrap(env) {
                 transaction_id: result.leadId || "",
               };
               if (!result.deduplicated) window.agentidTrackEvent(trackedEvent, eventProperties);
-              if (!result.deduplicated && ["contact_submit", "booking_submit"].includes(trackedEvent)) {
+              if (!result.deduplicated && ["contact_submit", "booking_submit", "scope_request_submit"].includes(trackedEvent)) {
                 window.agentidTrackEvent("generate_lead", Object.assign({
                   value: 1,
                   currency: "USD",
                   lead_id: result.leadId || "",
                   lead_source: window.__agentidAttribution?.utm_source || "direct",
-                  lead_type: trackedEvent === "booking_submit" ? "consultation" : "contact_request",
+                  lead_type: trackedEvent === "booking_submit" ? "consultation" : trackedEvent === "scope_request_submit" ? "software_build_scope" : "contact_request",
                   form_name: form.id || formType || "lead_form",
                 }, eventProperties));
               }
@@ -12496,7 +12531,17 @@ async function handleContactSubmission(request, env, ctx) {
   const requestedSponsorPlan = isSponsorApplication
     ? SPONSOR_SUBSCRIPTIONS.find((plan) => plan.id === requestedSponsorPlanId) || null
     : null;
-  const result = await captureLead(env, ctx, body, {
+  const requestedBuildCandidate = cleanText(body.requestedBuildId || "", 120);
+  const requestedBuild = REQUESTABLE_SOFTWARE_BUILDS.get(requestedBuildCandidate) || null;
+  const requestedBuildId = requestedBuild ? requestedBuildCandidate : "";
+  const normalizedBody = {
+    ...body,
+    requestedBuildId,
+    requestedBuildName: requestedBuild?.name || "",
+    requestedBuildPrice: requestedBuild?.priceLabel || "",
+  };
+  const isBuildScopeRequest = Boolean(requestedBuild) && !isSponsorApplication;
+  const result = await captureLead(env, ctx, normalizedBody, {
     request,
     submissionType: "contact",
     sourcePage: body.sourcePage || new URL(request.url).pathname,
@@ -12517,8 +12562,12 @@ async function handleContactSubmission(request, env, ctx) {
         ],
     message: isSponsorApplication
       ? "Thanks. Your sponsor application has been received for review. No charge has been created."
-      : "Thanks. Your AI Agent Plan request is in. We will review the workflow details and reply with the next step.",
+      : isBuildScopeRequest
+        ? "Thanks. Your software-build scope request is in. We will review the workflow details and reply with the next step. No charge has been created."
+        : "Thanks. Your AI Agent Plan request is in. We will review the workflow details and reply with the next step.",
     trackEvent: isSponsorApplication ? "sponsor_application_submit" : "contact_submit",
+    scopeTrackEvent: isBuildScopeRequest ? "scope_request_submit" : "",
+    eventName: isSponsorApplication ? "sponsor_application_submit" : isBuildScopeRequest ? "scope_request_submit" : "contact_submit",
     quoteRequested: true,
     crmStage: isSponsorApplication ? "sponsor_application" : "qualified",
     packageName: requestedSponsorPlan?.id || "",

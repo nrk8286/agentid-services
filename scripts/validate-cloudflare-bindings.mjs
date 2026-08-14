@@ -636,7 +636,7 @@ for (const requiredLeadControl of [
   'eventName: "form_start"',
   'form.dataset.submissionId = form.dataset.submissionId || crypto.randomUUID()',
   'deduplicated: true',
-  'lead_type: trackedEvent === "booking_submit" ? "consultation" : "contact_request"',
+  'lead_type: trackedEvent === "booking_submit" ? "consultation" : trackedEvent === "scope_request_submit" ? "software_build_scope" : "contact_request"',
   'SUM(CASE WHEN event_name = \'generate_lead\' THEN 1 ELSE 0 END) AS lead_events',
   "SUM(CASE WHEN event_name = 'launch_kit_scenario_select' THEN 1 ELSE 0 END) AS launch_kit_scenario_selections",
   "launchKitScenarioSelections: Number(summaryRow?.launch_kit_scenario_selections || 0)",
