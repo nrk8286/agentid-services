@@ -20,6 +20,17 @@ import {
 import { googleSearchConsoleStatus } from "./google-search-console.js";
 import { growthSnapshotStatus, runDailyGrowthSnapshot } from "./growth-snapshot.js";
 import { normalizePaypalInvoiceId, summarizePaypalInvoice } from "./paypal-invoice.js";
+import {
+  claimPaypalSubscriptionApproval,
+  completePaypalSubscriptionApproval,
+  createPaypalSubscriptionApproval,
+  failPaypalSubscriptionApproval,
+  inspectPaypalSubscriptionApproval,
+  listPaypalSubscriptionApprovals,
+  paypalApprovalFeatureEnabled,
+  recordPaypalSubscriptionApprovalEvent,
+  revokePaypalSubscriptionApproval,
+} from "./paypal-subscription-approval.js";
 import { tagAssistantDebugResponse } from "./response-security.js";
 import {
   CPC_DEFAULT_CLICK_CAP,
@@ -740,6 +751,30 @@ export default {
       }
       return jsonResponse(await bootstrapPaypalSponsorCatalog(env));
     }
+    const approvalLinksPath = url.pathname === "/api/paypal/subscription-links"
+      || url.pathname === "/api/agents/paypal/subscription-links";
+    if (approvalLinksPath && request.method === "GET") {
+      if (!(await hasAdminAccess(request, env))) {
+        return jsonResponse({ ok: false, error: "Admin access required." }, 403);
+      }
+      return handleListPaypalSubscriptionApprovals(url, env);
+    }
+    if (approvalLinksPath && request.method === "POST") {
+      if (!(await hasAdminAccess(request, env))) {
+        return jsonResponse({ ok: false, error: "Admin access required." }, 403);
+      }
+      return handleCreatePaypalSubscriptionApproval(request, env);
+    }
+    if ((url.pathname === "/api/paypal/subscription-links/inspect" || url.pathname === "/api/agents/paypal/subscription-links/inspect") && request.method === "POST") {
+      return handleInspectPaypalSubscriptionApproval(request, env);
+    }
+    const approvalRevokeMatch = url.pathname.match(/^\/api\/(?:agents\/)?paypal\/subscription-links\/([0-9a-f-]{36})\/revoke$/i);
+    if (approvalRevokeMatch && request.method === "POST") {
+      if (!(await hasAdminAccess(request, env))) {
+        return jsonResponse({ ok: false, error: "Admin access required." }, 403);
+      }
+      return handleRevokePaypalSubscriptionApproval(env, approvalRevokeMatch[1]);
+    }
     if ((url.pathname === "/api/paypal/subscriptions/create" || url.pathname === "/api/agents/paypal/subscriptions/create") && request.method === "POST") {
       return handlePaypalSubscriptionCheckout(request, env);
     }
@@ -760,6 +795,9 @@ export default {
     }
     if (url.pathname === "/paypal/complete" && request.method === "GET") {
       return privateHtmlResponse(renderPaypalOrderCompletionPage(env));
+    }
+    if (url.pathname === "/sponsor/subscribe" && request.method === "GET") {
+      return privateHtmlResponse(renderPrivateSponsorSubscriptionPage(env));
     }
     if (url.pathname === "/launch-kit/workspace" && request.method === "GET") {
       return handleLaunchKitWorkspacePage(request, env);
@@ -1537,6 +1575,7 @@ async function paypalPublicStatus(env) {
   const catalog = await paypalCatalog(env);
   const cpcWebhook = await paypalCpcWebhookStatus(env, catalog);
   const sponsorCheckoutEnabled = String(env.SPONSOR_CHECKOUT_ENABLED || "").trim().toLowerCase() === "true";
+  const approvalScopedSubscriptionsEnabled = paypalApprovalFeatureEnabled(env);
   const serviceCheckoutEnabled = String(env.SERVICE_CHECKOUT_ENABLED || "").trim().toLowerCase() === "true";
   const credentialsConfigured = paypalCredentialsReady(env);
   const storageConfigured = Boolean(env.GMP_KV);
@@ -1564,8 +1603,11 @@ async function paypalPublicStatus(env) {
     productConfigured: Boolean(catalog.productId),
     webhookConfigured: Boolean(catalog.webhookId),
     sponsorCheckoutEnabled,
+    approvalScopedSubscriptionsEnabled,
+    publicSubscriptionCheckoutEnabled: false,
+    subscriptionAccessMode: "private_approval_link",
     serviceCheckoutEnabled,
-    subscriptionsReady: sponsorCheckoutEnabled && credentialsConfigured && subscriptionPackages.every((item) => item.available),
+    subscriptionsReady: approvalScopedSubscriptionsEnabled && credentialsConfigured && Boolean(env.GMP_DB) && subscriptionPackages.every((item) => item.available),
     publicCommerceReady: cpcCampaignsReady && digitalProductReady,
     cpcCampaignsReady,
     oneTimePaymentsReady: credentialsConfigured && storageConfigured,
@@ -1575,7 +1617,7 @@ async function paypalPublicStatus(env) {
     servicePaymentsReady,
     reviewGates: {
       customServices: serviceCheckoutEnabled ? "checkout_enabled" : "written_scope_required",
-      recurringSponsors: sponsorCheckoutEnabled ? "checkout_enabled" : "written_placement_terms_required",
+      recurringSponsors: approvalScopedSubscriptionsEnabled ? "private_approval_link_required" : "written_placement_terms_required",
     },
     oneTimeProducts: agentIdOneTimeProducts().map((product) => ({
       id: product.id,
@@ -2165,6 +2207,102 @@ async function bootstrapPaypalSponsorCatalog(env) {
   };
 }
 
+function publicSubscriptionApprovalSummary(approval) {
+  return {
+    id: approval.id,
+    packageId: approval.packageId,
+    packageName: approval.packageName,
+    amountCents: approval.amountCents,
+    currency: approval.currency,
+    priceLabel: approval.priceLabel,
+    businessName: approval.businessName,
+    advertiserEmailMasked: approval.advertiserEmailMasked,
+    status: approval.status,
+    approvedAt: approval.approvedAt,
+    expiresAt: approval.expiresAt,
+  };
+}
+
+function isPaypalApprovalUrl(value) {
+  try {
+    const url = new URL(String(value || ""));
+    return url.protocol === "https:"
+      && (url.hostname === "paypal.com" || url.hostname.endsWith(".paypal.com"));
+  } catch {
+    return false;
+  }
+}
+
+async function handleCreatePaypalSubscriptionApproval(request, env) {
+  if (!paypalApprovalFeatureEnabled(env)) {
+    return jsonResponse({ ok: false, error: "Approval-scoped PayPal subscriptions are disabled." }, 503);
+  }
+  const body = await readJson(request);
+  if (body === BODY_TOO_LARGE) return payloadTooLargeResponse();
+  if (!body || typeof body !== "object") return jsonResponse({ ok: false, error: "Invalid JSON." }, 400);
+  if (body.termsAccepted !== true) {
+    return jsonResponse({ ok: false, error: "Written placement, renewal, and cancellation terms must be accepted before issuing a link." }, 400);
+  }
+  const packageId = cleanText(body.packageId, 80);
+  const adPackage = adPackages(env).find((item) => item.id === packageId && item.billing.mode === "subscription");
+  if (!adPackage) return jsonResponse({ ok: false, error: "Unknown recurring sponsor package." }, 400);
+  const catalog = await paypalCatalog(env);
+  const planId = catalog.planIds[packageId];
+  if (!paypalCredentialsReady(env) || !planId) {
+    return jsonResponse({ ok: false, error: "PayPal subscriptions are not configured for this package." }, 503);
+  }
+  const result = await createPaypalSubscriptionApproval(env.GMP_DB, {
+    packageId,
+    packageName: adPackage.name,
+    planId,
+    amountCents: adPackage.amount,
+    currency: "USD",
+    priceLabel: adPackage.priceLabel,
+    advertiserEmail: body.advertiserEmail,
+    businessName: body.businessName,
+    approvalReference: body.approvalReference,
+    approvedBy: "admin_token",
+    expiresInHours: body.expiresInHours,
+    baseUrl: siteUrl(env),
+  });
+  if (!result.ok) return jsonResponse({ ok: false, error: result.error }, result.status || 500);
+  return jsonResponse({
+    ok: true,
+    provider: "paypal",
+    accessMode: "private_approval_link",
+    checkoutLink: result.checkoutLink,
+    approval: result.approval,
+  }, 201);
+}
+
+async function handleListPaypalSubscriptionApprovals(url, env) {
+  const result = await listPaypalSubscriptionApprovals(env.GMP_DB, url.searchParams.get("limit"));
+  if (!result.ok) return jsonResponse({ ok: false, error: result.error }, result.status || 500);
+  return jsonResponse({ ok: true, accessMode: "private_approval_link", approvals: result.approvals });
+}
+
+async function handleInspectPaypalSubscriptionApproval(request, env) {
+  if (!paypalApprovalFeatureEnabled(env)) {
+    return jsonResponse({ ok: false, error: "Approval-scoped PayPal subscriptions are disabled." }, 503);
+  }
+  const rate = await paypalCheckoutRateLimit(env, request);
+  if (!rate.ok) return jsonResponse({ ok: false, error: rate.error }, 429);
+  const body = await readJson(request);
+  if (body === BODY_TOO_LARGE) return payloadTooLargeResponse();
+  if (!body || typeof body !== "object") return jsonResponse({ ok: false, error: "Invalid JSON." }, 400);
+  const result = await inspectPaypalSubscriptionApproval(env.GMP_DB, body.approvalToken);
+  if (!result.ok) return jsonResponse({ ok: false, error: result.error }, result.status || 404);
+  return jsonResponse({ ok: true, approval: publicSubscriptionApprovalSummary(result.approval) });
+}
+
+async function handleRevokePaypalSubscriptionApproval(env, id) {
+  const result = await revokePaypalSubscriptionApproval(env.GMP_DB, id);
+  return jsonResponse(
+    result.ok ? { ok: true, id: result.id, status: result.approvalStatus } : { ok: false, error: result.error },
+    result.status || (result.ok ? 200 : 500),
+  );
+}
+
 async function paypalCheckoutRateLimit(env, request) {
   if (!env.GMP_KV) return { ok: true };
   const ip = request.headers.get("cf-connecting-ip") || "unknown";
@@ -2179,8 +2317,8 @@ async function paypalCheckoutRateLimit(env, request) {
 }
 
 async function handlePaypalSubscriptionCheckout(request, env) {
-  if (String(env.SPONSOR_CHECKOUT_ENABLED || "").trim().toLowerCase() !== "true") {
-    return jsonResponse({ ok: false, error: "Sponsor billing is paused until placement fulfillment is verified." }, 503);
+  if (!paypalApprovalFeatureEnabled(env)) {
+    return jsonResponse({ ok: false, error: "Approval-scoped PayPal subscriptions are disabled." }, 503);
   }
   const rate = await paypalCheckoutRateLimit(env, request);
   if (!rate.ok) return jsonResponse({ ok: false, error: rate.error }, 429);
@@ -2189,45 +2327,67 @@ async function handlePaypalSubscriptionCheckout(request, env) {
   if (!body || typeof body !== "object") {
     return jsonResponse({ ok: false, error: "Invalid JSON." }, 400);
   }
-  const packageId = cleanText(body.packageId || body.productId || "", 80);
-  const adPackage = adPackages(env).find((item) => item.id === packageId);
-  if (!adPackage) return jsonResponse({ ok: false, error: "Unknown sponsor package." }, 400);
-  if (adPackage.billing.mode !== "subscription") {
-    return jsonResponse({
-      ok: false,
-      error: "CPC campaigns are reviewed first and funded through a PayPal invoice after written approval.",
-      applicationUrl: `${siteUrl(env)}/contact?intent=sponsor&package=${encodeURIComponent(packageId)}`,
-    }, 409);
+  const approvalToken = cleanText(body.approvalToken, 100);
+  const advertiserEmail = cleanEmail(body.advertiserEmail);
+  if (!approvalToken || !advertiserEmail) {
+    return jsonResponse({ ok: false, error: "A private approval link and its approved recipient email are required." }, 403);
   }
+
+  const claim = await claimPaypalSubscriptionApproval(env.GMP_DB, { token: approvalToken, advertiserEmail });
+  if (!claim.ok) return jsonResponse({ ok: false, error: claim.error }, claim.status || 403);
+  if (claim.replay) {
+    if (!isPaypalApprovalUrl(claim.checkoutUrl)) {
+      return jsonResponse({ ok: false, error: "The stored PayPal approval URL is unavailable." }, 502);
+    }
+    return jsonResponse({
+      ok: true,
+      checkoutUrl: claim.checkoutUrl,
+      subscriptionId: claim.subscriptionId,
+      provider: "paypal",
+      accessMode: "private_approval_link",
+      replay: true,
+    });
+  }
+
+  const approval = claim.record;
+  const packageId = cleanText(approval.package_id, 80);
+  const adPackage = adPackages(env).find((item) => item.id === packageId && item.billing.mode === "subscription");
 
   const catalog = await paypalCatalog(env);
   const planId = catalog.planIds[packageId];
-  if (!paypalCredentialsReady(env) || !planId) {
-    return jsonResponse({
-      ok: false,
-      error: "PayPal subscriptions are not configured yet.",
-      package: { id: adPackage.id, name: adPackage.name, priceLabel: adPackage.priceLabel },
-    }, 503);
+  if (!adPackage || !paypalCredentialsReady(env) || !planId
+      || planId !== approval.paypal_plan_id
+      || Number(adPackage.amount || 0) !== Number(approval.amount_cents || 0)) {
+    await failPaypalSubscriptionApproval(env.GMP_DB, { id: approval.id, errorCode: "approved_catalog_mismatch" });
+    return jsonResponse({ ok: false, error: "The approved package no longer matches the live PayPal catalog. Request a new approval link." }, 409);
   }
 
-  const subscriptionResponse = await paypalApiRequest(env, "/v1/billing/subscriptions", {
-    method: "POST",
-    headers: { "paypal-request-id": crypto.randomUUID() },
-    body: {
-      plan_id: planId,
-      custom_id: `agentid:${packageId}:${crypto.randomUUID()}`,
-      quantity: "1",
-      application_context: {
-        brand_name: brandName(env),
-        locale: "en-US",
-        shipping_preference: "NO_SHIPPING",
-        user_action: "SUBSCRIBE_NOW",
-        return_url: `${siteUrl(env)}/pricing?paypal=success&package=${encodeURIComponent(packageId)}`,
-        cancel_url: `${siteUrl(env)}/pricing?paypal=cancel&package=${encodeURIComponent(packageId)}`,
+  let subscriptionResponse;
+  try {
+    subscriptionResponse = await paypalApiRequest(env, "/v1/billing/subscriptions", {
+      method: "POST",
+      headers: { "paypal-request-id": approval.paypal_request_id },
+      body: {
+        plan_id: planId,
+        custom_id: approval.id,
+        quantity: "1",
+        subscriber: { email_address: approval.advertiser_email },
+        application_context: {
+          brand_name: brandName(env),
+          locale: "en-US",
+          shipping_preference: "NO_SHIPPING",
+          user_action: "SUBSCRIBE_NOW",
+          return_url: `${siteUrl(env)}/pricing?paypal=success&package=${encodeURIComponent(packageId)}`,
+          cancel_url: `${siteUrl(env)}/pricing?paypal=cancel&package=${encodeURIComponent(packageId)}`,
+        },
       },
-    },
-  });
+    });
+  } catch {
+    await failPaypalSubscriptionApproval(env.GMP_DB, { id: approval.id, errorCode: "paypal_network_error" });
+    return jsonResponse({ ok: false, error: "PayPal could not be reached. Retry this same approval link shortly." }, 502);
+  }
   if (!subscriptionResponse.ok) {
+    await failPaypalSubscriptionApproval(env.GMP_DB, { id: approval.id, errorCode: `paypal_http_${subscriptionResponse.status || 502}` });
     return jsonResponse({ ok: false, error: subscriptionResponse.error }, subscriptionResponse.status || 502);
   }
 
@@ -2235,11 +2395,21 @@ async function handlePaypalSubscriptionCheckout(request, env) {
   const checkoutUrl = Array.isArray(result.links)
     ? result.links.find((link) => link.rel === "approve")?.href
     : "";
-  if (!checkoutUrl) {
+  if (!checkoutUrl || !isPaypalApprovalUrl(checkoutUrl)) {
+    await failPaypalSubscriptionApproval(env.GMP_DB, { id: approval.id, errorCode: "paypal_invalid_approval_url" });
     return jsonResponse({ ok: false, error: "PayPal did not return an approval URL." }, 502);
+  }
+  const completed = await completePaypalSubscriptionApproval(env.GMP_DB, {
+    id: approval.id,
+    subscriptionId: result.id,
+    checkoutUrl,
+  });
+  if (!completed.ok) {
+    return jsonResponse({ ok: false, error: "PayPal created the approval, but its local audit record could not be finalized. Retry this same link." }, 503);
   }
   await putJson(env, `paypal:subscription:${result.id}`, {
     id: result.id,
+    approvalId: approval.id,
     packageId,
     planId,
     status: result.status || "APPROVAL_PENDING",
@@ -2250,6 +2420,7 @@ async function handlePaypalSubscriptionCheckout(request, env) {
     checkoutUrl,
     subscriptionId: result.id,
     provider: "paypal",
+    accessMode: "private_approval_link",
     package: { id: adPackage.id, name: adPackage.name, priceLabel: adPackage.priceLabel },
   });
 }
@@ -2970,6 +3141,125 @@ function renderPaypalResultShell(eyebrow, title, description, actions, extraHead
 </html>`;
 }
 
+function renderPrivateSponsorSubscriptionPage(env) {
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <title>Private PayPal subscription approval | ${escapeHtml(brandName(env))}</title>
+  <style>
+    :root{color-scheme:light;--ink:#10231e;--muted:#53645e;--paper:#f4f7f3;--card:#fff;--green:#087760;--line:#d5dfda;--danger:#9b2c2c}
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:linear-gradient(145deg,#edf5f1,var(--paper));color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    main{width:min(720px,100%);padding:clamp(28px,6vw,58px);border:1px solid var(--line);border-radius:22px;background:var(--card);box-shadow:0 28px 90px rgba(16,35,30,.1)}
+    .eyebrow{margin:0 0 10px;color:var(--green);font-size:13px;font-weight:800;letter-spacing:.09em;text-transform:uppercase}h1{margin:0 0 14px;font-size:clamp(34px,7vw,56px);line-height:1.03}p{color:var(--muted);font-size:17px;line-height:1.6}.summary{display:grid;gap:12px;margin:24px 0;padding:20px;border:1px solid var(--line);border-radius:14px;background:#f9fbf9}.summary strong{font-size:20px}.summary span{color:var(--muted)}label{display:grid;gap:8px;font-weight:750}input{min-height:48px;padding:0 14px;border:1px solid #aebdb7;border-radius:9px;font:inherit}button{min-height:50px;margin-top:16px;padding:0 20px;border:0;border-radius:9px;background:var(--green);color:#fff;font:inherit;font-weight:850;cursor:pointer}button:disabled{cursor:wait;opacity:.65}#status[data-error="true"]{color:var(--danger)}.fine{font-size:14px}a{color:var(--green)}[hidden]{display:none!important}
+  </style>
+</head>
+<body>
+  <main>
+    <p class="eyebrow">Private sponsor billing</p>
+    <h1>Review your approved PayPal subscription</h1>
+    <p>This page works only with a short-lived approval link issued after written placement, renewal, and cancellation terms were accepted. It does not provide public subscription checkout.</p>
+    <p id="status" role="status" aria-live="polite">Checking the approval link…</p>
+    <section class="summary" id="summary" hidden>
+      <strong id="package-name"></strong>
+      <span id="price-label"></span>
+      <span id="business-name"></span>
+      <span id="email-mask"></span>
+      <span id="expires-at"></span>
+    </section>
+    <form id="approval-form" hidden>
+      <label>Approved recipient email
+        <input id="advertiser-email" name="advertiserEmail" type="email" autocomplete="email" required>
+      </label>
+      <button id="continue-button" type="submit">Continue securely to PayPal</button>
+    </form>
+    <p class="fine">No charge is created on this page. PayPal shows the recurring amount and requires the buyer to approve the subscription. Contact <a href="mailto:${escapeHtml(env.SUPPORT_EMAIL || "admin@gptmarketplus.com")}">${escapeHtml(env.SUPPORT_EMAIL || "admin@gptmarketplus.com")}</a> if the package, price, or recipient is incorrect.</p>
+  </main>
+  <script>
+    (function () {
+      "use strict";
+      const status = document.getElementById("status");
+      const summary = document.getElementById("summary");
+      const form = document.getElementById("approval-form");
+      const button = document.getElementById("continue-button");
+      const token = location.hash.slice(1);
+
+      function showError(message) {
+        status.textContent = message;
+        status.dataset.error = "true";
+        summary.hidden = true;
+        form.hidden = true;
+      }
+
+      function isSafePaypalUrl(value) {
+        try {
+          const url = new URL(value);
+          return url.protocol === "https:" && (url.hostname === "paypal.com" || url.hostname.endsWith(".paypal.com"));
+        } catch (error) {
+          return false;
+        }
+      }
+
+      if (!/^[A-Za-z0-9_-]{43,86}$/.test(token)) {
+        showError("This private approval link is missing or invalid.");
+        return;
+      }
+
+      fetch("/api/paypal/subscription-links/inspect", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ approvalToken: token })
+      }).then(async function (response) {
+        const result = await response.json();
+        if (!response.ok || !result.ok) throw new Error(result.error || "Approval link is unavailable.");
+        const approval = result.approval;
+        document.getElementById("package-name").textContent = approval.packageName;
+        document.getElementById("price-label").textContent = approval.priceLabel;
+        document.getElementById("business-name").textContent = "Approved business: " + approval.businessName;
+        document.getElementById("email-mask").textContent = "Approved recipient: " + approval.advertiserEmailMasked;
+        document.getElementById("expires-at").textContent = "Link expires: " + new Date(approval.expiresAt).toLocaleString();
+        status.textContent = "Approval confirmed. Verify the details before continuing.";
+        delete status.dataset.error;
+        summary.hidden = false;
+        form.hidden = false;
+      }).catch(function (error) {
+        showError(error.message || "Approval link is unavailable.");
+      });
+
+      form.addEventListener("submit", async function (event) {
+        event.preventDefault();
+        button.disabled = true;
+        button.textContent = "Opening PayPal…";
+        status.textContent = "Creating the approved PayPal handoff…";
+        delete status.dataset.error;
+        try {
+          const response = await fetch("/api/paypal/subscriptions/create", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              approvalToken: token,
+              advertiserEmail: document.getElementById("advertiser-email").value
+            })
+          });
+          const result = await response.json();
+          if (!response.ok || !result.ok) throw new Error(result.error || "PayPal handoff failed.");
+          if (!isSafePaypalUrl(result.checkoutUrl)) throw new Error("PayPal returned an invalid destination.");
+          location.assign(result.checkoutUrl);
+        } catch (error) {
+          showError(error.message || "PayPal handoff failed.");
+          button.disabled = false;
+          button.textContent = "Continue securely to PayPal";
+          form.hidden = false;
+        }
+      });
+    })();
+  </script>
+</body>
+</html>`;
+}
+
 function privateHtmlResponse(html, status = 200) {
   const headers = withSecurityHeaders({
     "content-type": "text/html; charset=utf-8",
@@ -3132,6 +3422,12 @@ async function handlePaypalWebhook(request, env, ctx) {
     status: cleanText(subscription?.status || resource.status || "", 40),
     receivedAt: new Date().toISOString(),
   }, 60 * 60 * 24 * 365 * 2);
+  await recordPaypalSubscriptionApprovalEvent(env.GMP_DB, {
+    subscriptionId,
+    eventId,
+    eventType,
+    now: event.create_time,
+  });
 
   const cpcInvoiceEvent = await handlePaypalCpcInvoiceWebhookEvent(env, eventType, resource);
   if (cpcInvoiceEvent.handled) {
@@ -5799,7 +6095,7 @@ ${googleTagGatewayBody(env)}
       <div>
         <p class="eyebrow">Ads revenue</p>
         <h2>Reviewed sponsor placements</h2>
-        <p>Sponsor billing is paused while placement fulfillment is being verified. Relevant businesses may apply for review without payment.</p>
+        <p>Public sponsor checkout is unavailable. Relevant businesses may apply without payment, and approved recipients receive a private PayPal subscription link after written terms are accepted.</p>
         <p><a class="button link-button" href="/sponsor">Apply for sponsor review</a></p>
       </div>
       <div class="packages">
@@ -7252,7 +7548,7 @@ function renderSponsorCheckoutSection(env) {
     <div>
       <p class="eyebrow">Reviewed applications</p>
       <h2>30-day sponsor inventory requires approval</h2>
-      <p>${escapeHtml(sponsorPackage.description)} Billing remains disabled until relevance, placement, and fulfillment are confirmed.</p>
+      <p>${escapeHtml(sponsorPackage.description)} Public checkout is unavailable; approved recipients receive a private PayPal subscription link after relevance, placement, and fulfillment are confirmed.</p>
       <p><a href="/software-builds">Review build scopes</a> or <a href="/sponsor">apply for sponsor review</a>.</p>
     </div>
     <div class="packages">

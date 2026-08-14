@@ -26,6 +26,8 @@ const raw = readFileSync(new URL("../wrangler.jsonc", import.meta.url), "utf8");
 const runtimeMigration = readFileSync(new URL("../migrations/0004_agent_runtime.sql", import.meta.url), "utf8");
 const genericLeadNotificationMigration = readFileSync(new URL("../migrations/0008_generic_lead_notifications.sql", import.meta.url), "utf8");
 const growthSnapshotMigration = readFileSync(new URL("../migrations/0009_daily_growth_snapshots.sql", import.meta.url), "utf8");
+const paypalSubscriptionApprovalMigration = readFileSync(new URL("../migrations/0010_paypal_subscription_approvals.sql", import.meta.url), "utf8");
+const paypalSubscriptionApprovalSource = readFileSync(new URL("../src/paypal-subscription-approval.js", import.meta.url), "utf8");
 const workerSource = readFileSync(new URL("../src/index.js", import.meta.url), "utf8");
 const siteSource = readFileSync(new URL("../src/agentid-site.js", import.meta.url), "utf8");
 const searchConsoleSource = readFileSync(new URL("../src/google-search-console.js", import.meta.url), "utf8");
@@ -477,8 +479,22 @@ if (!workerSource.includes('/contact?intent=sponsor&amp;package=${encodeURICompo
 if (!siteSource.includes('trackEvent: isSponsorApplication ? "sponsor_application_submit" : "contact_submit"')) {
   failures.push("Sponsor applications must be recorded as a distinct conversion event");
 }
-if (!siteSource.includes("approved placements receive a PayPal invoice only after written terms are accepted")) {
-  failures.push("Sponsor applications must disclose the review-before-PayPal-invoice workflow");
+for (const requiredSponsorSelectionControl of [
+  'href="/contact?intent=sponsor&amp;package=${encodeURIComponent(plan.id)}"',
+  'data-track-event="advertiser_plan_select"',
+  '{ name: "requestedPackageId", type: "hidden", value: requestedSponsorPlan.id }',
+  'packageName: requestedSponsorPlan?.id || ""',
+  'Public subscription checkout is unavailable',
+  'sponsorPlanBillingLabel(requestedSponsorPlan)',
+  'requestedSponsorPlan.mode === "invoice"',
+  'Use the private approval-scoped PayPal subscription link issued to the approved recipient',
+]) {
+  if (!siteSource.includes(requiredSponsorSelectionControl)) {
+    failures.push(`Sponsor plan selection is missing ${requiredSponsorSelectionControl}`);
+  }
+}
+if (!siteSource.includes("Send a PayPal invoice only after written approval")) {
+  failures.push("CPC sponsor applications must disclose the review-before-PayPal-invoice workflow");
 }
 if (!siteSource.includes('rel="sponsored nofollow noopener"') || !siteSource.includes('window.agentidTrackEvent("sponsor_impression"')) {
   failures.push("Active sponsor placements must be clearly labeled and track viewable impressions without invalid clicks");
@@ -776,6 +792,26 @@ for (const requiredPricingLaunchKitControl of [
 }
 if (pricingLaunchKitPosition < 0 || pricingCustomTiersPosition < 0 || pricingLaunchKitPosition > pricingCustomTiersPosition) {
   failures.push("pricing page must place the primary Launch Kit offer before custom service tiers");
+}
+if (!pricingBody.includes('href="/contact?intent=sponsor&amp;package=featured_tool_monthly"')
+    || !pricingBody.includes("Apply for PayPal subscription review")) {
+  failures.push("pricing sponsor plans must route directly to the selected PayPal application");
+}
+
+const selectedSponsorRedirect = await handleAgentIdSiteRequest(
+  new Request("https://agentid.services/advertise?package=featured_tool_monthly&utm_source=pricing"),
+  {
+    SITE_URL: "https://agentid.services",
+    SUPPORT_EMAIL: "admin@gptmarketplus.com",
+    BRAND_NAME: "AgentID Services",
+  },
+  { waitUntil() {} },
+);
+const selectedSponsorLocation = selectedSponsorRedirect.headers.get("location") || "";
+if (selectedSponsorRedirect.status !== 302
+    || !selectedSponsorLocation.includes("/contact?intent=sponsor&package=featured_tool_monthly")
+    || !selectedSponsorLocation.includes("utm_source=pricing")) {
+  failures.push("package-qualified advertising links must preserve selection and attribution in the sponsor application redirect");
 }
 
 const faqResponse = await handleAgentIdSiteRequest(
@@ -1345,8 +1381,51 @@ for (const requiredControl of ['name="applicationType"', 'value="sponsor"', 'nam
 for (const excessRequiredControl of ['name="phone"', 'name="businessType"', 'name="budgetRange"', 'name="timeline"', 'name="preferredContactMethod"']) {
   if (sponsorApplicationBody.includes(excessRequiredControl)) failures.push(`sponsor application still includes high-friction control ${excessRequiredControl}`);
 }
-if (!sponsorApplicationBody.includes("$99.00 / 30 days") || !sponsorApplicationBody.includes("PayPal invoice only after written approval")) {
-  failures.push("sponsor application must show the selected 30-day price and PayPal review workflow");
+if (
+  !sponsorApplicationBody.includes("$99.00 / 30 days")
+  || !sponsorApplicationBody.includes("Public subscription checkout is unavailable")
+  || !sponsorApplicationBody.includes("private approval-scoped PayPal subscription link")
+  || sponsorApplicationBody.includes("Send a PayPal invoice only after written approval")
+) {
+  failures.push("recurring sponsor applications must show the selected price and approval-scoped PayPal subscription workflow");
+}
+
+if (!/"SPONSOR_CHECKOUT_ENABLED"\s*:\s*"true"/.test(raw)
+    || !/"PAYPAL_APPROVAL_LINKS_ENABLED"\s*:\s*"true"/.test(raw)) {
+  failures.push("approval-scoped PayPal subscriptions must be enabled with both production gates");
+}
+if (!paypalSubscriptionApprovalMigration.includes("CREATE TABLE IF NOT EXISTS paypal_subscription_approvals")
+    || !paypalSubscriptionApprovalMigration.includes("token_hash TEXT NOT NULL UNIQUE")
+    || paypalSubscriptionApprovalMigration.includes("approval_token")) {
+  failures.push("PayPal subscription approvals must store a unique token hash without a raw approval token");
+}
+for (const requiredApprovalControl of [
+  "hashApprovalToken",
+  "crypto.subtle.digest(\"SHA-256\"",
+  "status = 'provisioning'",
+  "paypal_request_id",
+  "expires_at > ?",
+  "status IN ('approved', 'failed')",
+  "paypal_subscription_id",
+]) {
+  if (!paypalSubscriptionApprovalSource.includes(requiredApprovalControl)) {
+    failures.push(`PayPal subscription approval storage is missing ${requiredApprovalControl}`);
+  }
+}
+for (const requiredApprovalRouteControl of [
+  'url.pathname === "/api/paypal/subscription-links"',
+  'url.pathname === "/api/paypal/subscription-links/inspect"',
+  'url.pathname === "/sponsor/subscribe"',
+  "paypalApprovalFeatureEnabled(env)",
+  "approval.paypal_request_id",
+  "subscriber: { email_address: approval.advertiser_email }",
+  'publicSubscriptionCheckoutEnabled: false',
+  'subscriptionAccessMode: "private_approval_link"',
+  'const token = location.hash.slice(1)',
+]) {
+  if (!workerSource.includes(requiredApprovalRouteControl)) {
+    failures.push(`approval-scoped PayPal checkout is missing ${requiredApprovalRouteControl}`);
+  }
 }
 
 if (normalizePaypalInvoiceId("INV2-Z56S-5LLA-Q52L-CPZ5") !== "INV2-Z56S-5LLA-Q52L-CPZ5" || normalizePaypalInvoiceId("../private")) {

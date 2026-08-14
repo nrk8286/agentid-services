@@ -535,6 +535,19 @@ function sponsorPlanPriceLabel(plan) {
   return `${moneyWithCents(plan.price)} / 30 days`;
 }
 
+function sponsorPlanBillingLabel(plan) {
+  if (plan.mode === "invoice") {
+    return "One-time PayPal invoice after written approval. This pilot does not auto-renew.";
+  }
+  return "Public subscription checkout is unavailable. After written placement, renewal, and cancellation terms are accepted, the approved recipient receives a private approval-scoped PayPal subscription link.";
+}
+
+function sponsorPlanCtaLabel(plan) {
+  return plan.mode === "invoice"
+    ? "Apply for the PayPal CPC pilot"
+    : "Apply for PayPal subscription review";
+}
+
 const DIGITAL_PRODUCTS = [
   {
     id: "ai_agent_launch_kit",
@@ -4199,12 +4212,14 @@ function renderPricingPage(env) {
             <strong>${escapeHtml(sponsorPlanPriceLabel(plan))}</strong>
             <p>${escapeHtml(plan.name)}</p>
             <span>${escapeHtml(plan.summary)}</span>
+            <span class="form-note">${escapeHtml(sponsorPlanBillingLabel(plan))}</span>
             <div class="checkout-stack">
-              <a class="button-secondary" href="/advertise?package=${encodeURIComponent(plan.id)}">Apply for placement</a>
+              <a class="button-secondary" href="/contact?intent=sponsor&amp;package=${encodeURIComponent(plan.id)}" data-track-event="advertiser_plan_select" data-track-label="${escapeHtml(plan.id)}">${escapeHtml(sponsorPlanCtaLabel(plan))}</a>
             </div>
           </article>
         `).join("")}
       </div>
+      <p class="form-note"><strong>PayPal-only billing:</strong> applying is free and creates no charge. The CPC pilot is funded by PayPal invoice after approval. Eligible recurring placements use PayPal Subscriptions only after written inventory and fulfillment terms are accepted.</p>
       <div class="cta-row">
         <a class="button-secondary" href="/advertise" data-track-event="advertiser_interest" data-track-label="View Advertising Details">View advertising details</a>
         <a class="button-secondary" href="/ad-network" data-track-event="advertiser_interest" data-track-label="View Ad Inventory">View all ad inventory</a>
@@ -5485,6 +5500,7 @@ function renderContactPage(env, requestUrl = null) {
   const fields = isSponsorApplication
     ? [
         { name: "applicationType", type: "hidden", value: "sponsor" },
+        { name: "requestedPackageId", type: "hidden", value: requestedSponsorPlan.id },
         { name: "name", label: "Your name", placeholder: "Your name", required: true },
         { name: "email", label: "Work email", type: "email", placeholder: "you@company.com", required: true },
         { name: "businessName", label: "Company or product", placeholder: "Company or product name", required: true },
@@ -5526,7 +5542,7 @@ function renderContactPage(env, requestUrl = null) {
     formId: "contact-form",
     cta: isSponsorApplication ? "Submit Sponsor Application" : "Request My AI Agent Plan",
     note: isSponsorApplication
-      ? "Submitting does not create a charge or guarantee placement. We review relevance, inventory, and fulfillment first; approved placements receive a PayPal invoice only after written terms are accepted."
+      ? `Submitting does not create a charge or guarantee placement. We review relevance, inventory, and fulfillment first. ${sponsorPlanBillingLabel(requestedSponsorPlan)}`
       : "By submitting, you agree we can contact you about your request. Add only the information you want us to use for this project.",
     turnstileHtml: renderTurnstileWidget(env),
     fields,
@@ -5547,7 +5563,9 @@ function renderContactPage(env, requestUrl = null) {
         <article class="info-card">
           <p class="card-kicker">What happens on submit</p>
           <ul>${isSponsorApplication
-          ? "<li>Review product and audience relevance</li><li>Confirm available placement and dates</li><li>Agree on creative, labeling, and destination URL</li><li>Confirm the CPC rate, click cap, validation, reporting, and refund terms</li><li>Send a PayPal invoice only after written approval</li>"
+          ? requestedSponsorPlan.mode === "invoice"
+            ? "<li>Review product and audience relevance</li><li>Confirm available placement and dates</li><li>Agree on creative, labeling, and destination URL</li><li>Confirm the CPC rate, click cap, validation, reporting, and refund terms</li><li>Send a PayPal invoice only after written approval</li>"
+            : "<li>Review product and audience relevance</li><li>Confirm available placement and dates</li><li>Agree on creative, labeling, and destination URL</li><li>Accept written renewal and cancellation terms</li><li>Use the private approval-scoped PayPal subscription link issued to the approved recipient</li>"
             : "<li>Validate required fields</li><li>Save or route the lead</li><li>Trigger analytics events</li><li>Prepare for CRM integration</li><li>Generate a lead summary when enough detail is provided</li>"}</ul>
         </article>
       </div>
@@ -5558,7 +5576,9 @@ function renderContactPage(env, requestUrl = null) {
           <p class="card-kicker">${isSponsorApplication ? "Sponsor review" : "Internal notification"}</p>
           <strong>${isSponsorApplication ? "Applications are reviewed before billing." : "New GPTMarketPlus lead received."}</strong>
           <p>${isSponsorApplication
-            ? "No traffic volume is guaranteed. CPC campaign funds are earned only as server-validated clicks are delivered; approved placements remain clearly labeled and separate from editorial content."
+            ? requestedSponsorPlan.mode === "invoice"
+              ? "No traffic volume is guaranteed. CPC campaign funds are earned only as server-validated clicks are delivered; approved placements remain clearly labeled and separate from editorial content."
+              : "No charge is created on submission. Public subscription checkout remains unavailable; recurring billing requires written approval and a private approval-scoped PayPal link."
             : "Review business type, automation request, budget, and timeline. Respond within 15 minutes if possible."}</p>
       </div>
     </section>
@@ -5835,7 +5855,7 @@ async function captureLead(env, ctx, body, options = {}) {
   const businessType = cleanText(body.businessType || body.business_type || "", 120);
   const painPoint = cleanText(body.whatDoYouWantToAutomate || body.painPoint || body.mainProblem || "", 300);
   const desiredAutomation = cleanText(body.whatDoYouWantToAutomate || body.desiredAutomation || painPoint, 300);
-  const packageName = packageBySignals({
+  const packageName = cleanText(options.packageName || "", 120) || packageBySignals({
     businessType,
     painPoint,
     desiredAutomation,
@@ -11008,6 +11028,28 @@ export async function handleAgentIdSiteRequest(request, env, ctx) {
     privatePage ? PRIVATE_HTML_HEADERS : {},
   );
 
+  if (method === "GET" && ["/advertise", "/sponsor", "/ad-network"].includes(path)) {
+    const requestedPackageId = cleanText(url.searchParams.get("package") || "", 80);
+    const requestedPlan = SPONSOR_SUBSCRIPTIONS.find((plan) => plan.id === requestedPackageId);
+    if (requestedPlan) {
+      const destination = new URL("/contact", `${siteUrl(env)}/`);
+      destination.searchParams.set("intent", "sponsor");
+      destination.searchParams.set("package", requestedPlan.id);
+      for (const parameter of ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "source"]) {
+        const value = cleanText(url.searchParams.get(parameter) || "", 160);
+        if (value) destination.searchParams.set(parameter, value);
+      }
+      return new Response(null, {
+        status: 302,
+        headers: {
+          location: destination.toString(),
+          "cache-control": "private, no-store",
+          "x-robots-tag": "noindex,nofollow",
+        },
+      });
+    }
+  }
+
   if (path === "/styles.css") {
     return new Response(STYLES, { headers: CSS_HEADERS });
   }
@@ -11702,6 +11744,10 @@ async function handleContactSubmission(request, env, ctx) {
   }
 
   const isSponsorApplication = cleanText(body.applicationType || "", 40).toLowerCase() === "sponsor";
+  const requestedSponsorPlanId = cleanText(body.requestedPackageId || "", 80);
+  const requestedSponsorPlan = isSponsorApplication
+    ? SPONSOR_SUBSCRIPTIONS.find((plan) => plan.id === requestedSponsorPlanId) || null
+    : null;
   const result = await captureLead(env, ctx, body, {
     request,
     submissionType: "contact",
@@ -11727,6 +11773,7 @@ async function handleContactSubmission(request, env, ctx) {
     trackEvent: isSponsorApplication ? "sponsor_application_submit" : "contact_submit",
     quoteRequested: true,
     crmStage: isSponsorApplication ? "sponsor_application" : "qualified",
+    packageName: requestedSponsorPlan?.id || "",
     nextStep: isSponsorApplication
       ? null
       : {
