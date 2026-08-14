@@ -4633,10 +4633,15 @@ function renderLaunchKitPage(env, requestUrl = null) {
   const body = `
     <section class="page-hero split-section">
       <div>
-        ${renderPageTitle("AI Agent Launch Kit · $29 one-time", "Build a usable AI agent starter system", product.summary)}
+        ${renderPageTitle("AI Agent Launch Kit · $29 one-time", "Plan your first AI workflow in a private $29 workspace", "Answer guided questions about one real business bottleneck, then copy or download a practical starter pack: your launch setup brief, workflow map, starter prompt, intake and handoff plan, follow-up messages, QA checklist, and 30-day scorecard. This purchase gives you the planning workspace and starter materials—not an already deployed AI agent.")}
         ${paymentNotice}
-        <div class="cta-row">${checkout}<a class="button-secondary" href="${escapeHtml(checklistUrl)}" data-track-event="lead_magnet_view" data-track-label="Launch Kit Free Checklist">Get the free workflow checklist first</a><a class="button-secondary" href="/resources" data-track-event="resource_click" data-track-label="Launch Kit Free Guides">Read the free guides</a></div>
-        <p class="trust-line">One-time PayPal payment; no subscription. Your private workspace opens after PayPal confirms the completed capture, and you can download the generated starter pack. Buying the kit does not create an implementation contract; installation, integrations, and ongoing support require a separate written scope. <a href="/refund-policy">Review the refund policy.</a> No revenue or performance guarantees.</p>
+        <div class="side-note launch-kit-scope">
+          <p class="card-kicker">Included / Not included</p>
+          <p><strong>Included:</strong> the private guided workspace and downloadable starter pack for one first workflow.</p>
+          <p><strong>Not included:</strong> website installation, credentials, CRM or calendar connections, custom integrations, production testing, ongoing support, or a deployed AI agent. Those services require a separate written scope.</p>
+        </div>
+        <div class="cta-row">${checkout}<a class="button-secondary" href="#launch-kit-sample">See the sample starter pack</a></div>
+        <p class="trust-line">One-time PayPal payment; no subscription. Your private workspace opens after PayPal confirms the completed capture. Buying the kit does not create an implementation contract; custom work remains separately scoped. <a href="/refund-policy">Review the refund policy.</a> No revenue or performance guarantees.</p>
       </div>
       <div class="kit-preview">
         <p class="card-kicker">AI Agent Launch Kit</p>
@@ -4674,6 +4679,10 @@ function renderLaunchKitPage(env, requestUrl = null) {
         { kicker: "QA", title: "Test before launch", description: "Use the generated test checklist for normal requests, uncertainty, sensitive topics, failures, and human takeover." },
         { kicker: "Measurement", title: "Prove whether it helps", description: "Track response time, workflow completion, qualified handoffs, bookings, errors, opt-outs, and operating cost for 30 days." },
       ])}
+    </section>
+    <section class="section launch-kit-free-resources">
+      ${renderSectionTitle("Free planning resources", "Prefer to start with a free checklist or guide?", "Use these free materials to explore your first workflow before you purchase the private Launch Kit workspace.")}
+      <div class="cta-row"><a class="button-secondary" href="${escapeHtml(checklistUrl)}" data-track-event="lead_magnet_view" data-track-label="Launch Kit Free Checklist">Get the free workflow checklist</a><a class="button-secondary" href="/resources" data-track-event="resource_click" data-track-label="Launch Kit Free Guides">Read the free guides</a></div>
     </section>
     ${renderLaunchKitSamplePreview()}
     <section class="section launch-kit-faq">
@@ -4780,7 +4789,7 @@ Wrong answers or misroutes: ____   Opt-outs or complaints: ____   Hours saved: _
   ];
   const scenarioJson = JSON.stringify(scenarioPreview).replace(/</g, "\\u003c");
   const initialScenario = scenarioPreview[0];
-  return `<section class="section launch-kit-sample">
+  return `<section class="section launch-kit-sample" id="launch-kit-sample">
       ${renderSectionTitle("Illustrative sample", "See the deliverable before you buy", "This fictional example shows the structure of the starter pack. Your private workspace replaces the placeholders with your business details after verified PayPal capture.")}
       <div class="scenario-preview" aria-labelledby="launch-kit-scenario-heading">
         <p class="card-kicker" id="launch-kit-scenario-heading">Choose a starting workflow</p>
@@ -5667,6 +5676,12 @@ function renderLeadMagnetDelivery(env) {
 }
 
 function renderLeadMagnetPage(env) {
+  const directLaunchKitUrl = campaignUrl(env, "/ai-agent-launch-kit", {
+    source: "lead_magnet",
+    medium: "owned",
+    campaign: "agentid_lead_magnet",
+    content: "direct_launch_kit",
+  });
   const form = renderLeadForm({
     action: "/api/lead-magnet",
     formId: "lead-magnet-form",
@@ -5706,6 +5721,9 @@ function renderLeadMagnetPage(env) {
       </div>
       <div class="side-note">
         <p class="card-kicker">After submit</p>
+        <p class="card-kicker">Already know what you need?</p>
+        <p>Skip the checklist form and open the private $29 Launch Kit workspace path.</p>
+        <a class="button-secondary" href="${escapeHtml(directLaunchKitUrl)}" data-track-event="product_view" data-track-label="Lead Magnet Direct Launch Kit CTA">Open the $29 Launch Kit</a>
         <p>Your checklist appears immediately. We’ll also prepare consent-aware follow-up and show the $29 Launch Kit as the self-serve next step.</p>
       </div>
     </section>
@@ -6761,6 +6779,14 @@ async function loadAttributionHealth(env, requestedDays = 7) {
         COUNT(DISTINCT NULLIF(session_id, '')) AS sessions,
         SUM(CASE WHEN event_name = 'chat_open' THEN 1 ELSE 0 END) AS chat_opens,
         SUM(CASE WHEN event_name = 'generate_lead' THEN 1 ELSE 0 END) AS lead_events,
+        SUM(CASE WHEN event_name = 'view_item' THEN 1 ELSE 0 END) AS product_views,
+        SUM(CASE WHEN event_name = 'checkout_click' THEN 1 ELSE 0 END) AS checkout_clicks,
+        SUM(CASE WHEN event_name = 'begin_checkout' THEN 1 ELSE 0 END) AS checkout_starts,
+        SUM(CASE WHEN event_name = 'purchase'
+          AND id LIKE 'paypal:capture:%'
+          AND json_extract(properties_json, '$.provider_verified') = 1
+          AND json_extract(properties_json, '$.capture_verified') = 1
+          THEN 1 ELSE 0 END) AS purchases,
         MAX(created_at) AS latest_seen_at
        FROM agentid_events
        WHERE datetime(created_at) >= datetime('now', ?)
@@ -11554,6 +11580,10 @@ async function renderAdminDashboardPage(env, request) {
         { label: "Events", value: (row) => row.events || 0 },
         { label: "Chat opens", value: (row) => row.chat_opens || 0 },
         { label: "Lead events", value: (row) => row.lead_events || 0 },
+        { label: "Product views", value: (row) => row.product_views || 0 },
+        { label: "Checkout clicks", value: (row) => row.checkout_clicks || 0 },
+        { label: "Checkout starts", value: (row) => row.checkout_starts || 0 },
+        { label: "Verified purchases", value: (row) => row.purchases || 0 },
       ]) : `<div class="review-panel"><p>No attribution events are available yet.</p></div>`}
     </section>
 

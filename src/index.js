@@ -2688,7 +2688,7 @@ async function verifyPaypalOrderAccess(request, env, expectedProductId, credenti
 async function handlePaypalDigitalProductDownload(request, env) {
   const access = await verifyPaypalOrderAccess(request, env, "ai_agent_launch_kit");
   if (!access.ok) {
-    return jsonResponse({ ok: false, error: access.error }, access.status);
+    return privateJsonResponse({ ok: false, error: access.error }, access.status);
   }
   return privateTextResponse(renderLaunchKitMarkdown(), 200, {
     "content-type": "text/markdown; charset=utf-8",
@@ -2992,6 +2992,20 @@ function privateTextResponse(text, status = 200, headers = {}) {
   });
   responseHeaders.set("referrer-policy", "no-referrer");
   return new Response(text, {
+    status,
+    headers: responseHeaders,
+  });
+}
+
+function privateJsonResponse(data, status = 200, headers = {}) {
+  const responseHeaders = withSecurityHeaders({
+    ...JSON_HEADERS,
+    "cache-control": "private, no-store",
+    "x-robots-tag": "noindex,nofollow,noarchive",
+    ...headers,
+  });
+  responseHeaders.set("referrer-policy", "no-referrer");
+  return new Response(JSON.stringify(data), {
     status,
     headers: responseHeaders,
   });

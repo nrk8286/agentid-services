@@ -1013,6 +1013,17 @@ for (const requiredIntentAttributionControl of [
     failures.push(`buyer-intent attribution is missing ${requiredIntentAttributionControl}`);
   }
 }
+
+for (const requiredPrivateDownloadControl of [
+  'function privateJsonResponse(data, status = 200, headers = {})',
+  'return privateJsonResponse({ ok: false, error: access.error }, access.status);',
+  '"x-robots-tag": "noindex,nofollow,noarchive"',
+  'responseHeaders.set("referrer-policy", "no-referrer");',
+]) {
+  if (!workerSource.includes(requiredPrivateDownloadControl)) {
+    failures.push(`private digital download protection is missing ${requiredPrivateDownloadControl}`);
+  }
+}
 for (const requiredAcquisitionRoutingControl of [
   'primaryCta: utmCampaignUrl(env, "/ai-agent-launch-kit"',
   'consultationCta: utmCampaignUrl(env, "/book-a-consultation"',
