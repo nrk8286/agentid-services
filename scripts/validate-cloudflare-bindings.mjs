@@ -704,6 +704,10 @@ for (const requiredHomeCta of [
   'href="/book-a-consultation?source=homepage"',
   'href="/ai-agent-launch-kit"',
   "Get the $29 Launch Kit",
+  'href="/ai-agent-launch-kit?source=homepage-product-bridge"',
+  "Get one usable AI workflow for $29",
+  "Set the launch boundary.",
+  "Installation, credentials, integrations, production testing, and ongoing support require a separate written scope.",
   'href="/ai-agent-launch-kit?source=opportunity-scanner"',
   'data-track-label="Scanner Launch Kit CTA"',
 ]) {

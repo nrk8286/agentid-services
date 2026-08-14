@@ -3850,6 +3850,26 @@ function renderHomePage(env, state) {
       <span>Automated delivery</span>
     </div>
 
+    ${!agentIdSite ? `
+    <section class="section split-section home-launch-kit-bridge">
+      <div>
+        ${renderSectionTitle("Start smaller", "Get one usable AI workflow for $29", "The Launch Kit is the primary self-serve path: answer the guided questions, receive a private workspace after verified PayPal capture, and leave with materials you can use or hand to an implementation partner.")}
+        <ol class="benefit-list compact">
+          <li><strong>Choose one bottleneck.</strong> Capture leads, answer approved questions, recover missed inquiries, or move one workflow toward booking.</li>
+          <li><strong>Set the launch boundary.</strong> Record the channel, owner, baseline, success measure, consent rules, and human handoff before connecting tools.</li>
+          <li><strong>Test before expanding.</strong> Use the generated starter prompt, scenario QA, follow-up messages, and 30-day scorecard with real operating data.</li>
+        </ol>
+      </div>
+      <div class="cta-box">
+        <p class="card-kicker">One-time product</p>
+        <strong>$29 AI Agent Launch Kit</strong>
+        <p>Private workspace, launch setup brief, tailored prompt, intake and consent fields, handoff rules, follow-up, QA, and scorecard.</p>
+        <a class="button-primary" href="/ai-agent-launch-kit?source=homepage-product-bridge" data-track-event="product_view" data-track-label="Homepage Product Bridge Launch Kit">Build my first workflow for $29</a>
+        <a class="button-secondary" href="/book-a-consultation?source=homepage-product-bridge-consultation" data-track-event="cta_click" data-track-label="Homepage Product Bridge Consultation">Need implementation? Request scope</a>
+        <p class="form-note">Installation, credentials, integrations, production testing, and ongoing support require a separate written scope.</p>
+      </div>
+    </section>` : ""}
+
     ${renderOpportunityScannerBootstrap()}
 
     ${agentIdSite ? `
