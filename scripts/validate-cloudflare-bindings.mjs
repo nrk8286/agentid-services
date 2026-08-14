@@ -213,11 +213,17 @@ for (const requiredChatCtaControl of [
 }
 for (const requiredBookingHonestyControl of [
   "const hasDirectBooking = Boolean(calendarEmbedUrl(env) || bookingUrl(env))",
+  "const hasEmbeddedBooking = Boolean(calendarEmbedUrl(env))",
+  "const hasExternalBooking = hasDirectBooking && !hasEmbeddedBooking",
+  "const availabilityHandoff = !hasEmbeddedBooking",
   "Request My Free AI Strategy Call",
-  "const bookingHeading = hasDirectBooking",
+  "const bookingHeading = hasEmbeddedBooking",
   "href=\"/book-a-consultation?package=${encodeURIComponent(tier.id)}&amp;source=pricing-custom\"",
   "const requestedTier = PRICING_TIERS.find((tier) => tier.id === requestedPackageId)",
   "requested_package:${cleanText(body.requestedPackageId, 80)}",
+  "preferredMeetingWindows",
+  "meetingTimezone",
+  "availabilityProvided: Boolean(preferredMeetingWindows && meetingTimezone)",
   "before any custom-service payment is requested",
 ]) {
   if (!siteSource.includes(requiredBookingHonestyControl)) {
@@ -1355,6 +1361,75 @@ const agentIdAdsResponse = await handleAgentIdSiteRequest(
 const agentIdAdsBody = await agentIdAdsResponse.text();
 if (agentIdAdsBody.includes("google.com, pub-") || !agentIdAdsBody.includes("not active on this host")) {
   failures.push("agentid.services ads.txt must not authorize the GPTMarketPlus AdSense publisher");
+}
+
+const calendarlessConsultationResponse = await handleAgentIdSiteRequest(
+  new Request("https://gptmarketplus.com/book-a-consultation"),
+  { ...agentIdEnv, SITE_URL: "https://gptmarketplus.com", BRAND_NAME: "GPTMarketPlus" },
+  { waitUntil() {} },
+);
+const calendarlessConsultationBody = await calendarlessConsultationResponse.text();
+for (const requiredCalendarlessControl of [
+  'name="preferredMeetingWindows"',
+  'name="meetingTimezone"',
+  "This request does not book a meeting automatically",
+]) {
+  if (!calendarlessConsultationBody.includes(requiredCalendarlessControl)) {
+    failures.push(`calendar-less consultation path is missing ${requiredCalendarlessControl}`);
+  }
+}
+
+const externalBookingResponse = await handleAgentIdSiteRequest(
+  new Request("https://gptmarketplus.com/book-a-consultation"),
+  { ...agentIdEnv, SITE_URL: "https://gptmarketplus.com", BRAND_NAME: "GPTMarketPlus", BOOKING_URL: "https://calendar.example.test/book" },
+  { waitUntil() {} },
+);
+const externalBookingBody = await externalBookingResponse.text();
+for (const requiredExternalBookingControl of [
+  'name="preferredMeetingWindows"',
+  'name="meetingTimezone"',
+  "Use the external calendar link",
+  "Request My Free AI Strategy Call",
+]) {
+  if (!externalBookingBody.includes(requiredExternalBookingControl)) {
+    failures.push(`external booking path is missing ${requiredExternalBookingControl}`);
+  }
+}
+
+const embeddedBookingResponse = await handleAgentIdSiteRequest(
+  new Request("https://gptmarketplus.com/book-a-consultation"),
+  { ...agentIdEnv, SITE_URL: "https://gptmarketplus.com", BRAND_NAME: "GPTMarketPlus", CALENDAR_EMBED_URL: "https://calendar.example.test/embed" },
+  { waitUntil() {} },
+);
+const embeddedBookingBody = await embeddedBookingResponse.text();
+if (embeddedBookingBody.includes('name="preferredMeetingWindows"') || embeddedBookingBody.includes('name="meetingTimezone"') || !embeddedBookingBody.includes("Book My Free AI Strategy Call")) {
+  failures.push("embedded calendar path must omit fallback availability fields and retain the booking CTA");
+}
+
+const invalidConsultationResponse = await handleAgentIdSiteRequest(
+  new Request("https://gptmarketplus.com/api/book-consultation", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      name: "Validation example",
+      email: "not-an-email",
+      businessName: "Validation example",
+      businessType: "Other",
+      whatDoYouWantToAutomate: "A workflow",
+      budgetRange: "$500-$1,500",
+      timeline: "This month",
+      preferredContactMethod: "Email",
+      preferredMeetingWindows: "Tuesday morning",
+      meetingTimezone: "Central Time",
+      contactConsent: false,
+    }),
+  }),
+  { ...agentIdEnv, SITE_URL: "https://gptmarketplus.com", BRAND_NAME: "GPTMarketPlus" },
+  { waitUntil() {} },
+);
+const invalidConsultationResult = await invalidConsultationResponse.json();
+if (invalidConsultationResponse.status !== 400 || !String(invalidConsultationResult.error || "").includes("email") || !String(invalidConsultationResult.error || "").includes("contactConsent")) {
+  failures.push("consultation validation must reject malformed email and unchecked consent before persistence");
 }
 
 const adsMeasurementResponse = await handleAgentIdSiteRequest(

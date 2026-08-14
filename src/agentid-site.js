@@ -2229,6 +2229,8 @@ async function dbUpsertLead(env, lead) {
     timeline: cleanText(lead.timeline || "", 80),
     preferred_contact_method: cleanText(lead.preferred_contact_method || "", 80),
     best_time_to_contact: cleanText(lead.best_time_to_contact || "", 80),
+    preferred_meeting_windows: cleanText(lead.preferred_meeting_windows || "", 500),
+    meeting_timezone: cleanText(lead.meeting_timezone || "", 100),
     transcript_summary: cleanText(lead.transcript_summary || "", 1000),
     full_transcript: cleanText(lead.full_transcript || "", 12000),
     next_action: cleanText(lead.next_action || "", 300),
@@ -2250,14 +2252,14 @@ async function dbUpsertLead(env, lead) {
       id, created_at, updated_at, source_page, conversation_id, crm_stage, lead_status, lead_score,
       name, email, phone, business_name, website, business_type, pain_point, desired_automation,
       automation_theme, current_tools, common_objection, recommended_agent_type, recommended_package,
-      budget_range, timeline, preferred_contact_method, best_time_to_contact, transcript_summary,
+      budget_range, timeline, preferred_contact_method, best_time_to_contact, preferred_meeting_windows, meeting_timezone, transcript_summary,
       full_transcript, next_action, assigned_to, follow_up_status, contact_consent, marketing_consent,
       booked_call, quote_requested, purchase_intent, purchase_id, onboarding_id, dashboard_token, notes
     ) VALUES (
       ?,?,?,?,?,?,?,?,?,?,
       ?,?,?,?,?,?,?,?,?,?,
       ?,?,?,?,?,?,?,?,?,?,
-      ?,?,?,?,?,?,?,?,?
+      ?,?,?,?,?,?,?,?,?,?,?
     )
     ON CONFLICT(id) DO UPDATE SET
       updated_at=excluded.updated_at,
@@ -2283,6 +2285,8 @@ async function dbUpsertLead(env, lead) {
       timeline=excluded.timeline,
       preferred_contact_method=excluded.preferred_contact_method,
       best_time_to_contact=excluded.best_time_to_contact,
+      preferred_meeting_windows=excluded.preferred_meeting_windows,
+      meeting_timezone=excluded.meeting_timezone,
       transcript_summary=excluded.transcript_summary,
       full_transcript=excluded.full_transcript,
       next_action=excluded.next_action,
@@ -2324,6 +2328,8 @@ async function dbUpsertLead(env, lead) {
     payload.timeline || null,
     payload.preferred_contact_method || null,
     payload.best_time_to_contact || null,
+    payload.preferred_meeting_windows || null,
+    payload.meeting_timezone || null,
     payload.transcript_summary || null,
     payload.full_transcript || null,
     payload.next_action || null,
@@ -3299,6 +3305,8 @@ function buildOwnerLeadEmail(lead) {
     `Pain point: ${lead.pain_point || ""}`,
     `Budget: ${lead.budget_range || ""}`,
     `Timeline: ${lead.timeline || ""}`,
+    `Preferred meeting windows: ${lead.preferred_meeting_windows || ""}`,
+    `Meeting time zone: ${lead.meeting_timezone || ""}`,
     `Recommended package: ${lead.recommended_package || ""}`,
     `Lead score: ${lead.lead_score || 0}`,
     `Conversation summary: ${lead.transcript_summary || ""}`,
@@ -3315,6 +3323,8 @@ function buildOwnerLeadEmail(lead) {
       <p><strong>Pain point:</strong> ${escapeHtml(lead.pain_point || "")}</p>
       <p><strong>Budget:</strong> ${escapeHtml(lead.budget_range || "")}</p>
       <p><strong>Timeline:</strong> ${escapeHtml(lead.timeline || "")}</p>
+      <p><strong>Preferred meeting windows:</strong> ${escapeHtml(lead.preferred_meeting_windows || "")}</p>
+      <p><strong>Meeting time zone:</strong> ${escapeHtml(lead.meeting_timezone || "")}</p>
       <p><strong>Recommended package:</strong> ${escapeHtml(lead.recommended_package || "")}</p>
       <p><strong>Lead score:</strong> ${escapeHtml(String(lead.lead_score || 0))}</p>
       <p><strong>Conversation summary:</strong> ${escapeHtml(lead.transcript_summary || "")}</p>
@@ -5465,7 +5475,7 @@ function renderPrivacyPage(env) {
       ${renderPageTitle("Privacy Policy", "How we handle information", "We keep the policy practical and aligned with the data we actually collect.")}
     </section>
     <section class="section legal-copy">
-      <p>We collect contact information, business information, form responses, chat transcripts, and onboarding details that you submit to design and deliver your AI agent system.</p>
+      <p>We collect contact information, business information, form responses (including scheduling preferences when you provide them), chat transcripts, and onboarding details that you submit to design and deliver your AI agent system.</p>
       <p>We use the information to respond to inquiries, create proposals, build workflows, provide support, and improve the service experience.</p>
       <p>We do not promise HIPAA, legal, financial, or regulatory compliance unless the system is actually implemented for that purpose.</p>
       <p>You should not submit protected health information, sensitive legal information, or regulated data unless the final system is designed for that purpose and the compliance setup is in place.</p>
@@ -5667,22 +5677,27 @@ function renderContactPage(env, requestUrl = null) {
 
 function renderBookingPage(env, requestUrl = null) {
   const hasDirectBooking = Boolean(calendarEmbedUrl(env) || bookingUrl(env));
+  const hasEmbeddedBooking = Boolean(calendarEmbedUrl(env));
+  const hasExternalBooking = hasDirectBooking && !hasEmbeddedBooking;
+  const availabilityHandoff = !hasEmbeddedBooking;
   const requestedPackageId = cleanText(requestUrl?.searchParams?.get("package") || "", 80);
   const requestedTier = PRICING_TIERS.find((tier) => tier.id === requestedPackageId) || null;
   const requestedPackageLabel = requestedTier ? ` for ${requestedTier.name}` : "";
-  const bookingCta = hasDirectBooking ? "Book My Free AI Strategy Call" : "Request My Free AI Strategy Call";
-  const bookingHeading = hasDirectBooking ? `Book a Free AI Strategy Call${requestedPackageLabel}` : `Request a Free AI Strategy Call${requestedPackageLabel}`;
-  const bookingDescription = hasDirectBooking
+  const bookingCta = hasEmbeddedBooking ? "Book My Free AI Strategy Call" : "Request My Free AI Strategy Call";
+  const bookingHeading = hasEmbeddedBooking ? `Book a Free AI Strategy Call${requestedPackageLabel}` : `Request a Free AI Strategy Call${requestedPackageLabel}`;
+  const bookingDescription = hasEmbeddedBooking
     ? "We’ll look at your business, identify what can be automated, and recommend the best AI agent setup."
-    : "Tell us what you want to automate and we’ll follow up to confirm a call time and recommend the best AI agent setup.";
-  const bookingEmbed = calendarEmbedUrl(env)
+    : hasExternalBooking
+      ? "Choose a time with the external calendar, or share your preferred windows so we can follow up with the best AI agent setup."
+      : "Tell us what you want to automate and we’ll follow up to confirm a call time and recommend the best AI agent setup.";
+  const bookingEmbed = hasEmbeddedBooking
     ? `<iframe class="calendar-embed" src="${escapeHtml(calendarEmbedUrl(env))}" title="Booking calendar" loading="lazy"></iframe>`
     : `
       <div class="calendar-placeholder">
-        <p class="form-note">This request does not book a meeting automatically. We will reply to confirm a time that works for you.</p>
+        <p class="form-note">${hasExternalBooking ? "Use the external calendar link to choose a time, or submit this form with 2–3 preferred meeting windows and your time zone." : "This request does not book a meeting automatically. We will reply to confirm a time that works for you."}</p>
         <p class="card-kicker">Flexible scheduling</p>
         <strong>Tell us about the workflow you want to improve.</strong>
-        <p>Submit the short form and we’ll follow up to confirm a call time that works for you.</p>
+        <p>${hasExternalBooking ? "If you use the form instead of choosing a slot, include 2–3 preferred meeting windows and your time zone so we can reply with a concrete option." : "Submit the short form with 2–3 preferred meeting windows and your time zone so we can reply with a concrete option."}</p>
         ${bookingUrl(env) ? `<a class="button-primary" href="${escapeHtml(bookingUrl(env))}" target="_blank" rel="noopener">See available times</a>` : `<a class="button-secondary" href="/contact">Request a written AI agent plan instead</a>`}
       </div>`;
 
@@ -5703,6 +5718,10 @@ function renderBookingPage(env, requestUrl = null) {
       { name: "timeline", label: "Timeline", type: "select", required: true, options: ["Immediately", "This week", "This month", "Just researching"] },
       { name: "preferredContactMethod", label: "Preferred contact method", type: "select", required: true, options: ["Email", "Phone", "Text"] },
       { name: "bestTimeToContact", label: "Best time to contact", placeholder: "Morning, afternoon, or evening", required: false },
+      ...(availabilityHandoff ? [
+        { name: "preferredMeetingWindows", label: "Preferred meeting windows", type: "textarea", rows: 3, placeholder: "Give 2–3 options, such as Tue 10–11 a.m. or Wed 2–4 p.m.", required: true },
+        { name: "meetingTimezone", label: "Meeting time zone", placeholder: "For example, Central Time (UTC-5)", required: true },
+      ] : []),
       { name: "contactConsent", label: "I agree to be contacted about this strategy call.", type: "checkbox", required: true },
       { name: "requestedPackageId", type: "hidden", value: requestedTier?.id || "" },
     ],
@@ -5835,7 +5854,12 @@ function renderLeadMagnetPage(env) {
 function validateRequiredFields(body, fields) {
   const missing = [];
   for (const field of fields) {
-    if (typeof body[field] === "undefined" || String(body[field] || "").trim() === "") {
+    const value = body[field];
+    const isConsentField = /Consent$/.test(field);
+    const isChecked = value === true || value === "1" || value === 1;
+    const hasValue = typeof value !== "undefined" && String(value || "").trim() !== "";
+    const hasValidEmail = field !== "email" || Boolean(cleanEmail(value));
+    if ((isConsentField && !isChecked) || (!isConsentField && (!hasValue || !hasValidEmail))) {
       missing.push(field);
     }
   }
@@ -5926,6 +5950,8 @@ async function captureLead(env, ctx, body, options = {}) {
   const businessType = cleanText(body.businessType || body.business_type || "", 120);
   const painPoint = cleanText(body.whatDoYouWantToAutomate || body.painPoint || body.mainProblem || "", 300);
   const desiredAutomation = cleanText(body.whatDoYouWantToAutomate || body.desiredAutomation || painPoint, 300);
+  const preferredMeetingWindows = cleanText(body.preferredMeetingWindows || "", 500);
+  const meetingTimezone = cleanText(body.meetingTimezone || "", 100);
   const packageName = cleanText(options.packageName || "", 120) || packageBySignals({
     businessType,
     painPoint,
@@ -5974,6 +6000,8 @@ async function captureLead(env, ctx, body, options = {}) {
     timeline: cleanText(body.timeline || "", 80),
     preferred_contact_method: cleanText(body.preferredContactMethod || "email", 80),
     best_time_to_contact: cleanText(body.bestTimeToContact || "", 80),
+    preferred_meeting_windows: preferredMeetingWindows,
+    meeting_timezone: meetingTimezone,
     transcript_summary: buildLeadSummary({
       leadTag,
       businessType,
@@ -6029,6 +6057,7 @@ async function captureLead(env, ctx, body, options = {}) {
       agentType: agentRecommendation.agentType,
       requestedPackageId: cleanText(body.requestedPackageId || "", 80),
       requestedBuildId: cleanText(body.requestedBuildId || "", 120),
+      availabilityProvided: Boolean(preferredMeetingWindows && meetingTimezone),
       submissionType,
     },
     user_agent: options.request?.headers?.get?.("user-agent") || "",
@@ -12468,6 +12497,8 @@ async function renderAdminDashboardPage(env, request) {
         { label: "Package", value: (row) => row.recommended_package || "" },
         { label: "Score", value: (row) => row.lead_score ?? "" },
         { label: "Contact", value: (row) => row.email || row.phone || "" },
+        { label: "Meeting windows", value: (row) => row.preferred_meeting_windows || "" },
+        { label: "Time zone", value: (row) => row.meeting_timezone || "" },
         { label: "Next action", value: (row) => row.next_action || "" },
       ]) : `<div class="review-panel"><p>No leads have been captured yet.</p></div>`}
     </section>
@@ -12598,22 +12629,29 @@ async function handleBookingSubmission(request, env, ctx) {
     return jsonResponse({ ok: false, error: "Invalid JSON." }, 400);
   }
 
+  const hasEmbeddedBooking = Boolean(calendarEmbedUrl(env));
+  const requiredFields = [
+    "name",
+    "email",
+    "businessName",
+    "businessType",
+    "whatDoYouWantToAutomate",
+    "budgetRange",
+    "timeline",
+    "preferredContactMethod",
+    "contactConsent",
+  ];
+  if (!hasEmbeddedBooking) requiredFields.push("preferredMeetingWindows", "meetingTimezone");
+  const calendarlessBookingMessage = "This form does not book a meeting automatically; we will use your preferred windows and time zone to reply with a concrete time.";
+
   const result = await captureLead(env, ctx, body, {
     request,
     submissionType: "booking",
     sourcePage: body.sourcePage || new URL(request.url).pathname,
-    requiredFields: [
-      "name",
-      "email",
-      "businessName",
-      "businessType",
-      "whatDoYouWantToAutomate",
-      "budgetRange",
-      "timeline",
-      "preferredContactMethod",
-      "contactConsent",
-    ],
-    message: "Your free AI strategy call request is in. This form does not book a meeting automatically; we will reply to confirm a time.",
+    requiredFields,
+    message: hasEmbeddedBooking
+      ? "Your free AI strategy call request is in. Use the calendar above if you want to choose a slot now; otherwise we will reply to confirm a time."
+      : `Your free AI strategy call request is in. ${calendarlessBookingMessage}`,
     trackEvent: "booking_submit",
     bookedCall: true,
     crmStage: "strategy_call_booked",
