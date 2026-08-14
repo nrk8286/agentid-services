@@ -77,7 +77,7 @@ const MAX_JSON_BODY_BYTES = 128 * 1024;
 const BODY_TOO_LARGE = Symbol("body-too-large");
 const CANONICAL_HOST = "gptmarketplus.com";
 // Bump this whenever public HTML or public metadata changes so a deployment does not serve stale sales copy.
-const PUBLIC_CACHE_KEY_VERSION = "2026-08-14-search-snippet-v1";
+const PUBLIC_CACHE_KEY_VERSION = "2026-08-14-launch-kit-execution-v1";
 const VERIFIED_REVENUE_GOAL_CENTS = 1_000_000;
 const LEGACY_TLS_VERSIONS = new Set(["TLSv1", "TLSv1.0", "TLSv1.1"]);
 const DOMAIN_CAMPAIGN_REDIRECTS = new Map([
