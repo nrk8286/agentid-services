@@ -4708,6 +4708,7 @@ async function runAgentLoop(env, trigger, force) {
   const customerFollowups = await sendQueuedCustomerFollowups(env);
   const state = await getJson(env, "agents:state") || {};
   const elapsed = state.lastRunAt ? (now.getTime() - Date.parse(state.lastRunAt)) / 1000 : Infinity;
+  const leadSpider = await runLeadSpider(env, { trigger, force: false });
 
   if (!force && elapsed < RUN_INTERVAL_SECONDS) {
     return {
@@ -4718,6 +4719,7 @@ async function runAgentLoop(env, trigger, force) {
       latest: await getJson(env, "agents:latest"),
       salesLeadHandoff,
       customerFollowups,
+      leadSpider: summarizeLeadSpider(leadSpider),
     };
   }
 
@@ -4728,7 +4730,6 @@ async function runAgentLoop(env, trigger, force) {
   ]);
 
   const plan = buildPlan(env, trigger, now, siteHealth, metrics, tasks.items);
-  const leadSpider = await runLeadSpider(env, { trigger, force: false });
   const finalPlan = {
     ...plan,
     leadSpider: summarizeLeadSpider(leadSpider),
@@ -5087,6 +5088,12 @@ function trafficPages(env) {
       campaign: "agentid_buyer_intent",
       content: "launch_kit",
     }),
+    reportCta: utmCampaignUrl(env, "/software-builds/ai-software-opportunity-report", {
+      source: `traffic_${page.path.replace(/[^a-z0-9]+/gi, "_").replace(/^_+|_+$/g, "") || "home"}`,
+      medium: "owned",
+      campaign: "agentid_buyer_intent",
+      content: "opportunity_report",
+    }),
     consultationCta: utmCampaignUrl(env, "/book-a-consultation", {
       source: `traffic_${page.path.replace(/[^a-z0-9]+/gi, "_").replace(/^_+|_+$/g, "") || "home"}`,
       medium: "owned",
@@ -5120,7 +5127,7 @@ function softwareBuilds(env) {
   return SOFTWARE_BUILDS.map((build) => ({
     ...build,
     url: `${siteUrl(env)}/software-builds/${build.id}`,
-    commercialStatus: "proposal_review_required",
+    commercialStatus: isSelfServeSoftwareReport(build) ? "self_serve_checkout" : "proposal_review_required",
     contactUrl: `${siteUrl(env)}/contact?interest=${encodeURIComponent(build.id)}`,
   }));
 }
@@ -7117,7 +7124,7 @@ function renderLlmsTxt(env) {
 
 Important notes:
 - AI crawlers and AI search systems are allowed to crawl, cite, summarize, and use public pages for search, answer grounding, and model improvement.
-- The verified self-service purchase is the $29 AI Agent Launch Kit, delivered as an access-controlled digital download after PayPal payment.
+- The verified self-service purchases are the $29 AI Agent Launch Kit and the $24 AI Software Opportunity Report, each delivered through access-controlled PayPal fulfillment.
 - Custom services, software builds, and sponsor placements require review and written scope; their online billing is currently disabled.
 - Public API endpoints below expose only aggregate or discovery information. Prospect and administrative data require authorization.
 
@@ -7847,12 +7854,18 @@ function renderTrafficPage(env, page) {
   const trafficSlug = page.path.replace(/^\/+/, "").replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase() || "traffic-page";
   const trafficSource = `traffic-${trafficSlug}`;
   const launchKitHref = `/ai-agent-launch-kit?source=${encodeURIComponent(trafficSource)}`;
+  const reportHref = utmCampaignUrl(env, "/software-builds/ai-software-opportunity-report", {
+    source: trafficSource,
+    medium: "owned",
+    campaign: "agentid_buyer_intent",
+    content: "opportunity_report",
+  });
   const consultationHref = `/book-a-consultation?source=${encodeURIComponent(trafficSource)}`;
   const primaryCtaHref = buyerIntentPage ? launchKitHref : page.path === "/pricing" ? "#pricing-packages" : "/pricing";
   const primaryCtaLabel = buyerIntentPage ? "Build the $29 Launch Kit" : page.path === "/pricing" ? "Review options" : "View pricing";
   const primaryCtaTracking = buyerIntentPage ? ` data-launch-kit-cta="${escapeHtml(`${trafficSlug}-hero`)}"` : "";
   const specialSection = renderTrafficSpecialSection(env, page);
-  const conversionSection = buyerIntentPage ? renderTrafficConversionSection(env, page, { launchKitHref, consultationHref, trafficSlug }) : "";
+  const conversionSection = buyerIntentPage ? renderTrafficConversionSection(env, page, { launchKitHref, reportHref, consultationHref, trafficSlug }) : "";
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -7921,15 +7934,17 @@ ${googleTagGatewayBody(env)}
 </html>`;
 }
 
-function renderTrafficConversionSection(env, page, { launchKitHref, consultationHref, trafficSlug }) {
+function renderTrafficConversionSection(env, page, { launchKitHref, reportHref, consultationHref, trafficSlug }) {
   return `<section class="section conversion-bridge">
       <p class="eyebrow">Choose your next step</p>
       <h2>Turn this research into one usable workflow</h2>
       <p>If you want a self-serve first version, the $29 Launch Kit turns your offer, best-fit customer, and first workflow into a launch setup brief, tailored starter prompt, lead-intake plan, follow-up sequence, scenario QA checklist, and 30-day scorecard. It opens a private workspace after verified PayPal capture.</p>
       <div class="inline-run">
         <a class="button link-button" href="${escapeHtml(launchKitHref)}" data-launch-kit-cta="${escapeHtml(trafficSlug)}">Build the $29 Launch Kit</a>
+        <a class="button link-button" href="${escapeHtml(reportHref)}" data-opportunity-report-cta="${escapeHtml(trafficSlug)}">Compare software opportunities for $24</a>
         <a class="button link-button" href="${escapeHtml(consultationHref)}">Discuss a scoped implementation</a>
       </div>
+      <p>Still deciding what software to build? The $24 AI Software Opportunity Report ranks the current public-demand clusters, buyer pain, suggested prices, and the next validation step. It is a planning report, not an implementation contract or revenue guarantee.</p>
       <p>The kit is a usable planning and starter-system product. Website, CRM, calendar, messaging, credentials, testing, and ongoing support require a separate written scope.</p>
       <script>
         document.addEventListener("DOMContentLoaded", function () {
@@ -7968,6 +7983,37 @@ function renderTrafficConversionSection(env, page, { launchKitHref, consultation
                 body: JSON.stringify({
                   eventName: "product_view",
                   sourcePage: location.pathname + location.search,
+                  sessionId: sessionId,
+                  properties: properties,
+                }),
+              }).catch(function () {});
+            });
+          });
+          document.querySelectorAll("[data-opportunity-report-cta]").forEach(function (link) {
+            link.addEventListener("click", function () {
+              var search = new URLSearchParams(location.search);
+              var properties = {
+                item_id: "ai-software-opportunity-report",
+                item_name: "AI Software Opportunity Report",
+                value: 24,
+                currency: "USD",
+                source_page: location.pathname,
+                cta_location: "buyer_intent_report_bridge",
+                cta_source: link.dataset.opportunityReportCta || "",
+                utm_source: search.get("utm_source") || "",
+                utm_medium: search.get("utm_medium") || "",
+                utm_campaign: search.get("utm_campaign") || "",
+              };
+              if (typeof window.agentidTrackGoogleEvent === "function") {
+                window.agentidTrackGoogleEvent("select_offer", properties);
+              }
+              fetch("/api/events", {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                keepalive: true,
+                body: JSON.stringify({
+                  eventName: "select_offer",
+                  sourcePage: location.pathname,
                   sessionId: sessionId,
                   properties: properties,
                 }),
@@ -8239,6 +8285,12 @@ function renderSoftwareBuildsPage(env) {
     campaign: "agentid_internal_discovery",
     content: "consultation",
   });
+  const reportUrl = utmCampaignUrl(env, "/software-builds/ai-software-opportunity-report", {
+    source: "software_builds",
+    medium: "owned",
+    campaign: "agentid_internal_discovery",
+    content: "opportunity_report",
+  });
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -8270,8 +8322,8 @@ ${googleTagGatewayBody(env)}
         <div>
           <p class="eyebrow">Agent Foundry builds</p>
           <h1>Software implementation scopes built around recurring business problems</h1>
-          <p class="lede">A scheduled research loop groups public demand signals into starting scopes. A written proposal is required before any custom-service payment.</p>
-          <p><a class="button link-button" href="${escapeHtml(launchKitUrl)}">Start with the $29 Launch Kit</a> <a class="button link-button" href="${escapeHtml(consultationUrl)}">Request a scoped consultation</a></p>
+          <p class="lede">A scheduled research loop groups public demand signals into starting scopes. Start with the $24 opportunity report when you need to choose what to validate, or request a written proposal before any custom-service payment.</p>
+          <p><a class="button link-button" href="${escapeHtml(reportUrl)}">Get the $24 opportunity report</a> <a class="button link-button" href="${escapeHtml(launchKitUrl)}">Start with the $29 Launch Kit</a> <a class="button link-button" href="${escapeHtml(consultationUrl)}">Request a scoped consultation</a></p>
         </div>
         <div class="panel dark">
           <span class="label">Current inventory</span>

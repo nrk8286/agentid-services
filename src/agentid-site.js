@@ -3965,6 +3965,7 @@ function renderHomePage(env, state) {
         <strong>$29 AI Agent Launch Kit</strong>
         <p>Private workspace, launch setup brief, tailored prompt, intake and consent fields, handoff rules, follow-up, QA, and scorecard.</p>
         <a class="button-primary" href="/ai-agent-launch-kit?source=homepage-product-bridge" data-track-event="product_view" data-track-label="Homepage Product Bridge Launch Kit">Build my first workflow for $29</a>
+        <a class="button-secondary" href="/software-builds/ai-software-opportunity-report?utm_source=homepage&amp;utm_medium=owned&amp;utm_campaign=agentid_buyer_intent&amp;utm_content=opportunity_report" data-track-event="select_offer" data-track-label="Homepage Opportunity Report">Choose what to build for $24</a>
         <a class="button-secondary" href="/book-a-consultation?source=homepage-product-bridge-consultation" data-track-event="cta_click" data-track-label="Homepage Product Bridge Consultation">Need implementation? Request scope</a>
         <p class="form-note">Installation, credentials, integrations, production testing, and ongoing support require a separate written scope.</p>
       </div>
@@ -4210,6 +4211,7 @@ function renderPricingPage(env) {
       <p class="pricing-note">Final pricing depends on complexity, integrations, data sources, and compliance requirements.</p>
       <div class="cta-row">
         <a class="button-primary" href="/ai-agent-launch-kit?source=pricing-hero" data-track-event="product_view" data-track-label="Pricing View Launch Kit">Start with the $29 Launch Kit</a>
+        <a class="button-secondary" href="/software-builds/ai-software-opportunity-report?utm_source=pricing&amp;utm_medium=owned&amp;utm_campaign=agentid_buyer_intent&amp;utm_content=opportunity_report" data-track-event="select_offer" data-track-label="Pricing Opportunity Report">Compare opportunities for $24</a>
         <a class="button-secondary" href="/book-a-consultation?source=pricing-hero" data-track-event="cta_click" data-track-label="Book a Free Strategy Call">Book a free strategy call</a>
         <button class="button-secondary" type="button" data-open-agent-chat data-track-event="pricing_assistant_click" data-track-label="Ask the Pricing Assistant">Ask the pricing assistant</button>
       </div>
@@ -4230,6 +4232,7 @@ function renderPricingPage(env) {
           ${!paypalReady ? `<a class="button-primary" href="/contact?intent=launch_kit">Request the launch kit</a>` : ""}
         </div>
         <a class="button-secondary" href="/ai-agent-launch-kit?source=pricing-primary-offer" data-track-event="product_view" data-track-label="Pricing Primary Launch Kit Details">See everything included</a>
+        <a class="button-secondary" href="/software-builds/ai-software-opportunity-report?utm_source=pricing&amp;utm_medium=owned&amp;utm_campaign=agentid_buyer_intent&amp;utm_content=opportunity_report" data-track-event="select_offer" data-track-label="Pricing Opportunity Report Details">Not sure what to build? Get the $24 report</a>
       </div>
     </section>
     ${renderViewItemTracking(DIGITAL_PRODUCTS[0])}
@@ -7547,8 +7550,9 @@ function renderConversionBridge(source) {
       </div>
       <div class="cta-box">
         <strong>Choose your next step</strong>
-        <p>Build the first usable system yourself for $29, including a launch setup brief and scenario QA, or bring one bottleneck to a free strategy call for implementation help.</p>
+        <p>Build the first usable system yourself for $29, choose what software opportunity to validate for $24, or bring one bottleneck to a free strategy call for implementation help.</p>
         <a class="button-primary" href="/ai-agent-launch-kit?source=${sourceValue}-bridge" data-track-event="product_view" data-track-label="${escapeHtml(source)} Launch Kit Bridge">Build the $29 starter system</a>
+        <a class="button-secondary" href="/software-builds/ai-software-opportunity-report?utm_source=${sourceValue}-bridge&amp;utm_medium=owned&amp;utm_campaign=agentid_conversion_bridge&amp;utm_content=opportunity_report" data-track-event="select_offer" data-track-label="${escapeHtml(source)} Opportunity Report Bridge">Choose what to validate for $24</a>
         <a class="button-secondary" href="/book-a-consultation?source=${sourceValue}-bridge" data-track-event="cta_click" data-track-label="${escapeHtml(source)} Conversion Bridge">Book my strategy call</a>
         <a class="button-secondary" href="/pricing?source=${sourceValue}-bridge" data-track-event="cta_click" data-track-label="${escapeHtml(source)} Bridge Pricing">Compare pricing</a>
       </div>

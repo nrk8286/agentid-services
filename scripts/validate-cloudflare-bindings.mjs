@@ -203,6 +203,19 @@ for (const requiredSoftwareReportControl of [
     failures.push(`self-serve software report protection is missing ${requiredSoftwareReportControl}`);
   }
 }
+for (const requiredSalesFunnelControl of [
+  'reportCta: utmCampaignUrl(env, "/software-builds/ai-software-opportunity-report"',
+  'commercialStatus: isSelfServeSoftwareReport(build) ? "self_serve_checkout"',
+  'data-opportunity-report-cta',
+  'Compare software opportunities for $24',
+  'Choose what to validate for $24',
+  'const leadSpider = await runLeadSpider(env, { trigger, force: false });',
+  'leadSpider: summarizeLeadSpider(leadSpider)',
+]) {
+  if (!`${workerSource}\n${siteSource}`.includes(requiredSalesFunnelControl)) {
+    failures.push(`sales funnel and agent queue synchronization is missing ${requiredSalesFunnelControl}`);
+  }
+}
 for (const requiredCustomerFollowupControl of [
   "sendQueuedCustomerFollowups",
   "FROM agentid_followups f",
