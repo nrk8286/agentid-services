@@ -749,6 +749,9 @@ const pricingResponse = await handleAgentIdSiteRequest(
     ADSENSE_CLIENT_ID: "ca-pub-7354323580032872",
     ADSENSE_AD_SLOT: "3045151068",
     ADSENSE_ENABLED: "true",
+    PAYPAL_MODE: "live",
+    PAYPAL_CLIENT_ID: "test-client-id",
+    PAYPAL_CLIENT_SECRET: "test-client-secret",
   },
   { waitUntil() {} },
 );
@@ -758,6 +761,21 @@ if (pricingBody.includes("adsbygoogle") || pricingBody.includes('data-ad-slot="3
 }
 if (!pricingBody.includes('href="/book-a-consultation?source=pricing-hero"')) {
   failures.push("pricing consultation CTA must preserve its source attribution");
+}
+const pricingLaunchKitPosition = pricingBody.indexOf('class="section split-section product-offer primary-product-offer"');
+const pricingCustomTiersPosition = pricingBody.indexOf('class="section pricing-grid"');
+for (const requiredPricingLaunchKitControl of [
+  'class="section split-section product-offer primary-product-offer"',
+  "Primary self-serve path",
+  'href="/ai-agent-launch-kit?source=pricing-primary-offer"',
+  "Buy the $29 Launch Kit with PayPal",
+]) {
+  if (!pricingBody.includes(requiredPricingLaunchKitControl)) {
+    failures.push(`pricing page is missing the primary Launch Kit control ${requiredPricingLaunchKitControl}`);
+  }
+}
+if (pricingLaunchKitPosition < 0 || pricingCustomTiersPosition < 0 || pricingLaunchKitPosition > pricingCustomTiersPosition) {
+  failures.push("pricing page must place the primary Launch Kit offer before custom service tiers");
 }
 
 const faqResponse = await handleAgentIdSiteRequest(
@@ -1094,7 +1112,7 @@ for (const requiredSocialSalesControl of [
 }
 
 for (const requiredDiscoveryOfferControl of [
-  'const SITE_CONTENT_LAST_MODIFIED = "2026-08-13"',
+  'const SITE_CONTENT_LAST_MODIFIED = "',
   'seoTitle: "AI Agent Launch Kit for Small Business — $29"',
   "Start with the $29 AI Agent Launch Kit: a guided workspace for building one usable first workflow.",
   "The $29 AI Agent Launch Kit is a one-time guided workspace",

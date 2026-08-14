@@ -86,7 +86,7 @@ let googleAccessTokenCache = {
   expiresAt: 0,
 };
 
-const SITE_CONTENT_LAST_MODIFIED = "2026-08-13";
+const SITE_CONTENT_LAST_MODIFIED = "2026-08-14";
 
 const BUILD_STAGES = [
   "purchase_received",
@@ -4114,6 +4114,25 @@ function renderPricingPage(env) {
         <button class="button-secondary" type="button" data-open-agent-chat data-track-event="pricing_assistant_click" data-track-label="Ask the Pricing Assistant">Ask the pricing assistant</button>
       </div>
     </section>
+    <section class="section split-section product-offer primary-product-offer">
+      <div>
+        ${renderSectionTitle("Primary self-serve path", "Get one usable AI workflow for $29", "Use the private workspace to turn one business bottleneck into a launch setup brief, tailored starter prompt, lead-intake and handoff plan, follow-up sequence, scenario QA checklist, and first 30 days of measurement.")}
+        <ul class="benefit-list compact">
+          ${DIGITAL_PRODUCTS[0].includes.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
+        </ul>
+        <p class="trust-line">This is a self-serve digital product, not an installation contract. Custom integrations, production testing, and ongoing support require a separate consultation, written scope, and fulfillment plan.</p>
+      </div>
+      <div class="cta-box">
+        <strong>${moneyWithCents(DIGITAL_PRODUCTS[0].price)} one-time</strong>
+        <p>Private workspace and starter pack after verified PayPal capture.</p>
+        <div class="checkout-stack">
+          ${paypalReady ? makePayPalOrderForm(DIGITAL_PRODUCTS[0], "Buy the $29 Launch Kit with PayPal") : ""}
+          ${!paypalReady ? `<a class="button-primary" href="/contact?intent=launch_kit">Request the launch kit</a>` : ""}
+        </div>
+        <a class="button-secondary" href="/ai-agent-launch-kit?source=pricing-primary-offer" data-track-event="product_view" data-track-label="Pricing Primary Launch Kit Details">See everything included</a>
+      </div>
+    </section>
+    ${renderViewItemTracking(DIGITAL_PRODUCTS[0])}
     <section class="section pricing-grid">
       ${PRICING_TIERS.map((tier) => `
         <article class="price-card">
@@ -4174,24 +4193,6 @@ function renderPricingPage(env) {
         </article>
       `).join("")}
     </section>
-    <section class="section split-section product-offer">
-      <div>
-        ${renderSectionTitle("Start smaller", "Build the AI Agent Launch Kit for $29", "Use the private workspace to turn one workflow into a launch setup brief, tailored starter prompt, handoff plan, follow-up sequence, scenario QA checklist, and first 30 days of measurement before you commit to a custom build.")}
-        <ul class="benefit-list compact">
-          ${DIGITAL_PRODUCTS[0].includes.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
-        </ul>
-      </div>
-      <div class="cta-box">
-        <strong>${moneyWithCents(DIGITAL_PRODUCTS[0].price)} one-time</strong>
-        <p>Secure download after payment confirmation.</p>
-        <div class="checkout-stack">
-          ${paypalReady ? makePayPalOrderForm(DIGITAL_PRODUCTS[0], "Buy with PayPal") : ""}
-          ${!paypalReady ? `<a class="button-primary" href="/contact">Request the launch kit</a>` : ""}
-        </div>
-        <a class="button-secondary" href="/ai-agent-launch-kit">See everything included</a>
-      </div>
-    </section>
-    ${renderViewItemTracking(DIGITAL_PRODUCTS[0])}
   `;
 
   return renderShell(env, {
