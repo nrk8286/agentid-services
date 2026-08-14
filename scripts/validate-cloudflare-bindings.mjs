@@ -211,6 +211,13 @@ for (const requiredSalesFunnelControl of [
   'Choose what to validate for $24',
   'const leadSpider = await runLeadSpider(env, { trigger, force: false });',
   'leadSpider: summarizeLeadSpider(leadSpider)',
+  'async function persistLeadSpiderTasks(env, tasks)',
+  'const results = await Promise.allSettled(tasks.map((task) => upsertSalesTask(env, task)))',
+  'persistedSalesTasks',
+  'failedSalesTasks',
+  'taskPersistenceStatus: failedSalesTasks > 0 ? "degraded" : "ok"',
+  'ok: plan?.ok !== false',
+  'const retryRequired = !outcome.ok || !growthSnapshot?.ok',
 ]) {
   if (!`${workerSource}\n${siteSource}`.includes(requiredSalesFunnelControl)) {
     failures.push(`sales funnel and agent queue synchronization is missing ${requiredSalesFunnelControl}`);

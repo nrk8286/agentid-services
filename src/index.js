@@ -1386,7 +1386,7 @@ export class AgentScheduler extends DurableObject {
 
       const completedAt = new Date().toISOString();
       const outcome = {
-        ok: true,
+        ok: plan?.ok !== false,
         skipped: Boolean(plan && plan.skipped),
         reason: plan && plan.reason ? plan.reason : null,
         generatedAt: plan && plan.generatedAt ? plan.generatedAt : null,
@@ -1394,7 +1394,7 @@ export class AgentScheduler extends DurableObject {
       await this.ctx.storage.put({
         lastRunAt: completedAt,
         lastOutcome: outcome,
-        lastError: null,
+        lastError: outcome.ok ? null : { at: completedAt, message: "agent_run_degraded" },
         growthSnapshotLastOutcome: {
           ok: Boolean(growthSnapshot?.ok),
           skipped: Boolean(growthSnapshot?.skipped),
@@ -1411,7 +1411,8 @@ export class AgentScheduler extends DurableObject {
       } else if (growthSnapshotBootstrapPending) {
         await this.ctx.storage.delete("growthSnapshotBootstrapPending");
       }
-      await this.ctx.storage.setAlarm(Date.now() + (growthSnapshot?.ok ? AGENT_ALARM_INTERVAL_MS : AGENT_ALARM_RETRY_MS));
+      const retryRequired = !outcome.ok || !growthSnapshot?.ok;
+      await this.ctx.storage.setAlarm(Date.now() + (retryRequired ? AGENT_ALARM_RETRY_MS : AGENT_ALARM_INTERVAL_MS));
       console.log(JSON.stringify({
         event: "agent_scheduler_alarm_completed",
         completedAt,
@@ -4226,14 +4227,24 @@ async function runLeadSpider(env, options = {}) {
   if (!options.force && elapsed < LEAD_SPIDER_INTERVAL_SECONDS) {
     const storedProspects = await loadSpiderProspects(env);
     const storedTasks = leadSpiderTasks(storedProspects, state.lastRunAt || now.toISOString());
-    await Promise.all(storedTasks.map((task) => upsertSalesTask(env, task)));
+    const taskPersistence = await persistLeadSpiderTasks(env, storedTasks);
+    const latest = await getJson(env, "lead_spider:latest");
+    const persistedLatest = latest ? {
+      ...latest,
+      ...taskPersistence,
+      ok: latest.ok !== false && taskPersistence.failedSalesTasks === 0,
+    } : null;
+    if (latest) {
+      await putJson(env, "lead_spider:latest", persistedLatest, 60 * 60 * 24 * 30);
+    }
     return {
-      ok: true,
+      ok: taskPersistence.failedSalesTasks === 0,
       skipped: true,
       reason: "recent_spider_run",
       nextEligibleAt: new Date(Date.parse(state.lastRunAt) + LEAD_SPIDER_INTERVAL_SECONDS * 1000).toISOString(),
-      latest: await getJson(env, "lead_spider:latest"),
+      latest: persistedLatest,
       prospects: storedProspects.slice(0, 20),
+      ...taskPersistence,
     };
   }
 
@@ -4268,7 +4279,6 @@ async function runLeadSpider(env, options = {}) {
     prospects: prospects.slice(0, 20),
   };
 
-  await putJson(env, "lead_spider:latest", report, 60 * 60 * 24 * 30);
   await putJson(env, "lead_spider:prospects", prospects.slice(0, 120), 60 * 60 * 24 * 180);
   await putJson(env, "lead_spider:state", {
     lastRunAt: report.generatedAt,
@@ -4277,14 +4287,31 @@ async function runLeadSpider(env, options = {}) {
     hotCount: hotProspects.length,
     warmCount: warmProspects.length,
   }, 60 * 60 * 24 * 365);
-  await Promise.all(tasks.map((task) => upsertSalesTask(env, task)));
+  const taskPersistence = await persistLeadSpiderTasks(env, tasks);
+  const persistedReport = {
+    ...report,
+    ...taskPersistence,
+    ok: report.ok && taskPersistence.failedSalesTasks === 0,
+  };
+  await putJson(env, "lead_spider:latest", persistedReport, 60 * 60 * 24 * 30);
   await updateMetrics(env, (metrics) => {
     metrics.lead_spider_runs_total = Number(metrics.lead_spider_runs_total || 0) + 1;
     metrics.prospects_total = prospects.length;
     metrics.hot_prospects_total = hotProspects.length;
   });
 
-  return report;
+  return persistedReport;
+}
+
+async function persistLeadSpiderTasks(env, tasks) {
+  const results = await Promise.allSettled(tasks.map((task) => upsertSalesTask(env, task)));
+  const persistedSalesTasks = results.filter((result) => result.status === "fulfilled").length;
+  const failedSalesTasks = results.length - persistedSalesTasks;
+  return {
+    persistedSalesTasks,
+    failedSalesTasks,
+    taskPersistenceStatus: failedSalesTasks > 0 ? "degraded" : "ok",
+  };
 }
 
 async function leadSpiderState(env) {
@@ -4712,7 +4739,7 @@ async function runAgentLoop(env, trigger, force) {
 
   if (!force && elapsed < RUN_INTERVAL_SECONDS) {
     return {
-      ok: true,
+      ok: leadSpider.ok !== false,
       skipped: true,
       reason: "recent_run",
       nextEligibleAt: new Date(Date.parse(state.lastRunAt) + RUN_INTERVAL_SECONDS * 1000).toISOString(),
@@ -4732,6 +4759,7 @@ async function runAgentLoop(env, trigger, force) {
   const plan = buildPlan(env, trigger, now, siteHealth, metrics, tasks.items);
   const finalPlan = {
     ...plan,
+    ok: plan.ok !== false && leadSpider.ok !== false,
     leadSpider: summarizeLeadSpider(leadSpider),
     salesLeadHandoff,
     customerFollowups,
@@ -4769,6 +4797,9 @@ function summarizeLeadSpider(report) {
     prospectCount: report.prospectCount || (report.latest && report.latest.prospectCount) || 0,
     hotCount: report.hotCount || (report.latest && report.latest.hotCount) || 0,
     queuedSalesTasks: report.queuedSalesTasks || (report.latest && report.latest.queuedSalesTasks) || 0,
+    persistedSalesTasks: report.persistedSalesTasks || (report.latest && report.latest.persistedSalesTasks) || 0,
+    failedSalesTasks: report.failedSalesTasks || (report.latest && report.latest.failedSalesTasks) || 0,
+    taskPersistenceStatus: report.taskPersistenceStatus || (report.latest && report.latest.taskPersistenceStatus) || null,
     topProspects: (report.prospects || (report.latest && report.latest.prospects) || []).slice(0, 5),
   };
 }
@@ -5288,6 +5319,9 @@ async function publicState(env) {
       prospectCount: Number(spider.latest.prospectCount || 0),
       hotCount: Number(spider.latest.hotCount || 0),
       queuedSalesTasks: Number(spider.latest.queuedSalesTasks || 0),
+      persistedSalesTasks: Number(spider.latest.persistedSalesTasks || 0),
+      failedSalesTasks: Number(spider.latest.failedSalesTasks || 0),
+      taskPersistenceStatus: spider.latest.taskPersistenceStatus || null,
     } : null,
   };
   const safeTasks = publicTaskSnapshot(tasks);
