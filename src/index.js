@@ -77,7 +77,7 @@ const MAX_JSON_BODY_BYTES = 128 * 1024;
 const BODY_TOO_LARGE = Symbol("body-too-large");
 const CANONICAL_HOST = "gptmarketplus.com";
 // Bump this whenever public HTML or public metadata changes so a deployment does not serve stale sales copy.
-const PUBLIC_CACHE_KEY_VERSION = "2026-08-14-home-product-bridge-v1";
+const PUBLIC_CACHE_KEY_VERSION = "2026-08-14-offer-consistency-v1";
 const VERIFIED_REVENUE_GOAL_CENTS = 1_000_000;
 const LEGACY_TLS_VERSIONS = new Set(["TLSv1", "TLSv1.0", "TLSv1.1"]);
 const DOMAIN_CAMPAIGN_REDIRECTS = new Map([
@@ -6383,8 +6383,8 @@ ${googleTagGatewayBody(env)}
       <div class="page-list">
         ${shareLinks.map(([label, url]) => {
           const postCopy = label === "Partner or community post"
-            ? `For owners who want to choose one practical AI workflow before paying for implementation: the $29 AI Agent Launch Kit is a self-serve workspace for a workflow brief, starter prompt, consent-aware intake and follow-up, launch QA, and a 30-day scorecard. It is not a performance guarantee: ${url}`
-            : `Build your first AI agent starter system for $29. Get a guided workflow brief, starter prompt, intake and consent fields, handoff rules, follow-up messages, QA tests, and a 30-day scorecard: ${url}`;
+            ? `For owners who want to choose one practical AI workflow before paying for implementation: the $29 AI Agent Launch Kit is a self-serve workspace for a launch setup brief, workflow brief, starter prompt, consent-aware intake and follow-up, scenario QA, and a 30-day scorecard. It is not a performance guarantee: ${url}`
+            : `Build your first AI agent starter system for $29. Get a launch setup brief, workflow brief, starter prompt, intake and consent fields, handoff rules, follow-up messages, scenario QA tests, and a 30-day scorecard: ${url}`;
           return `<article>
           <strong>${escapeHtml(label)}</strong>
           <div class="share-control">
@@ -6771,7 +6771,7 @@ function renderTrafficConversionSection(env, page, { launchKitHref, consultation
   return `<section class="section conversion-bridge">
       <p class="eyebrow">Choose your next step</p>
       <h2>Turn this research into one usable workflow</h2>
-      <p>If you want a self-serve first version, the $29 Launch Kit turns your offer, best-fit customer, and first workflow into a tailored starter prompt, lead-intake plan, follow-up sequence, QA checklist, and 30-day scorecard. It opens a private workspace after verified PayPal capture.</p>
+      <p>If you want a self-serve first version, the $29 Launch Kit turns your offer, best-fit customer, and first workflow into a launch setup brief, tailored starter prompt, lead-intake plan, follow-up sequence, scenario QA checklist, and 30-day scorecard. It opens a private workspace after verified PayPal capture.</p>
       <div class="inline-run">
         <a class="button link-button" href="${escapeHtml(launchKitHref)}" data-launch-kit-cta="${escapeHtml(trafficSlug)}">Build the $29 Launch Kit</a>
         <a class="button link-button" href="${escapeHtml(consultationHref)}">Discuss a scoped implementation</a>

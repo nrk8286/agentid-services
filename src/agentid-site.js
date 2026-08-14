@@ -543,7 +543,7 @@ const DIGITAL_PRODUCTS = [
     packageTier: "digital_product",
     checkoutType: "digital_product",
     delivery: "secure_download",
-    summary: "A guided workspace that turns your business inputs into a usable AI agent starter system, with a launch setup brief, prompt, workflow map, lead intake, follow-up sequence, QA checklist, and 30-day scorecard.",
+    summary: "A guided workspace that turns your business inputs into a usable AI agent starter system, with a launch setup brief, prompt, workflow map, lead intake, follow-up sequence, scenario-based QA checklist, and 30-day scorecard.",
     includes: [
       "First workflow brief and completion definition",
       "Business-specific starter system prompt",
@@ -1996,7 +1996,7 @@ function generateFollowUpSequence(lead, env = null) {
     }
     : {
       subject: "Start with a usable AI workflow for $29",
-      body: `Thanks for checking out GPTMarketPlus. If you want a self-serve first step, the $29 Launch Kit turns one bottleneck into a private guided workspace with a tailored starter prompt, lead intake, follow-up, QA, and a 30-day scorecard: ${launchKitLink}`,
+      body: `Thanks for checking out GPTMarketPlus. If you want a self-serve first step, the $29 Launch Kit turns one bottleneck into a private guided workspace with a launch setup brief, tailored starter prompt, lead intake, follow-up, scenario QA, and a 30-day scorecard: ${launchKitLink}`,
       send_after_hours: 0,
       consent_required: false,
     };
@@ -3804,7 +3804,7 @@ function renderHomePage(env, state) {
       eyebrow: "GPTMarketPlus",
       title: "Build Your First AI Agent Starter System for $29",
       seoTitle: "AI Agent Launch Kit for Small Business — $29",
-      lede: "Answer guided questions and leave with a tailored workflow brief, starter system prompt, lead intake, follow-up, QA, and 30-day scorecard. Need implementation? Request a scoped custom plan after a free strategy call.",
+      lede: "Answer guided questions and leave with a launch setup brief, tailored workflow brief, starter system prompt, lead intake, follow-up, scenario QA, and 30-day scorecard. Need implementation? Request a scoped custom plan after a free strategy call.",
       primaryPath: "/ai-agent-launch-kit?source=homepage",
       primaryLabel: "Get the $29 Launch Kit",
       secondaryPath: "/book-a-consultation?source=homepage",
@@ -3813,7 +3813,7 @@ function renderHomePage(env, state) {
       ownershipLabel: "GPTMarketPlus product and delivery advantages",
       finalEyebrow: "Ready to build the first workflow?",
       finalTitle: "Start with the $29 AI Agent Launch Kit",
-      finalDescription: "Build a tailored starter prompt, workflow map, lead-intake plan, follow-up sequence, launch QA checklist, and 30-day scorecard in your private workspace. If you need implementation, book a free strategy call instead.",
+      finalDescription: "Build a launch setup brief, tailored starter prompt, workflow map, lead-intake plan, follow-up sequence, scenario QA checklist, and 30-day scorecard in your private workspace. If you need implementation, book a free strategy call instead.",
       finalLabel: "Get the $29 Launch Kit",
       finalSecondaryPath: "/book-a-consultation?source=homepage-final",
       finalSecondaryLabel: "Book a Free AI Strategy Call",
@@ -3951,7 +3951,7 @@ function renderHomePage(env, state) {
         { kicker: "Free tool", title: "AI Automation ROI Calculator", description: "Estimate time savings, recovered contribution, cost, payback, and first-year ROI without treating gross sales as profit.", href: "/tools/ai-automation-roi-calculator" },
         { kicker: "Buyer guide", title: "AI Agents for Small Business", description: "Choose the right first workflow and avoid paying for a demo that never becomes useful.", href: "/guides/ai-agent-for-small-business" },
         { kicker: "Comparison", title: "AI Agent vs. Chatbot", description: "Understand when a chatbot is enough and when tool-connected action is worth the added complexity.", href: "/compare/ai-agent-vs-chatbot" },
-        { kicker: "$29 workspace", title: "AI Agent Launch Kit", description: "Build a usable first-agent starter system with a guided workspace, tailored prompt, workflow map, follow-up sequence, and scorecard.", href: "/ai-agent-launch-kit" },
+        { kicker: "$29 workspace", title: "AI Agent Launch Kit", description: "Build a usable first-agent starter system with a launch setup brief, guided workspace, tailored prompt, workflow map, scenario QA, and scorecard.", href: "/ai-agent-launch-kit" },
       ], "Open resource")}
     </section>
 
@@ -4176,7 +4176,7 @@ function renderPricingPage(env) {
     </section>
     <section class="section split-section product-offer">
       <div>
-        ${renderSectionTitle("Start smaller", "Build the AI Agent Launch Kit for $29", "Use the private workspace to turn one workflow into a tailored starter prompt, handoff plan, follow-up sequence, launch QA checklist, and first 30 days of measurement before you commit to a custom build.")}
+        ${renderSectionTitle("Start smaller", "Build the AI Agent Launch Kit for $29", "Use the private workspace to turn one workflow into a launch setup brief, tailored starter prompt, handoff plan, follow-up sequence, scenario QA checklist, and first 30 days of measurement before you commit to a custom build.")}
         <ul class="benefit-list compact">
           ${DIGITAL_PRODUCTS[0].includes.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
         </ul>
@@ -4396,7 +4396,7 @@ function renderResourceArticlePage(env, page) {
           </div>
           <div class="side-note">
             <p class="card-kicker">Need the templates?</p>
-            <p>The $29 launch kit includes a guided workspace that generates a tailored starter prompt, workflow map, lead intake, follow-up sequence, launch QA, and scorecard.</p>
+            <p>The $29 launch kit includes a guided workspace that generates a launch setup brief, tailored starter prompt, workflow map, lead intake, follow-up sequence, scenario QA, and scorecard.</p>
             <a class="button-secondary" href="/ai-agent-launch-kit?source=resource-sidebar">Build the launch kit</a>
           </div>
         </aside>
@@ -4629,13 +4629,13 @@ function renderLaunchKitPage(env, requestUrl = null) {
       </div>
       <div class="side-note">
         <p class="card-kicker">Included for $29</p>
-        <p>Private workspace, tailored starter system, workflow brief, lead-intake and consent plan, handoff rules, follow-up messages, launch QA, and 30-day scorecard.</p>
+        <p>Private workspace, launch setup brief, tailored starter system, workflow brief, lead-intake and consent plan, handoff rules, follow-up messages, scenario QA, and 30-day scorecard.</p>
         <p class="card-kicker">Separate written scope</p>
         <p>Website installation, CRM or calendar connections, messaging credentials, custom integrations, production testing, ongoing support, and performance work are not included in the Launch Kit purchase.</p>
       </div>
     </section>
     <section class="section">
-      ${renderSectionTitle("What you build", "From vague idea to a usable first-agent system", "Answer the guided questions once. The workspace turns your inputs into a business-specific starter prompt, workflow map, lead-intake plan, follow-up sequence, launch QA checklist, and 30-day scorecard.")}
+      ${renderSectionTitle("What you build", "From vague idea to a usable first-agent system", "Answer the guided questions once. The workspace turns your inputs into a launch setup brief, business-specific starter prompt, workflow map, lead-intake plan, follow-up sequence, scenario QA checklist, and 30-day scorecard.")}
       ${renderCardGrid([
         { kicker: "Workflow", title: "Pick the first job", description: "Turn one revenue, response, booking, or operations bottleneck into a clear workflow with an owner and completion definition." },
         { kicker: "Prompt", title: "Start with business context", description: "Generate a practical starter prompt grounded in your offer, customers, tone, approved claims, and escalation rules." },
@@ -5630,7 +5630,7 @@ function renderLeadMagnetDelivery(env) {
     <ol class="checklist">${LEAD_MAGNET_CHECKLIST.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ol>
     <div class="cta-box">
       <strong>Want to turn one item into a usable system?</strong>
-      <p>The $29 Launch Kit gives you a private guided workspace, tailored starter prompt, lead-intake plan, follow-up sequence, QA checklist, and 30-day scorecard after verified PayPal payment.</p>
+      <p>The $29 Launch Kit gives you a private guided workspace, launch setup brief, tailored starter prompt, lead-intake plan, follow-up sequence, scenario QA checklist, and 30-day scorecard after verified PayPal payment.</p>
       <a class="button-primary" href="${escapeHtml(launchKitUrl)}" data-track-event="product_view" data-track-label="Lead Magnet Launch Kit CTA">Build the $29 Launch Kit</a>
       <a class="button-secondary" href="${escapeHtml(consultationUrl)}" data-track-event="cta_click" data-track-label="Lead Magnet Consultation CTA">Book a free strategy call</a>
     </div>`;
@@ -7267,7 +7267,7 @@ function renderConversionBridge(source) {
       </div>
       <div class="cta-box">
         <strong>Choose your next step</strong>
-        <p>Build the first usable system yourself for $29, or bring one bottleneck to a free strategy call for implementation help.</p>
+        <p>Build the first usable system yourself for $29, including a launch setup brief and scenario QA, or bring one bottleneck to a free strategy call for implementation help.</p>
         <a class="button-primary" href="/ai-agent-launch-kit?source=${sourceValue}-bridge" data-track-event="product_view" data-track-label="${escapeHtml(source)} Launch Kit Bridge">Build the $29 starter system</a>
         <a class="button-secondary" href="/book-a-consultation?source=${sourceValue}-bridge" data-track-event="cta_click" data-track-label="${escapeHtml(source)} Conversion Bridge">Book my strategy call</a>
         <a class="button-secondary" href="/pricing?source=${sourceValue}-bridge" data-track-event="cta_click" data-track-label="${escapeHtml(source)} Bridge Pricing">Compare pricing</a>
@@ -10696,7 +10696,7 @@ function renderLlmsTxt(env) {
     pages,
     "",
     "## Primary offer",
-    "The $29 AI Agent Launch Kit is a one-time guided workspace that turns business inputs into a workflow brief, starter system prompt, lead intake and consent fields, human-handoff rules, follow-up messages, launch QA tests, and a 30-day scorecard.",
+    "The $29 AI Agent Launch Kit is a one-time guided workspace that turns business inputs into a launch setup brief, workflow brief, starter system prompt, lead intake and consent fields, human-handoff rules, follow-up messages, scenario-based launch QA tests, and a 30-day scorecard.",
     "Custom AI agent implementation, integrations, production testing, and ongoing support are separate services considered only after a written scope and fulfillment plan.",
     "",
     "## Conversion path",
