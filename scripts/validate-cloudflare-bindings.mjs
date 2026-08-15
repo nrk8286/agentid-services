@@ -20,7 +20,7 @@ import {
   sponsorReplyStatusFromMessages,
 } from "../src/growth-snapshot.js";
 import { tagAssistantDebugResponse } from "../src/response-security.js";
-import { normalizePaypalInvoiceId, summarizePaypalInvoice } from "../src/paypal-invoice.js";
+import { normalizePaypalInvoiceId, paypalInvoiceRecipientViewUrl, summarizePaypalInvoice } from "../src/paypal-invoice.js";
 
 const raw = readFileSync(new URL("../wrangler.jsonc", import.meta.url), "utf8");
 const runtimeMigration = readFileSync(new URL("../migrations/0004_agent_runtime.sql", import.meta.url), "utf8");
@@ -28,6 +28,8 @@ const genericLeadNotificationMigration = readFileSync(new URL("../migrations/000
 const growthSnapshotMigration = readFileSync(new URL("../migrations/0009_daily_growth_snapshots.sql", import.meta.url), "utf8");
 const paypalSubscriptionApprovalMigration = readFileSync(new URL("../migrations/0010_paypal_subscription_approvals.sql", import.meta.url), "utf8");
 const paypalSubscriptionApprovalSource = readFileSync(new URL("../src/paypal-subscription-approval.js", import.meta.url), "utf8");
+const paypalCpcAdvertiserAccessMigration = readFileSync(new URL("../migrations/0011_paypal_cpc_advertiser_access.sql", import.meta.url), "utf8");
+const paypalCpcSource = readFileSync(new URL("../src/cpc-campaign.js", import.meta.url), "utf8");
 const workerSource = readFileSync(new URL("../src/index.js", import.meta.url), "utf8");
 const siteSource = readFileSync(new URL("../src/agentid-site.js", import.meta.url), "utf8");
 const searchConsoleSource = readFileSync(new URL("../src/google-search-console.js", import.meta.url), "utf8");
@@ -493,8 +495,8 @@ for (const requiredSponsorSelectionControl of [
     failures.push(`Sponsor plan selection is missing ${requiredSponsorSelectionControl}`);
   }
 }
-if (!siteSource.includes("Send a PayPal invoice only after written approval")) {
-  failures.push("CPC sponsor applications must disclose the review-before-PayPal-invoice workflow");
+if (!siteSource.includes("Send a private advertiser portal and PayPal invoice only after written approval")) {
+  failures.push("CPC sponsor applications must disclose the private review-before-PayPal-invoice workflow");
 }
 if (!siteSource.includes('rel="sponsored nofollow noopener"') || !siteSource.includes('window.agentidTrackEvent("sponsor_impression"')) {
   failures.push("Active sponsor placements must be clearly labeled and track viewable impressions without invalid clicks");
@@ -1428,8 +1430,41 @@ for (const requiredApprovalRouteControl of [
   }
 }
 
+if (!paypalCpcAdvertiserAccessMigration.includes("advertiser_access_token_hash TEXT")
+    || !paypalCpcAdvertiserAccessMigration.includes("approval_reference TEXT")
+    || paypalCpcAdvertiserAccessMigration.includes("advertiser_access_token TEXT;")) {
+  failures.push("PayPal CPC advertiser access must store a token hash and written approval reference without a raw token");
+}
+for (const requiredCpcAccessControl of [
+  "hashCpcAdvertiserAccessToken",
+  'crypto.subtle.digest("SHA-256"',
+  "advertiser_access_expires_at",
+  "advertiser_access_revoked_at",
+  "Email does not match the approved advertiser.",
+]) {
+  if (!paypalCpcSource.includes(requiredCpcAccessControl)) {
+    failures.push(`PayPal CPC advertiser access is missing ${requiredCpcAccessControl}`);
+  }
+}
+for (const requiredCpcAccessRoute of [
+  'url.pathname === "/api/paypal/cpc/campaigns/inspect"',
+  'url.pathname === "/sponsor/campaign"',
+  "handleManagePaypalCpcCampaignAccess",
+  "paypalInvoiceRecipientViewUrl",
+  'const token = location.hash.slice(1)',
+  'advertiserPortalEnabled: true',
+]) {
+  if (!workerSource.includes(requiredCpcAccessRoute)) {
+    failures.push(`PayPal CPC advertiser portal is missing ${requiredCpcAccessRoute}`);
+  }
+}
+
 if (normalizePaypalInvoiceId("INV2-Z56S-5LLA-Q52L-CPZ5") !== "INV2-Z56S-5LLA-Q52L-CPZ5" || normalizePaypalInvoiceId("../private")) {
   failures.push("PayPal invoice IDs must be normalized and path-safe");
+}
+if (!paypalInvoiceRecipientViewUrl({ detail: { metadata: { recipient_view_url: "https://www.paypal.com/invoice/p/INV2-TEST" } } })
+    || paypalInvoiceRecipientViewUrl({ detail: { metadata: { recipient_view_url: "https://paypal.example.com/invoice" } } })) {
+  failures.push("PayPal invoice recipient links must allow only hosted HTTPS paypal.com destinations");
 }
 const invoiceSummary = summarizePaypalInvoice({
   id: "INV2-Z56S-5LLA-Q52L-CPZ5",

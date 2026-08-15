@@ -16,6 +16,21 @@ export function normalizePaypalInvoiceId(value) {
   return /^[A-Z0-9][A-Z0-9-]{5,29}$/.test(invoiceId) ? invoiceId : "";
 }
 
+export function paypalInvoiceRecipientViewUrl(invoice) {
+  const rawUrl = String(invoice?.detail?.metadata?.recipient_view_url || "").trim();
+  if (!rawUrl) return "";
+  try {
+    const parsed = new URL(rawUrl);
+    const hostname = parsed.hostname.toLowerCase();
+    if (parsed.protocol !== "https:" || parsed.username || parsed.password) return "";
+    if (hostname !== "paypal.com" && !hostname.endsWith(".paypal.com")) return "";
+    parsed.hash = "";
+    return parsed.toString();
+  } catch {
+    return "";
+  }
+}
+
 export function summarizePaypalInvoice(invoice, { mode = "unknown", checkedAt = new Date().toISOString() } = {}) {
   const status = String(invoice?.status || "UNKNOWN").trim().toUpperCase();
   const total = invoice?.effective_invoice_total || invoice?.amount || {};

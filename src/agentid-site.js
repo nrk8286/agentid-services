@@ -537,7 +537,7 @@ function sponsorPlanPriceLabel(plan) {
 
 function sponsorPlanBillingLabel(plan) {
   if (plan.mode === "invoice") {
-    return "One-time PayPal invoice after written approval. This pilot does not auto-renew.";
+    return "One-time PayPal invoice after written approval. The approved advertiser receives a private payment and delivery portal. This pilot does not auto-renew.";
   }
   return "Public subscription checkout is unavailable. After written placement, renewal, and cancellation terms are accepted, the approved recipient receives a private approval-scoped PayPal subscription link.";
 }
@@ -5564,7 +5564,7 @@ function renderContactPage(env, requestUrl = null) {
           <p class="card-kicker">What happens on submit</p>
           <ul>${isSponsorApplication
           ? requestedSponsorPlan.mode === "invoice"
-            ? "<li>Review product and audience relevance</li><li>Confirm available placement and dates</li><li>Agree on creative, labeling, and destination URL</li><li>Confirm the CPC rate, click cap, validation, reporting, and refund terms</li><li>Send a PayPal invoice only after written approval</li>"
+            ? "<li>Review product and audience relevance</li><li>Confirm available placement and dates</li><li>Agree on creative, labeling, and destination URL</li><li>Confirm the CPC rate, click cap, validation, reporting, and refund terms</li><li>Send a private advertiser portal and PayPal invoice only after written approval</li>"
             : "<li>Review product and audience relevance</li><li>Confirm available placement and dates</li><li>Agree on creative, labeling, and destination URL</li><li>Accept written renewal and cancellation terms</li><li>Use the private approval-scoped PayPal subscription link issued to the approved recipient</li>"
             : "<li>Validate required fields</li><li>Save or route the lead</li><li>Trigger analytics events</li><li>Prepare for CRM integration</li><li>Generate a lead summary when enough detail is provided</li>"}</ul>
         </article>
@@ -5577,7 +5577,7 @@ function renderContactPage(env, requestUrl = null) {
           <strong>${isSponsorApplication ? "Applications are reviewed before billing." : "New GPTMarketPlus lead received."}</strong>
           <p>${isSponsorApplication
             ? requestedSponsorPlan.mode === "invoice"
-              ? "No traffic volume is guaranteed. CPC campaign funds are earned only as server-validated clicks are delivered; approved placements remain clearly labeled and separate from editorial content."
+              ? "No traffic volume is guaranteed. The private advertiser portal reports PayPal payment state and validated delivery. CPC campaign funds are earned only as server-validated clicks are delivered; approved placements remain clearly labeled and separate from editorial content."
               : "No charge is created on submission. Public subscription checkout remains unavailable; recurring billing requires written approval and a private approval-scoped PayPal link."
             : "Review business type, automation request, budget, and timeline. Respond within 15 minutes if possible."}</p>
       </div>

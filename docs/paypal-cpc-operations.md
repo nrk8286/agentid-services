@@ -1,6 +1,6 @@
 # PayPal CPC sponsor operations
 
-GPTMarketPlus CPC campaigns are reviewed before payment. An approved advertiser receives a PayPal invoice whose quantity is the click cap and whose unit price is the CPC rate. Paying the exact invoice amount activates the campaign through the verified PayPal webhook.
+GPTMarketPlus CPC campaigns are reviewed before payment. An approved advertiser receives a private campaign portal plus a PayPal invoice whose quantity is the click cap and whose unit price is the CPC rate. Paying the exact invoice amount activates the campaign through the verified PayPal webhook.
 
 Default pilot terms:
 
@@ -26,9 +26,14 @@ curl -X POST https://gptmarketplus.com/api/paypal/cpc/campaigns \
     "destinationUrl": "https://example.com/approved-landing-page",
     "cpcCents": 200,
     "clickCap": 25,
-    "durationDays": 30
+    "durationDays": 30,
+    "approvalReference": "signed-order-or-email-thread-2026-08-14"
   }'
 ```
+
+The successful response returns `campaignAccessUrl` once. It contains a 256-bit token in the URL fragment; D1 stores only the SHA-256 token hash. Send the private URL only to the approved advertiser. The advertiser must also enter the exact approved email address before the campaign, invoice state, PayPal payer link, and delivery report are shown.
+
+PayPal also emails its hosted invoice link to the approved recipient. The private portal retrieves the payer URL from PayPal invoice metadata and accepts only HTTPS `paypal.com` destinations.
 
 Do not put a real administrator token into source control, shell history, documentation, tickets, or chat messages.
 
@@ -61,3 +66,25 @@ curl -X POST https://gptmarketplus.com/api/paypal/cpc/campaigns/CAMPAIGN_ID/stat
 ```
 
 Allowed actions are `pause`, `resume`, and `cancel`. A refund must still be completed and verified through PayPal; changing local campaign status does not move money.
+
+## Rotate or revoke advertiser portal access
+
+Rotate a lost or exposed portal link:
+
+```sh
+curl -X POST https://gptmarketplus.com/api/paypal/cpc/campaigns/CAMPAIGN_ID/access \
+  -H "Authorization: Bearer ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  --data '{"action":"rotate","expiresInDays":120}'
+```
+
+Revoke access without changing campaign delivery or moving money:
+
+```sh
+curl -X POST https://gptmarketplus.com/api/paypal/cpc/campaigns/CAMPAIGN_ID/access \
+  -H "Authorization: Bearer ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  --data '{"action":"revoke"}'
+```
+
+The portal route is `/sponsor/campaign`. It is `noindex`, `noarchive`, `no-referrer`, and `private, no-store`. Never put its raw fragment token in logs, email subject lines, analytics, source control, or tickets.

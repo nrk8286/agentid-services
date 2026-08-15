@@ -19,7 +19,7 @@ import {
 } from "./agentid-site.js";
 import { googleSearchConsoleStatus } from "./google-search-console.js";
 import { growthSnapshotStatus, runDailyGrowthSnapshot } from "./growth-snapshot.js";
-import { normalizePaypalInvoiceId, summarizePaypalInvoice } from "./paypal-invoice.js";
+import { normalizePaypalInvoiceId, paypalInvoiceRecipientViewUrl, summarizePaypalInvoice } from "./paypal-invoice.js";
 import {
   claimPaypalSubscriptionApproval,
   completePaypalSubscriptionApproval,
@@ -37,13 +37,17 @@ import {
   CPC_DEFAULT_DURATION_DAYS,
   CPC_DEFAULT_RATE_CENTS,
   CPC_TERMS_VERSION,
+  advertiserCpcCampaign,
   buildCpcInvoicePayload,
   cpcInvoiceFullyFunded,
   cpcRefundDisposition,
   cpcVisitorHash,
+  inspectCpcAdvertiserAccess,
+  issueCpcAdvertiserAccess,
   likelyAutomatedClick,
   normalizeCpcCampaignInput,
   publicCpcCampaign,
+  revokeCpcAdvertiserAccess,
 } from "./cpc-campaign.js";
 
 const JSON_HEADERS = {
@@ -722,6 +726,16 @@ export default {
       }
       return createAndSendPaypalCpcInvoice(request, env);
     }
+    if (url.pathname === "/api/paypal/cpc/campaigns/inspect" && request.method === "POST") {
+      return handleInspectPaypalCpcCampaign(request, env);
+    }
+    const cpcAccessMatch = url.pathname.match(/^\/api\/paypal\/cpc\/campaigns\/([a-z0-9-]{8,80})\/access$/i);
+    if (cpcAccessMatch && request.method === "POST") {
+      if (!(await hasAdminAccess(request, env))) {
+        return jsonResponse({ ok: false, error: "Admin access required." }, 403);
+      }
+      return handleManagePaypalCpcCampaignAccess(request, env, cpcAccessMatch[1]);
+    }
     const cpcStatusMatch = url.pathname.match(/^\/api\/paypal\/cpc\/campaigns\/([a-z0-9-]{8,80})\/status$/i);
     if (cpcStatusMatch && request.method === "POST") {
       if (!(await hasAdminAccess(request, env))) {
@@ -798,6 +812,9 @@ export default {
     }
     if (url.pathname === "/sponsor/subscribe" && request.method === "GET") {
       return privateHtmlResponse(renderPrivateSponsorSubscriptionPage(env));
+    }
+    if (url.pathname === "/sponsor/campaign" && request.method === "GET") {
+      return privateHtmlResponse(renderPrivatePaypalCpcCampaignPage(env));
     }
     if (url.pathname === "/launch-kit/workspace" && request.method === "GET") {
       return handleLaunchKitWorkspacePage(request, env);
@@ -1792,6 +1809,8 @@ async function paypalCpcPublicStatus(env) {
     activeCampaign: publicCpcCampaign(campaign),
     termsVersion: CPC_TERMS_VERSION,
     applicationUrl: `${siteUrl(env)}/contact?intent=sponsor&package=cpc_sponsor_pilot`,
+    advertiserPortalEnabled: true,
+    advertiserPortalUrl: `${siteUrl(env)}/sponsor/campaign`,
   };
 }
 
@@ -1802,11 +1821,15 @@ async function listPaypalCpcCampaigns(env) {
   const campaigns = Array.isArray(result?.results) ? result.results : [];
   return {
     ok: true,
-    campaigns: campaigns.map((campaign) => ({
-      ...campaign,
-      public: publicCpcCampaign(campaign),
-      unearned_cents: Math.max(Number(campaign.budget_cents || 0) - (Number(campaign.validated_clicks || 0) * Number(campaign.cpc_cents || 0)), 0),
-    })),
+    campaigns: campaigns.map((campaign) => {
+      const { advertiser_access_token_hash: _tokenHash, ...safeCampaign } = campaign;
+      return {
+        ...safeCampaign,
+        advertiser_access_configured: Boolean(campaign.advertiser_access_token_hash && !campaign.advertiser_access_revoked_at),
+        public: publicCpcCampaign(campaign),
+        unearned_cents: Math.max(Number(campaign.budget_cents || 0) - (Number(campaign.validated_clicks || 0) * Number(campaign.cpc_cents || 0)), 0),
+      };
+    }),
   };
 }
 
@@ -1835,13 +1858,15 @@ async function createAndSendPaypalCpcInvoice(request, env) {
     ...normalized.value,
     createdAt: now,
     updatedAt: now,
+    approvedAt: now,
     status: "approved_pending_invoice",
     paypalMode: paypalMode(env),
   };
   await env.GMP_DB.prepare(`INSERT INTO sponsor_cpc_campaigns
     (id, created_at, updated_at, advertiser_email, sponsor_name, sponsor_copy, destination_url, status,
-     cpc_cents, click_cap, validated_clicks, budget_cents, duration_days, paypal_mode, terms_version)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)`).bind(
+     cpc_cents, click_cap, validated_clicks, budget_cents, duration_days, paypal_mode, terms_version,
+     approval_reference, approved_at, approved_by)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)`).bind(
     campaign.id,
     campaign.createdAt,
     campaign.updatedAt,
@@ -1856,7 +1881,20 @@ async function createAndSendPaypalCpcInvoice(request, env) {
     campaign.durationDays,
     campaign.paypalMode,
     campaign.termsVersion,
+    campaign.approvalReference,
+    campaign.approvedAt,
+    campaign.approvedBy,
   ).run();
+
+  const access = await issueCpcAdvertiserAccess(env.GMP_DB, campaign.id, {
+    baseUrl: siteUrl(env),
+    now,
+  });
+  if (!access.ok) {
+    await env.GMP_DB.prepare("UPDATE sponsor_cpc_campaigns SET status = 'access_failed', updated_at = ? WHERE id = ?")
+      .bind(new Date().toISOString(), campaign.id).run();
+    return jsonResponse({ ok: false, error: access.error, campaignId: campaign.id }, access.status || 500);
+  }
 
   const invoiceResponse = await paypalApiRequest(env, "/v2/invoicing/invoices", {
     method: "POST",
@@ -1866,14 +1904,14 @@ async function createAndSendPaypalCpcInvoice(request, env) {
   if (!invoiceResponse.ok) {
     await env.GMP_DB.prepare("UPDATE sponsor_cpc_campaigns SET status = 'invoice_failed', updated_at = ? WHERE id = ?")
       .bind(new Date().toISOString(), campaign.id).run();
-    return jsonResponse({ ok: false, error: invoiceResponse.error, campaignId: campaign.id }, invoiceResponse.status || 502);
+    return jsonResponse({ ok: false, error: invoiceResponse.error, campaignId: campaign.id, campaignAccessUrl: access.accessUrl }, invoiceResponse.status || 502);
   }
 
   const invoiceId = normalizePaypalInvoiceId(invoiceResponse.result?.id);
   if (!invoiceId) {
     await env.GMP_DB.prepare("UPDATE sponsor_cpc_campaigns SET status = 'invoice_failed', updated_at = ? WHERE id = ?")
       .bind(new Date().toISOString(), campaign.id).run();
-    return jsonResponse({ ok: false, error: "PayPal created an invoice without a valid invoice ID.", campaignId: campaign.id }, 502);
+    return jsonResponse({ ok: false, error: "PayPal created an invoice without a valid invoice ID.", campaignId: campaign.id, campaignAccessUrl: access.accessUrl }, 502);
   }
   await env.GMP_DB.prepare(`UPDATE sponsor_cpc_campaigns
     SET status = 'invoice_created', invoice_id = ?, invoice_status = 'DRAFT', updated_at = ? WHERE id = ?`)
@@ -1890,6 +1928,7 @@ async function createAndSendPaypalCpcInvoice(request, env) {
       error: sendResponse.error,
       campaignId: campaign.id,
       invoiceId,
+      campaignAccessUrl: access.accessUrl,
       invoiceCreated: true,
       invoiceSent: false,
     }, sendResponse.status || 502);
@@ -1902,12 +1941,79 @@ async function createAndSendPaypalCpcInvoice(request, env) {
     ok: true,
     campaignId: campaign.id,
     invoiceId,
+    campaignAccessUrl: access.accessUrl,
     invoiceSent: true,
     amountCents: campaign.budgetCents,
     cpcCents: campaign.cpcCents,
     clickCap: campaign.clickCap,
     note: "The campaign activates only after a verified PayPal invoice-paid webhook and exact funding check.",
   }, 201);
+}
+
+async function handleInspectPaypalCpcCampaign(request, env) {
+  const body = await readJson(request);
+  if (body === BODY_TOO_LARGE) return payloadTooLargeResponse();
+  if (!body || typeof body !== "object") return privateJsonResponse({ ok: false, error: "Invalid JSON." }, 400);
+  const inspected = await inspectCpcAdvertiserAccess(env.GMP_DB, {
+    token: body.accessToken,
+    advertiserEmail: body.advertiserEmail,
+  });
+  if (!inspected.ok) return privateJsonResponse({ ok: false, error: inspected.error }, inspected.status);
+
+  let invoiceSummary = null;
+  let paymentUrl = "";
+  let providerAvailable = false;
+  if (inspected.record.invoice_id && paypalCredentialsReady(env)) {
+    const provider = await paypalApiRequest(env, `/v2/invoicing/invoices/${encodeURIComponent(inspected.record.invoice_id)}`);
+    providerAvailable = provider.ok;
+    if (provider.ok) {
+      invoiceSummary = summarizePaypalInvoice(provider.result, { mode: paypalMode(env) });
+      const candidateUrl = paypalInvoiceRecipientViewUrl(provider.result);
+      if (!invoiceSummary.providerPaid && !invoiceSummary.refunded && !invoiceSummary.externallyMarked) {
+        paymentUrl = candidateUrl;
+      }
+    }
+  }
+
+  const locallyPaid = Boolean(inspected.record.paid_at)
+    && !["refund_review", "refunded", "cancelled"].includes(String(inspected.record.status || ""));
+  const providerPaid = invoiceSummary ? Boolean(invoiceSummary.providerPaid) : locallyPaid;
+
+  return privateJsonResponse({
+    ok: true,
+    campaign: advertiserCpcCampaign(inspected.record),
+    paypal: {
+      provider: "paypal",
+      mode: paypalMode(env),
+      providerAvailable,
+      invoiceStatus: invoiceSummary?.status || inspected.record.invoice_status || "NOT_CREATED",
+      providerPaid,
+      paymentUrl: paymentUrl || null,
+      paymentAvailable: Boolean(paymentUrl),
+      note: paymentUrl
+        ? "PayPal hosts the invoice and payment page. Campaign delivery starts only after the verified paid webhook and exact funding check."
+        : "Use the PayPal invoice email for payment if the hosted link is unavailable. Payment status is verified before delivery.",
+    },
+  });
+}
+
+async function handleManagePaypalCpcCampaignAccess(request, env, campaignId) {
+  const body = await readJson(request);
+  if (body === BODY_TOO_LARGE) return payloadTooLargeResponse();
+  if (!body || typeof body !== "object") return jsonResponse({ ok: false, error: "Invalid JSON." }, 400);
+  const action = cleanText(body.action || "rotate", 20).toLowerCase();
+  if (action === "revoke") {
+    const revoked = await revokeCpcAdvertiserAccess(env.GMP_DB, campaignId);
+    return jsonResponse(revoked.ok ? revoked : { ok: false, error: revoked.error }, revoked.status);
+  }
+  if (action !== "rotate") {
+    return jsonResponse({ ok: false, error: "Campaign access action must be rotate or revoke." }, 400);
+  }
+  const issued = await issueCpcAdvertiserAccess(env.GMP_DB, campaignId, {
+    baseUrl: siteUrl(env),
+    expiresInDays: body.expiresInDays,
+  });
+  return jsonResponse(issued.ok ? issued : { ok: false, error: issued.error }, issued.status);
 }
 
 async function updatePaypalCpcCampaignStatus(request, env, campaignId) {
@@ -3252,6 +3358,130 @@ function renderPrivateSponsorSubscriptionPage(env) {
           button.disabled = false;
           button.textContent = "Continue securely to PayPal";
           form.hidden = false;
+        }
+      });
+    })();
+  </script>
+</body>
+</html>`;
+}
+
+function renderPrivatePaypalCpcCampaignPage(env) {
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <title>Private advertiser campaign | ${escapeHtml(brandName(env))}</title>
+  <style>
+    :root{color-scheme:light;--ink:#10231e;--muted:#53645e;--paper:#f4f7f3;--card:#fff;--green:#087760;--line:#d5dfda;--danger:#9b2c2c;--gold:#9a6500}
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;padding:24px;background:linear-gradient(145deg,#edf5f1,var(--paper));color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    main{width:min(820px,100%);margin:5vh auto;padding:clamp(28px,6vw,58px);border:1px solid var(--line);border-radius:22px;background:var(--card);box-shadow:0 28px 90px rgba(16,35,30,.1)}
+    .eyebrow{margin:0 0 10px;color:var(--green);font-size:13px;font-weight:800;letter-spacing:.09em;text-transform:uppercase}h1{margin:0 0 14px;font-size:clamp(34px,7vw,56px);line-height:1.03}p{color:var(--muted);font-size:17px;line-height:1.6}.summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:24px 0}.metric{padding:18px;border:1px solid var(--line);border-radius:14px;background:#f9fbf9}.metric span{display:block;color:var(--muted);font-size:13px;font-weight:750;text-transform:uppercase}.metric strong{display:block;margin-top:6px;font-size:20px}.creative{grid-column:1/-1}label{display:grid;gap:8px;font-weight:750}input{min-height:48px;padding:0 14px;border:1px solid #aebdb7;border-radius:9px;font:inherit}button,.button{display:inline-flex;min-height:50px;align-items:center;justify-content:center;margin-top:16px;padding:0 20px;border:0;border-radius:9px;background:var(--green);color:#fff;font:inherit;font-weight:850;text-decoration:none;cursor:pointer}button:disabled{cursor:wait;opacity:.65}#status[data-error="true"]{color:var(--danger)}.notice{padding:14px 16px;border-left:4px solid var(--gold);background:#fff8e6}.fine{font-size:14px}a{color:var(--green)}[hidden]{display:none!important}@media(max-width:620px){.summary{grid-template-columns:1fr}.creative{grid-column:auto}}
+  </style>
+</head>
+<body>
+  <main>
+    <p class="eyebrow">Private advertiser portal</p>
+    <h1>Pay with PayPal and track your approved ad</h1>
+    <p>This page displays only the creative, destination, price, and click cap approved in writing. Paying the PayPal invoice does not change the creative. Delivery begins only after PayPal verifies the exact prepaid amount.</p>
+    <p id="status" role="status" aria-live="polite">Enter the approved advertiser email to open this campaign.</p>
+    <form id="access-form">
+      <label>Approved advertiser email
+        <input id="advertiser-email" name="advertiserEmail" type="email" autocomplete="email" required>
+      </label>
+      <button id="access-button" type="submit">Open approved campaign</button>
+    </form>
+    <section id="campaign" hidden>
+      <div class="summary">
+        <div class="metric"><span>Campaign</span><strong id="campaign-name"></strong></div>
+        <div class="metric"><span>Status</span><strong id="campaign-status"></strong></div>
+        <div class="metric"><span>Prepaid funding</span><strong id="campaign-funded"></strong></div>
+        <div class="metric"><span>Validated delivery</span><strong id="campaign-delivery"></strong></div>
+        <div class="metric"><span>Earned</span><strong id="campaign-earned"></strong></div>
+        <div class="metric"><span>Unearned balance</span><strong id="campaign-unearned"></strong></div>
+        <div class="metric creative"><span>Approved creative</span><strong id="campaign-copy"></strong><p id="campaign-destination"></p></div>
+      </div>
+      <p class="notice" id="paypal-note"></p>
+      <a class="button" id="paypal-payment" href="#" target="_blank" rel="noopener noreferrer" hidden>Open secure PayPal invoice</a>
+    </section>
+    <p class="fine">Only server-validated unique outbound clicks consume prepaid campaign credit. Impressions, known bots, off-site requests, and repeat visitor clicks within 24 hours are not billable. Contact <a href="mailto:${escapeHtml(env.SUPPORT_EMAIL || "admin@gptmarketplus.com")}">${escapeHtml(env.SUPPORT_EMAIL || "admin@gptmarketplus.com")}</a> before paying if any approved term is incorrect.</p>
+  </main>
+  <script>
+    (function () {
+      "use strict";
+      const token = location.hash.slice(1);
+      const status = document.getElementById("status");
+      const form = document.getElementById("access-form");
+      const button = document.getElementById("access-button");
+      const campaignSection = document.getElementById("campaign");
+      const payment = document.getElementById("paypal-payment");
+
+      function money(cents) {
+        return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(Number(cents || 0) / 100);
+      }
+
+      function safePaypalUrl(value) {
+        try {
+          const url = new URL(value);
+          return url.protocol === "https:" && !url.username && !url.password
+            && (url.hostname === "paypal.com" || url.hostname.endsWith(".paypal.com")) ? url.toString() : "";
+        } catch {
+          return "";
+        }
+      }
+
+      function showError(message) {
+        status.textContent = message;
+        status.dataset.error = "true";
+        campaignSection.hidden = true;
+      }
+
+      if (!/^[A-Za-z0-9_-]{43,86}$/.test(token)) {
+        showError("This private campaign link is missing or invalid.");
+        form.hidden = true;
+        return;
+      }
+
+      form.addEventListener("submit", async function (event) {
+        event.preventDefault();
+        button.disabled = true;
+        status.textContent = "Checking the campaign and PayPal invoice…";
+        delete status.dataset.error;
+        try {
+          const response = await fetch("/api/paypal/cpc/campaigns/inspect", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              accessToken: token,
+              advertiserEmail: document.getElementById("advertiser-email").value
+            })
+          });
+          const result = await response.json();
+          if (!response.ok || !result.ok) throw new Error(result.error || "Campaign access is unavailable.");
+          const campaign = result.campaign;
+          document.getElementById("campaign-name").textContent = campaign.sponsorName;
+          document.getElementById("campaign-status").textContent = campaign.status.replaceAll("_", " ");
+          document.getElementById("campaign-funded").textContent = money(campaign.fundedCents);
+          document.getElementById("campaign-delivery").textContent = campaign.validatedClicks + " of " + campaign.clickCap + " clicks";
+          document.getElementById("campaign-earned").textContent = money(campaign.earnedCents);
+          document.getElementById("campaign-unearned").textContent = money(campaign.unearnedCents);
+          document.getElementById("campaign-copy").textContent = campaign.sponsorCopy;
+          document.getElementById("campaign-destination").textContent = "Approved destination: " + campaign.destinationUrl;
+          document.getElementById("paypal-note").textContent = result.paypal.note;
+          const paymentUrl = safePaypalUrl(result.paypal.paymentUrl || "");
+          payment.hidden = !paymentUrl;
+          if (paymentUrl) payment.href = paymentUrl;
+          status.textContent = result.paypal.providerPaid
+            ? "PayPal payment is verified. Campaign delivery is " + campaign.status.replaceAll("_", " ") + "."
+            : "Campaign approved. Complete the PayPal invoice to fund delivery.";
+          form.hidden = true;
+          campaignSection.hidden = false;
+        } catch (error) {
+          showError(error.message || "Campaign access is unavailable.");
+        } finally {
+          button.disabled = false;
         }
       });
     })();
