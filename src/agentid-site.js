@@ -18,6 +18,11 @@ import {
   renderCustomerLeadCaptureApp,
   renderCustomerLeadOwnerView,
 } from "./customer-app-ui.js";
+import {
+  extractEmailAddress,
+  normalizeEmailAddress,
+  stripTrailingSlashes,
+} from "./input-validation.js";
 
 const SECURITY_HEADERS = {
   "strict-transport-security": "max-age=31536000; includeSubDomains; preload",
@@ -1287,7 +1292,7 @@ const CHAT_OBJECTIONS = [
 ];
 
 function siteUrl(env) {
-  return (env.SITE_URL || "https://gptmarketplus.com").replace(/\/+$/, "");
+  return stripTrailingSlashes(env.SITE_URL || "https://gptmarketplus.com");
 }
 
 function isAgentIdSite(env) {
@@ -1439,7 +1444,7 @@ function paypalCheckoutReady(env) {
 
 function normalizePath(pathname) {
   if (!pathname) return "/";
-  const clean = pathname.replace(/\/+$/, "");
+  const clean = stripTrailingSlashes(pathname);
   return clean || "/";
 }
 
@@ -1479,8 +1484,7 @@ function cleanText(value, maxLength = 5000) {
 }
 
 function cleanEmail(value) {
-  const email = String(value ?? "").trim().toLowerCase();
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email.slice(0, 160) : "";
+  return normalizeEmailAddress(value);
 }
 
 export function classifyLeadRecord(env, record = {}) {
@@ -3437,7 +3441,7 @@ function classifyBudget(text) {
 
 function detectContactDetails(text) {
   const body = String(text || "");
-  const email = body.match(/([^\s@]+@[^\s@]+\.[^\s@]+)/)?.[1] || "";
+  const email = extractEmailAddress(body);
   const phone = body.match(/(\+?\d[\d(). -]{7,}\d)/)?.[1] || "";
   const website = body.match(/https?:\/\/[^\s]+|(?:www\.)[^\s]+/i)?.[0] || "";
   return {
@@ -6221,7 +6225,7 @@ function customerAppList(value, maxItems = 12, maxLength = 140) {
 }
 
 function firstEmailInText(value) {
-  return cleanEmail(String(value || "").match(/[^\s,;<>]+@[^\s,;<>]+\.[^\s,;<>]+/)?.[0] || "");
+  return extractEmailAddress(value);
 }
 
 function customerAppOwnerEmail({ purchase, lead, onboarding } = {}) {
@@ -7645,7 +7649,7 @@ function renderLeadForm({ action, formId, fields, cta, note, turnstileHtml = "",
 }
 
 function renderMeasurementHead(env) {
-  const gatewayPath = String(env.GOOGLE_TAG_GATEWAY_PATH || "/gtag").trim().replace(/\/+$/, "") || "/gtag";
+  const gatewayPath = stripTrailingSlashes(String(env.GOOGLE_TAG_GATEWAY_PATH || "/gtag").trim()) || "/gtag";
   const tagManagerId = String(env.GOOGLE_TAG_ID || "").trim();
   const analyticsId = String(env.GOOGLE_ANALYTICS_ID || "").trim();
   const snippets = [];
@@ -7717,7 +7721,7 @@ ${indent}});`;
 function renderMeasurementBody(env) {
   const tagManagerId = String(env.GOOGLE_TAG_ID || "").trim();
   if (!tagManagerId.startsWith("GTM-")) return "";
-  const gatewayPath = String(env.GOOGLE_TAG_GATEWAY_PATH || "/gtag").trim().replace(/\/+$/, "") || "/gtag";
+  const gatewayPath = stripTrailingSlashes(String(env.GOOGLE_TAG_GATEWAY_PATH || "/gtag").trim()) || "/gtag";
   return `<noscript><iframe src="${escapeHtml(gatewayPath)}/ns.html?id=${encodeURIComponent(tagManagerId)}" height="0" width="0" style="display:none;visibility:hidden" title="Google Tag Manager"></iframe></noscript>`;
 }
 
@@ -11737,7 +11741,7 @@ async function handleCustomerAppLeadSubmission(request, env, ctx) {
   const service = cleanText(body.service || "", 160);
   const message = cleanText(body.message || "", 4000);
   const consent = body.consent === true || body.consent === "yes" || body.consent === "true";
-  if (!name || !email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail) || !message || !consent) {
+  if (!name || !email || !message || !consent) {
     return jsonResponse({ ok: false, error: "Name, a valid email, message, and contact consent are required." }, 400);
   }
 

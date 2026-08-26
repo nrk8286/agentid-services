@@ -1,3 +1,5 @@
+import { normalizeEmailAddress } from "./input-validation.js";
+
 export const CPC_TERMS_VERSION = "2026-08-08-v1";
 export const CPC_DEFAULT_RATE_CENTS = 200;
 export const CPC_DEFAULT_CLICK_CAP = 25;
@@ -11,8 +13,7 @@ function cleanText(value, maxLength) {
 }
 
 function cleanEmail(value) {
-  const email = cleanText(value, 254).toLowerCase();
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : "";
+  return normalizeEmailAddress(cleanText(value, 254), 254);
 }
 
 function base64Url(bytes) {

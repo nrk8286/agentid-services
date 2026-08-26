@@ -1,3 +1,5 @@
+import { normalizeEmailAddress } from "./input-validation.js";
+
 const TOKEN_PATTERN = /^[A-Za-z0-9_-]{43,86}$/;
 const DEFAULT_TTL_HOURS = 48;
 const MAX_TTL_HOURS = 72;
@@ -8,8 +10,7 @@ function cleanText(value, maxLength) {
 }
 
 function cleanEmail(value) {
-  const email = String(value || "").trim().toLowerCase();
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email.slice(0, 160) : "";
+  return normalizeEmailAddress(value);
 }
 
 function base64Url(bytes) {

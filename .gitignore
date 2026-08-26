@@ -72,6 +72,7 @@ dist/
 build/
 tmp/
 *.log
+*.cpuprofile
 
 # Editors and operating systems
 .DS_Store

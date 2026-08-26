@@ -1,3 +1,5 @@
+import { normalizeEmailAddress } from "./input-validation.js";
+
 const APP_STATUSES = new Set(["draft", "active", "paused", "archived"]);
 const FOLLOW_UP_STATUSES = new Set(["not_queued", "queued", "in_progress", "completed", "suppressed"]);
 const PUBLIC_CACHE_PREFIX = "customer-app:public:";
@@ -7,8 +9,7 @@ function cleanText(value, maxLength = 500) {
 }
 
 function cleanEmail(value) {
-  const email = cleanText(value, 254).toLowerCase();
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : "";
+  return normalizeEmailAddress(cleanText(value, 254), 254);
 }
 
 function object(value) {

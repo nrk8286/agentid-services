@@ -39,11 +39,11 @@
     "validate:links:live": "node scripts/validate-public-links.mjs --live"
   },
   "devDependencies": {
-    "wrangler": "4.125.0"
+    "wrangler": "4.126.0"
   },
   "allowScripts": {
     "esbuild@0.28.1": true,
     "fsevents@2.3.3": false,
-    "workerd@1.20260811.1": true
+    "workerd@1.20260825.1": true
   }
 }

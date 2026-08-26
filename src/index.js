@@ -20,6 +20,12 @@ import {
 } from "./agentid-site.js";
 import { googleSearchConsoleStatus } from "./google-search-console.js";
 import { growthSnapshotStatus, runDailyGrowthSnapshot } from "./growth-snapshot.js";
+import {
+  decodeHtmlEntitiesOnce,
+  normalizeEmailAddress,
+  stripHtmlTags,
+  stripTrailingSlashes,
+} from "./input-validation.js";
 import { normalizePaypalInvoiceId, paypalInvoiceRecipientViewUrl, summarizePaypalInvoice } from "./paypal-invoice.js";
 import {
   claimPaypalSubscriptionApproval,
@@ -861,7 +867,7 @@ export default {
     const agentIdResponse = await handleAgentIdSiteRequest(request, env, ctx);
     if (agentIdResponse) return tagAssistantDebugResponse(request, agentIdResponse);
     if (url.pathname.startsWith("/updates/") && ["GET", "HEAD"].includes(request.method)) {
-      const actionId = url.pathname.slice("/updates/".length).replace(/\/+$/, "");
+      const actionId = stripTrailingSlashes(url.pathname.slice("/updates/".length));
       return renderPublishedAgentAction(env, actionId);
     }
     const gatewayPath = googleTagGatewayPath(env);
@@ -4795,7 +4801,7 @@ function extractMetaDescription(html) {
 }
 
 function stripTags(value) {
-  return String(value || "").replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<style[\s\S]*?<\/style>/gi, " ").replace(/<[^>]+>/g, " ");
+  return stripHtmlTags(value);
 }
 
 function compactText(value) {
@@ -4803,13 +4809,7 @@ function compactText(value) {
 }
 
 function decodeHtmlEntities(value) {
-  return value
-    .replace(/&amp;/g, "&")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&apos;/g, "'")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">");
+  return decodeHtmlEntitiesOnce(value);
 }
 
 function stableProspectId(domain, path) {
@@ -9169,8 +9169,7 @@ function redactLead(lead) {
 }
 
 function cleanEmail(value) {
-  const email = String(value || "").trim().toLowerCase();
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email.slice(0, 160) : "";
+  return normalizeEmailAddress(value);
 }
 
 function cleanText(value, maxLength) {
@@ -9232,7 +9231,7 @@ function siteDescription(env) {
 }
 
 function siteUrl(env) {
-  return (env.SITE_URL || "https://gptmarketplus.com").replace(/\/+$/, "");
+  return stripTrailingSlashes(env.SITE_URL || "https://gptmarketplus.com");
 }
 
 function isAgentIdSite(env) {
@@ -9263,7 +9262,7 @@ function googleAdsConversionSendTo(env, eventName = "generate_lead") {
 function googleTagGatewayPath(env) {
   const rawPath = String(env.GOOGLE_TAG_GATEWAY_PATH || GOOGLE_TAG_GATEWAY.path).trim();
   const withSlash = rawPath.startsWith("/") ? rawPath : `/${rawPath}`;
-  return withSlash.replace(/\/+$/, "") || GOOGLE_TAG_GATEWAY.path;
+  return stripTrailingSlashes(withSlash) || GOOGLE_TAG_GATEWAY.path;
 }
 
 function googleTagGatewayStatus(env) {

@@ -21,6 +21,13 @@ import {
 } from "../src/growth-snapshot.js";
 import { tagAssistantDebugResponse } from "../src/response-security.js";
 import { normalizePaypalInvoiceId, paypalInvoiceRecipientViewUrl, summarizePaypalInvoice } from "../src/paypal-invoice.js";
+import {
+  decodeHtmlEntitiesOnce,
+  extractEmailAddress,
+  normalizeEmailAddress,
+  stripHtmlTags,
+  stripTrailingSlashes,
+} from "../src/input-validation.js";
 
 const raw = readFileSync(new URL("../wrangler.jsonc", import.meta.url), "utf8");
 const runtimeMigration = readFileSync(new URL("../migrations/0004_agent_runtime.sql", import.meta.url), "utf8");
@@ -34,6 +41,60 @@ const workerSource = readFileSync(new URL("../src/index.js", import.meta.url), "
 const siteSource = readFileSync(new URL("../src/agentid-site.js", import.meta.url), "utf8");
 const searchConsoleSource = readFileSync(new URL("../src/google-search-console.js", import.meta.url), "utf8");
 const failures = [];
+
+function htmlScriptUrls(html, baseUrl) {
+  const urls = [];
+  let cursor = 0;
+  while (cursor < html.length) {
+    const scriptStart = html.indexOf("<script", cursor);
+    if (scriptStart === -1) break;
+    const tagEnd = html.indexOf(">", scriptStart + 7);
+    if (tagEnd === -1) break;
+    const tag = html.slice(scriptStart, tagEnd + 1);
+    const sourceStart = tag.indexOf('src="');
+    if (sourceStart !== -1) {
+      const valueStart = sourceStart + 5;
+      const valueEnd = tag.indexOf('"', valueStart);
+      if (valueEnd !== -1) {
+        try {
+          urls.push(new URL(tag.slice(valueStart, valueEnd), baseUrl));
+        } catch {
+          // Invalid script URLs fail the exact loader check below.
+        }
+      }
+    }
+    cursor = tagEnd + 1;
+  }
+  return urls;
+}
+
+function sitemapLocations(xml) {
+  const locations = new Set();
+  let cursor = 0;
+  while (cursor < xml.length) {
+    const locationStart = xml.indexOf("<loc>", cursor);
+    if (locationStart === -1) break;
+    const valueStart = locationStart + 5;
+    const valueEnd = xml.indexOf("</loc>", valueStart);
+    if (valueEnd === -1) break;
+    try {
+      locations.add(new URL(xml.slice(valueStart, valueEnd).trim()).href);
+    } catch {
+      // Invalid sitemap locations remain absent from the exact URL set.
+    }
+    cursor = valueEnd + 6;
+  }
+  return locations;
+}
+
+if (stripTrailingSlashes("https://example.com///") !== "https://example.com"
+    || normalizeEmailAddress("OWNER@Example.com") !== "owner@example.com"
+    || normalizeEmailAddress("owner@@example.com") !== ""
+    || extractEmailAddress("Contact <owner@example.com> today") !== "owner@example.com"
+    || stripHtmlTags("<p>Safe<script type=\"text/javascript\">unsafe()</script> text</p>").includes("unsafe")
+    || decodeHtmlEntitiesOnce("&amp;lt;") !== "&lt;") {
+  failures.push("bounded input validation helpers must normalize without regex backtracking or double decoding");
+}
 
 if (typeof sendQueuedCustomerFollowups !== "function") {
   failures.push("customer follow-up sender must be exported for the scheduler");
@@ -1431,8 +1492,13 @@ const agentIdHomeResponse = await handleAgentIdSiteRequest(
   { waitUntil() {} },
 );
 const agentIdHomeBody = await agentIdHomeResponse.text();
+const agentIdScriptUrls = htmlScriptUrls(agentIdHomeBody, "https://agentid.services/");
+const hasAgentIdAdSenseLoader = agentIdScriptUrls.some((scriptUrl) => scriptUrl.protocol === "https:"
+  && scriptUrl.hostname === "pagead2.googlesyndication.com"
+  && scriptUrl.pathname === "/pagead/js/adsbygoogle.js"
+  && scriptUrl.searchParams.get("client") === "ca-pub-7354323580032872");
 if (!agentIdHomeBody.includes("AgentID Services")
-  || !agentIdHomeBody.includes("pagead2.googlesyndication.com")
+  || !hasAgentIdAdSenseLoader
   || !agentIdHomeBody.includes('meta name="google-adsense-account" content="ca-pub-7354323580032872"')) {
   failures.push("agentid.services homepage must retain AgentID branding and include the AdSense review code");
 }
@@ -1442,14 +1508,15 @@ const agentIdSitemapResponse = await handleAgentIdSiteRequest(
   { waitUntil() {} },
 );
 const agentIdSitemapBody = await agentIdSitemapResponse.text();
-if (!agentIdSitemapBody.includes("https://agentid.services/services")
-  || agentIdSitemapBody.includes("https://agentid.services/software-builds")
-  || agentIdSitemapBody.includes("https://agentid.services/sponsor")
-  || agentIdSitemapBody.includes("https://agentid.services/ai-marketing-automation")
-  || agentIdSitemapBody.includes("https://agentid.services/ai-lead-generation")
-  || agentIdSitemapBody.includes("https://agentid.services/small-business-ai-tools")
-  || agentIdSitemapBody.includes("https://agentid.services/chatgpt-marketing")
-  || agentIdSitemapBody.includes("https://agentid.services/ai-sales-funnel")) {
+const agentIdSitemapLocations = sitemapLocations(agentIdSitemapBody);
+if (!agentIdSitemapLocations.has("https://agentid.services/services")
+  || agentIdSitemapLocations.has("https://agentid.services/software-builds")
+  || agentIdSitemapLocations.has("https://agentid.services/sponsor")
+  || agentIdSitemapLocations.has("https://agentid.services/ai-marketing-automation")
+  || agentIdSitemapLocations.has("https://agentid.services/ai-lead-generation")
+  || agentIdSitemapLocations.has("https://agentid.services/small-business-ai-tools")
+  || agentIdSitemapLocations.has("https://agentid.services/chatgpt-marketing")
+  || agentIdSitemapLocations.has("https://agentid.services/ai-sales-funnel")) {
   failures.push("agentid.services sitemap must keep canonical service pages and exclude redirected, operational, or sponsor inventory");
 }
 const agentIdAdsResponse = await handleAgentIdSiteRequest(
@@ -1678,7 +1745,8 @@ for (const sensitiveInvoiceValue of ["customer@example.com", "Private Customer",
 }
 
 const propertyCandidates = googlePropertyCandidates("https://gptmarketplus.com");
-if (!propertyCandidates.includes("sc-domain:gptmarketplus.com") || !propertyCandidates.includes("https://gptmarketplus.com/")) {
+const propertyCandidateSet = new Set(propertyCandidates);
+if (!propertyCandidateSet.has("sc-domain:gptmarketplus.com") || !propertyCandidateSet.has("https://gptmarketplus.com/")) {
   failures.push("Search Console property matching must support domain and HTTPS URL-prefix properties");
 }
 const inspectionSummary = summarizeGoogleIndexInspection({

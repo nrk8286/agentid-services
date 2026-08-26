@@ -1,3 +1,5 @@
+import { normalizeEmailAddress } from "./input-validation.js";
+
 const SEARCH_CONSOLE_SCOPE = "https://www.googleapis.com/auth/webmasters.readonly";
 const SEARCH_CONSOLE_API = "https://www.googleapis.com/webmasters/v3";
 const URL_INSPECTION_API = "https://searchconsole.googleapis.com/v1/urlInspection/index:inspect";
@@ -51,8 +53,9 @@ function cacheKey(hostname) {
 function serviceAccountPrincipal(env) {
   try {
     const credentials = JSON.parse(String(env.GOOGLE_SERVICE_ACCOUNT_JSON || ""));
-    const email = String(credentials?.client_email || "").trim().toLowerCase();
-    return /^[^\s@]+@[^\s@]+\.iam\.gserviceaccount\.com$/.test(email) ? email : null;
+    const email = normalizeEmailAddress(credentials?.client_email || "", 254);
+    const domain = email.slice(email.lastIndexOf("@") + 1);
+    return domain.endsWith(".iam.gserviceaccount.com") ? email : null;
   } catch {
     return null;
   }
