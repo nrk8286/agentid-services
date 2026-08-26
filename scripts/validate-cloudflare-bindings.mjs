@@ -224,7 +224,7 @@ for (const requiredSalesFunnelControl of [
   'persistedSalesTasks',
   'failedSalesTasks',
   'taskPersistenceStatus: failedSalesTasks > 0 ? "degraded" : "ok"',
-  'const LEAD_SPIDER_TASK_SYNC_VERSION = "v1"',
+  'const LEAD_SPIDER_TASK_SYNC_VERSION = "v2"',
   'leadSpiderTaskSyncVersion',
   'leadSpiderTaskSyncPending',
   'const taskSyncOnly = leadSpiderTaskSyncPending && !bootstrapPending;',
@@ -240,6 +240,18 @@ for (const requiredSalesFunnelControl of [
 ]) {
   if (!`${workerSource}\n${siteSource}`.includes(requiredSalesFunnelControl)) {
     failures.push(`sales funnel and agent queue synchronization is missing ${requiredSalesFunnelControl}`);
+  }
+}
+for (const requiredProspectQualityControl of [
+  'function prospectActionPattern()',
+  'if (!isSameHost || !isActionPath) continue;',
+  'prospect.actionable === true && prospect.stage === "hot"',
+  'prospect.actionable === true && prospect.score >= 55',
+  'else score -= 35;',
+  'const hasFreshActionability = typeof prospect.actionable === "boolean"',
+]) {
+  if (!workerSource.includes(requiredProspectQualityControl)) {
+    failures.push(`lead spider prospect quality controls are missing ${requiredProspectQualityControl}`);
   }
 }
 for (const requiredSalesTaskReviewControl of [
@@ -567,8 +579,8 @@ if (!workerSource.includes("LEGACY_WEBHOOK_HOSTS.has(requestHost) && LEGACY_WEBH
 if (!workerSource.includes('url.hostname = isAgentIdServicesHost ? "agentid.services" : CANONICAL_HOST')) {
   failures.push("agentid.services must remain on its own canonical host instead of redirecting to GPTMarketPlus");
 }
-if (!workerSource.includes('SITE_URL: "https://agentid.services"') || !workerSource.includes('ADSENSE_ENABLED: "false"')) {
-  failures.push("agentid.services must receive a host-scoped brand and disabled AdSense configuration");
+if (!workerSource.includes('SITE_URL: "https://agentid.services"') || !workerSource.includes('ADSENSE_ENABLED: "true"')) {
+  failures.push("agentid.services must receive a host-scoped brand and review-ready AdSense configuration");
 }
 if (!/"SITE_URL"\s*:\s*"https:\/\/gptmarketplus\.com"/.test(raw)) failures.push("SITE_URL must use the .com canonical origin");
 if (!/"STORAGE_SCOPE"\s*:\s*"agentid\.services"/.test(raw)) failures.push("STORAGE_SCOPE must preserve the existing production data namespace during migration");
@@ -1411,7 +1423,7 @@ const agentIdEnv = {
   BRAND_NAME: "AgentID Services",
   ADSENSE_CLIENT_ID: "ca-pub-7354323580032872",
   ADSENSE_AD_SLOT: "3045151068",
-  ADSENSE_ENABLED: "false",
+  ADSENSE_ENABLED: "true",
 };
 const agentIdHomeResponse = await handleAgentIdSiteRequest(
   new Request("https://agentid.services/"),
@@ -1419,8 +1431,10 @@ const agentIdHomeResponse = await handleAgentIdSiteRequest(
   { waitUntil() {} },
 );
 const agentIdHomeBody = await agentIdHomeResponse.text();
-if (!agentIdHomeBody.includes("AgentID Services") || agentIdHomeBody.includes("pagead2.googlesyndication.com") || agentIdHomeBody.includes("adsbygoogle")) {
-  failures.push("agentid.services homepage must retain AgentID branding without AdSense code");
+if (!agentIdHomeBody.includes("AgentID Services")
+  || !agentIdHomeBody.includes("pagead2.googlesyndication.com")
+  || !agentIdHomeBody.includes('meta name="google-adsense-account" content="ca-pub-7354323580032872"')) {
+  failures.push("agentid.services homepage must retain AgentID branding and include the AdSense review code");
 }
 const agentIdSitemapResponse = await handleAgentIdSiteRequest(
   new Request("https://agentid.services/sitemap.xml"),
@@ -1430,8 +1444,13 @@ const agentIdSitemapResponse = await handleAgentIdSiteRequest(
 const agentIdSitemapBody = await agentIdSitemapResponse.text();
 if (!agentIdSitemapBody.includes("https://agentid.services/services")
   || agentIdSitemapBody.includes("https://agentid.services/software-builds")
-  || agentIdSitemapBody.includes("https://agentid.services/sponsor")) {
-  failures.push("agentid.services sitemap must keep core service pages and exclude operational or sponsor inventory");
+  || agentIdSitemapBody.includes("https://agentid.services/sponsor")
+  || agentIdSitemapBody.includes("https://agentid.services/ai-marketing-automation")
+  || agentIdSitemapBody.includes("https://agentid.services/ai-lead-generation")
+  || agentIdSitemapBody.includes("https://agentid.services/small-business-ai-tools")
+  || agentIdSitemapBody.includes("https://agentid.services/chatgpt-marketing")
+  || agentIdSitemapBody.includes("https://agentid.services/ai-sales-funnel")) {
+  failures.push("agentid.services sitemap must keep canonical service pages and exclude redirected, operational, or sponsor inventory");
 }
 const agentIdAdsResponse = await handleAgentIdSiteRequest(
   new Request("https://agentid.services/ads.txt"),
@@ -1439,8 +1458,8 @@ const agentIdAdsResponse = await handleAgentIdSiteRequest(
   { waitUntil() {} },
 );
 const agentIdAdsBody = await agentIdAdsResponse.text();
-if (agentIdAdsBody.includes("google.com, pub-") || !agentIdAdsBody.includes("not active on this host")) {
-  failures.push("agentid.services ads.txt must not authorize the GPTMarketPlus AdSense publisher");
+if (!agentIdAdsBody.includes("google.com, pub-7354323580032872, DIRECT, f08c47fec0942fa0")) {
+  failures.push("agentid.services ads.txt must authorize the configured AdSense publisher for site review");
 }
 
 const calendarlessConsultationResponse = await handleAgentIdSiteRequest(

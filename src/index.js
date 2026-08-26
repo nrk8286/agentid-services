@@ -1,5 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
 import {
+  AGENTID_THIN_TRAFFIC_REDIRECTS,
   activeSponsorPlacement,
   agentIdIndexablePaths,
   agentIdOneTimeProducts,
@@ -84,7 +85,7 @@ const AGENT_ALARM_BOOTSTRAP_DELAY_MS = 15 * 1000;
 const AGENT_ALARM_RETRY_MS = 5 * 60 * 1000;
 const AGENT_SCHEDULER_NAME = "agentid-primary";
 const GROWTH_SNAPSHOT_VERSION = "v1";
-const LEAD_SPIDER_TASK_SYNC_VERSION = "v1";
+const LEAD_SPIDER_TASK_SYNC_VERSION = "v2";
 const RUN_INTERVAL_SECONDS = 60 * 30;
 const LEAD_SPIDER_INTERVAL_SECONDS = 60 * 60 * 6;
 const MAX_SPIDER_SOURCES = 8;
@@ -93,7 +94,7 @@ const MAX_JSON_BODY_BYTES = 128 * 1024;
 const BODY_TOO_LARGE = Symbol("body-too-large");
 const CANONICAL_HOST = "gptmarketplus.com";
 // Bump this whenever public HTML or public metadata changes so a deployment does not serve stale sales copy.
-const PUBLIC_CACHE_KEY_VERSION = "2026-08-14-offer-consistency-v1";
+const PUBLIC_CACHE_KEY_VERSION = "2026-08-26-agentid-policy-readiness-v1";
 const VERIFIED_REVENUE_GOAL_CENTS = 1_000_000;
 const SALES_TASK_OUTCOMES = new Set([
   "submitted",
@@ -143,20 +144,6 @@ const LEGACY_PUBLIC_HOSTS = new Set([
 const LEGACY_WEBHOOK_PATHS = new Set([
   "/api/paypal/webhook",
   "/api/agents/paypal/webhook",
-]);
-const AGENTID_THIN_TRAFFIC_REDIRECTS = new Map([
-  ["/ai-marketing-automation", "/services"],
-  ["/ai-lead-generation", "/ai-agents"],
-  ["/small-business-ai-tools", "/resources"],
-  ["/chatgpt-marketing", "/ai-agents"],
-  ["/ai-sales-funnel", "/services"],
-  ["/ai-seo-service", "/resources"],
-  ["/small-business-crm-automation", "/services"],
-  ["/business-process-automation", "/services"],
-  ["/lead-follow-up-software", "/ai-agents"],
-  ["/ai-automation-consulting", "/book-a-consultation"],
-  ["/bing-webmaster", "/resources"],
-  ["/google-search-console", "/resources"],
 ]);
 const AGENTID_NON_INDEXABLE_TRAFFIC_PATHS = new Set([
   "/sponsor",
@@ -4297,8 +4284,8 @@ async function runLeadSpider(env, options = {}) {
   const discovered = sourceReports.flatMap((report) => report.candidates || []);
   const previous = await loadSpiderProspects(env);
   const prospects = mergeProspects(previous, discovered);
-  const hotProspects = prospects.filter((prospect) => prospect.stage === "hot");
-  const warmProspects = prospects.filter((prospect) => prospect.stage === "warm");
+  const hotProspects = prospects.filter((prospect) => prospect.actionable === true && prospect.stage === "hot");
+  const warmProspects = prospects.filter((prospect) => prospect.actionable === true && prospect.stage === "warm");
   const tasks = leadSpiderTasks(prospects, now.toISOString());
 
   const report = {
@@ -4538,7 +4525,13 @@ function extractProspectCandidates(html, source, env) {
   const sourceUrl = new URL(source.url);
   const pageTitle = extractPageTitle(html) || source.name;
   const pageDescription = extractMetaDescription(html) || source.play;
-  const text = stripTags(html).slice(0, 12000);
+  const links = extractLinks(html, source.url).slice(0, 80);
+  const sourceActionable = prospectActionPattern().test(`${sourceUrl.pathname} ${pageTitle}`.toLowerCase())
+    || links.some((link) => {
+      const linkUrl = new URL(link.url);
+      const isSameHost = linkUrl.hostname.replace(/^www\./, "") === sourceUrl.hostname.replace(/^www\./, "");
+      return isSameHost && prospectActionPattern().test(`${link.text} ${linkUrl.pathname}`.toLowerCase());
+    });
   const candidates = [
     buildProspectCandidate({
       name: pageTitle,
@@ -4548,16 +4541,20 @@ function extractProspectCandidates(html, source, env) {
       description: pageDescription,
       evidence: source.play,
       isSourcePage: true,
+      actionable: sourceActionable,
     }, env),
   ];
 
-  for (const link of extractLinks(html, source.url).slice(0, 80)) {
+  for (const link of links) {
     const linkUrl = new URL(link.url);
     const isSameHost = linkUrl.hostname.replace(/^www\./, "") === sourceUrl.hostname.replace(/^www\./, "");
     const linkHaystack = `${link.text} ${linkUrl.pathname}`.toLowerCase();
-    const isActionPath = /submit|advertise|sponsor|partner|pricing|contact|list|feature|agency|tool|marketing|sales|lead/.test(linkHaystack);
+    const isActionPath = prospectActionPattern().test(linkHaystack);
 
-    if (isSameHost && !isActionPath) continue;
+    // Directory pages commonly link to hundreds of vendor sites. Those vendors
+    // are not prospects merely because the directory itself mentions sponsors,
+    // marketing, or submissions. Keep discovery on the reviewed source host.
+    if (!isSameHost || !isActionPath) continue;
     if (shouldIgnoreProspectUrl(linkUrl, env)) continue;
 
     candidates.push(buildProspectCandidate({
@@ -4565,10 +4562,10 @@ function extractProspectCandidates(html, source, env) {
       url: linkUrl.toString(),
       source,
       title: link.text || linkUrl.hostname,
-      description: pageDescription,
+      description: "",
       evidence: compactText(`${link.text} from ${pageTitle}`),
-      context: text,
       isSourcePage: false,
+      actionable: true,
     }, env));
   }
 
@@ -4576,6 +4573,10 @@ function extractProspectCandidates(html, source, env) {
     .filter((candidate) => candidate.score >= 45)
     .sort((a, b) => b.score - a.score)
     .slice(0, 18);
+}
+
+function prospectActionPattern() {
+  return /\b(?:submit|submission|advertise|sponsor|partner|pricing|contact|apply|application|join|featured?|get listed|list your)\b/i;
 }
 
 function buildProspectCandidate(input, env) {
@@ -4590,6 +4591,8 @@ function buildProspectCandidate(input, env) {
   if (/submit|directory|list my|tool/.test(haystack)) score += 14;
   if (/lead generation|sales|marketing automation|revenue|agency/.test(haystack)) score += 12;
   if (/contact|partner|affiliate/.test(haystack)) score += 8;
+  if (input.actionable) score += 8;
+  else score -= 35;
   if (domain === new URL(siteUrl(env)).hostname.replace(/^www\./, "").toLowerCase() || domain.includes("agentid.services")) score -= 30;
 
   score = Math.max(0, Math.min(100, score));
@@ -4607,6 +4610,7 @@ function buildProspectCandidate(input, env) {
     segment: input.source.segment,
     score,
     stage,
+    actionable: Boolean(input.actionable),
     signals: signals.slice(0, 8),
     salesPlay: salesPlay.title,
     nextStep: salesPlay.nextStep,
@@ -4616,18 +4620,18 @@ function buildProspectCandidate(input, env) {
 }
 
 function salesPlayFor(haystack, env) {
-  if (/sponsor|advertise|featured|paid/.test(haystack)) {
-    return {
-      title: "Sponsor placement sale",
-      nextStep: "Pitch the $49/30-day Sponsor Starter placement and include the reviewed application link.",
-      ctaUrl: `${siteUrl(env)}/contact?intent=sponsor&package=sponsor_starter_monthly`,
-    };
-  }
   if (/submit|directory|list|tool/.test(haystack)) {
     return {
       title: "Directory listing and partner sale",
       nextStep: `Submit ${brandName(env)}, then pitch reciprocal sponsor visibility to relevant AI tool vendors.`,
       ctaUrl: `${siteUrl(env)}/sponsor`,
+    };
+  }
+  if (/sponsor|advertise|featured|paid/.test(haystack)) {
+    return {
+      title: "Sponsor placement sale",
+      nextStep: "Pitch the $49/30-day Sponsor Starter placement and include the reviewed application link.",
+      ctaUrl: `${siteUrl(env)}/contact?intent=sponsor&package=sponsor_starter_monthly`,
     };
   }
   if (/lead|sales|marketing|automation|agency|business/.test(haystack)) {
@@ -4646,7 +4650,7 @@ function salesPlayFor(haystack, env) {
 
 function leadSpiderTasks(prospects, createdAt) {
   return prospects
-    .filter((prospect) => prospect.score >= 55)
+    .filter((prospect) => prospect.actionable === true && prospect.score >= 55)
     .slice(0, 10)
     .map((prospect) => ({
       id: crypto.randomUUID(),
@@ -4683,7 +4687,14 @@ function mergeProspects(current, discovered) {
   for (const prospect of [...current, ...discovered]) {
     if (!prospect || !prospect.domain) continue;
     const existing = byDomain.get(prospect.domain);
-    if (!existing || Number(prospect.score || 0) > Number(existing.score || 0)) {
+    const existingSeenAt = Date.parse(existing?.lastSeenAt || existing?.discoveredAt || "") || 0;
+    const prospectSeenAt = Date.parse(prospect.discoveredAt || "") || 0;
+    const hasFreshActionability = typeof prospect.actionable === "boolean"
+      && typeof existing?.actionable !== "boolean";
+    if (!existing
+      || hasFreshActionability
+      || prospectSeenAt > existingSeenAt
+      || Number(prospect.score || 0) > Number(existing.score || 0)) {
       byDomain.set(prospect.domain, {
         ...existing,
         ...prospect,
@@ -9173,7 +9184,7 @@ function requestScopedEnv(env, url) {
       ...env,
       SITE_URL: "https://agentid.services",
       BRAND_NAME: "AgentID Services",
-      ADSENSE_ENABLED: "false",
+      ADSENSE_ENABLED: "true",
       PUBLIC_OFFER_URL: "https://agentid.services/#start",
       SUPPORT_EMAIL: env.SUPPORT_EMAIL || "admin@gptmarketplus.com",
     };

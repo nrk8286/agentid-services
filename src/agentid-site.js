@@ -105,12 +105,27 @@ const GOOGLE_CROSS_DOMAIN_HOSTS = [
   "agentid.world",
 ];
 
+export const AGENTID_THIN_TRAFFIC_REDIRECTS = new Map([
+  ["/ai-marketing-automation", "/services"],
+  ["/ai-lead-generation", "/ai-agents"],
+  ["/small-business-ai-tools", "/resources"],
+  ["/chatgpt-marketing", "/ai-agents"],
+  ["/ai-sales-funnel", "/services"],
+  ["/ai-seo-service", "/resources"],
+  ["/small-business-crm-automation", "/services"],
+  ["/business-process-automation", "/services"],
+  ["/lead-follow-up-software", "/ai-agents"],
+  ["/ai-automation-consulting", "/book-a-consultation"],
+  ["/bing-webmaster", "/resources"],
+  ["/google-search-console", "/resources"],
+]);
+
 let googleAccessTokenCache = {
   token: "",
   expiresAt: 0,
 };
 
-const SITE_CONTENT_LAST_MODIFIED = "2026-08-14";
+const SITE_CONTENT_LAST_MODIFIED = "2026-08-26";
 
 // Keep the public scope-request catalog server-authoritative. The software-build
 // index is rendered by the Worker entrypoint, but contact requests are handled
@@ -8686,7 +8701,9 @@ function pageEntriesForSitemap(env) {
   return pages.filter((page) => {
     const path = normalizePath(page.path);
     const nonIndexable = isAgentIdSite(env)
-      && (AGENTID_NON_INDEXABLE_PATHS.has(path) || path.startsWith("/software-builds/"));
+      && (AGENTID_NON_INDEXABLE_PATHS.has(path)
+        || AGENTID_THIN_TRAFFIC_REDIRECTS.has(path)
+        || path.startsWith("/software-builds/"));
     return !isAgentIdPrivatePath(path) && !nonIndexable && !seen.has(page.path) && seen.add(page.path);
   });
 }
@@ -11616,7 +11633,7 @@ async function renderCustomerLeadOwnerPage(env, { token = "", sessionId = "" } =
         <a class="button-primary" href="${escapeHtml(publicUrl)}" target="_blank" rel="noopener">Open public form</a>
         <a class="button-secondary" href="/customer-dashboard">Back to dashboard</a>
       </div>
-      <p class="form-note">Status: ${escapeHtml(status.status || app.status)} Â· ${escapeHtml(String(status.leadCount || 0))} captured lead(s). Notification email is sent only when a customer owner address is configured.</p>
+      <p class="form-note">Status: ${escapeHtml(status.status || app.status)} · ${escapeHtml(String(status.leadCount || 0))} captured lead(s). Notification email is sent only when a customer owner address is configured.</p>
     </section>
     ${renderCustomerLeadOwnerView({
       businessName: config.title || app.name,

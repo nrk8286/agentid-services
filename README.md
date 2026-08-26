@@ -50,10 +50,12 @@ Cloudflare routes are configured to send the full `gptmarketplus.com/*` site sur
 
 ### Campaign domains
 
-`gptmarketplus.com` remains the only canonical, indexable production origin. The
-following GoDaddy-registered brand domains use Cloudflare custom-domain routes
-and permanent Worker redirects. Each root redirect lands on a distinct buyer
-journey and adds first-party UTM attribution; non-root paths are preserved.
+`gptmarketplus.com` is the canonical marketplace origin. `agentid.services` is a
+separate canonical, indexable service site with its own branding, navigation,
+content sitemap, and AdSense review. The following additional brand domains use
+Cloudflare custom-domain routes and permanent Worker redirects. Each root
+redirect lands on a distinct buyer journey and adds first-party UTM attribution;
+non-root paths are preserved.
 
 | Domain | Canonical destination |
 | --- | --- |
@@ -96,6 +98,8 @@ The agent Worker serves:
 curl https://gptmarketplus.com/robots.txt
 curl https://gptmarketplus.com/sitemap.xml
 curl https://gptmarketplus.com/ads.txt
+curl https://agentid.services/sitemap.xml
+curl https://agentid.services/ads.txt
 curl https://gptmarketplus.com/llms.txt
 curl https://gptmarketplus.com/llms-full.txt
 curl https://gptmarketplus.com/agents/feed.xml
@@ -106,8 +110,11 @@ curl https://gptmarketplus.com/social
 curl https://gptmarketplus.com/pricing
 ```
 
-`ads.txt` publishes the configured Google AdSense seller record. Ad serving remains
-dependent on Google site approval, policy compliance, and valid traffic.
+Each canonical site's `ads.txt` publishes the configured Google AdSense seller
+record. The AgentID sitemap includes only directly indexable pages and omits
+redirect-only aliases, private operations pages, and sponsor inventory. Ad
+serving remains dependent on Google approving each site independently, policy
+compliance, and valid traffic.
 
 ## AI crawler discovery
 
@@ -246,9 +253,10 @@ terms, pricing, contact, booking, paid-product, and download pages do not load p
 Informational resource pages remain eligible so ads do not compete with the
 highest-value consultation and checkout actions.
 
-Ad serving and payment still depend on Google approving `gptmarketplus.com`,
-enabling Auto ads in AdSense, valid human traffic, advertiser demand, and the
-publisher completing Google's identity, tax, address, and payout requirements.
+Ad serving and payment still depend on Google approving `gptmarketplus.com` and
+`agentid.services` independently, enabling Auto ads in AdSense, valid human
+traffic, advertiser demand, and the publisher completing Google's identity,
+tax, address, and payout requirements.
 Never click the site's own ads, automate ad interactions, reward users for
 clicks, or buy low-quality traffic.
 
