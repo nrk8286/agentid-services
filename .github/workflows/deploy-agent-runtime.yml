@@ -1,0 +1,52 @@
+name: Deploy Google Agent Runtime
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: production-google-agent-runtime
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Validate and deploy production runtime
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: production
+    defaults:
+      run:
+        working-directory: agentid-revenue-agents
+    env:
+      GOOGLE_GENAI_USE_VERTEXAI: "TRUE"
+      GOOGLE_CLOUD_PROJECT: ${{ vars.GOOGLE_CLOUD_PROJECT }}
+      GOOGLE_CLOUD_LOCATION: global
+      GOOGLE_AGENT_RUNTIME_LOCATION: us-east1
+    steps:
+      - uses: actions/checkout@v7
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GOOGLE_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GOOGLE_SERVICE_ACCOUNT }}
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: agentid-revenue-agents/uv.lock
+      - name: Require production configuration
+        run: |
+          test -n "$GOOGLE_CLOUD_PROJECT"
+          test -n "$GOOGLE_AGENT_RUNTIME_LOCATION"
+      - name: Install locked dependencies
+        run: uv sync --frozen --dev --extra lint
+      - name: Run Google-backed production gate
+        run: uv run pytest tests/integration -m live_model -q
+      - name: Update Agent Runtime
+        run: >-
+          uvx --from "google-agents-cli==1.4.1" agents-cli deploy
+          --project "$GOOGLE_CLOUD_PROJECT"
+          --region "$GOOGLE_AGENT_RUNTIME_LOCATION"
+          --no-confirm-project
