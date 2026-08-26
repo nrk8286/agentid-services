@@ -1,0 +1,4 @@
+# Workers AI uses the in-process AI binding and needs no provider API key.
+# These optional non-secret overrides match the production defaults.
+REVENUE_AI_ENABLED=true
+REVENUE_AI_MODEL=@cf/zai-org/glm-4.7-flash

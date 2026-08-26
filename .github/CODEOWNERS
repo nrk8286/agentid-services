@@ -1,6 +1,7 @@
 * @nrk8286
 
 /.github/ @nrk8286
-/agentid-revenue-agents/ @nrk8286
+/src/revenue-agent.js @nrk8286
+/tests/revenue-agent.test.mjs @nrk8286
 /migrations/ @nrk8286
 /src/ @nrk8286

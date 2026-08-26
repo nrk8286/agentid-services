@@ -28,27 +28,6 @@ jobs:
       - run: npm run validate
       - run: npm run validate:links:live
 
-  agents:
-    name: Agent tests
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    defaults:
-      run:
-        working-directory: agentid-revenue-agents
-    steps:
-      - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v7
-        with:
-          enable-cache: true
-          cache-dependency-glob: agentid-revenue-agents/uv.lock
-      - run: uv sync --dev --extra lint
-      - run: uv run ruff check .
-      - run: uv run ruff format . --check
-      - run: uv run codespell
-      - run: uv run ty check .
-      - name: Run credential-free tests
-        run: uv run pytest tests/unit -q
-
   dependency-review:
     name: Dependency review
     if: github.event_name == 'pull_request'

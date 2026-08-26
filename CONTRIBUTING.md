@@ -2,31 +2,24 @@
 
 ## Development
 
-Use Node.js 22 or newer for the Cloudflare Worker and Python 3.11-3.13 with `uv` for the Google agent project. The release toolchain uses npm 12 and the project-pinned Wrangler version; run `npm ci` for reproducible installs.
+Use Node.js 22 or newer for the Cloudflare Worker and Workers AI revenue agent. The release toolchain uses npm 12 and the project-pinned Wrangler version; run `npm ci` for reproducible installs.
 
 ```bash
 npm ci
 npm run validate
 npm run validate:links:live
-
-cd agentid-revenue-agents
-uv sync --dev --extra lint
-uv run ruff check .
-uv run ruff format . --check
-uv run codespell
-uv run ty check .
-uv run pytest tests/unit tests/integration -m "not live_model" -q
+npm run test:revenue-agent
 ```
 
-The `live_model` tests require authenticated Google model access and consume
-cloud quota. Run the full suite only in an approved Google Cloud environment:
+The live revenue-agent check verifies the deployed Workers AI binding and
+schedule without requiring a provider API key:
 
 ```bash
-uv run pytest tests/unit tests/integration -q
+npm run test:revenue-agent:live
 ```
 
 ## Pull requests
 
 Keep changes focused, explain the user or operational outcome, and include validation evidence. Never commit `.env` files, Worker secrets, service-account JSON, Terraform state or plans, generated evaluations, customer data, or payment data.
 
-Production deployments require an explicit deployment action and should include a rollback path. Google Agent Runtime deployments must complete the project evaluation gate before release.
+Production deployments require an explicit deployment action and should include a rollback path. Revenue-agent changes must pass both the binding contract tests and the manually dispatched live production gate before release.

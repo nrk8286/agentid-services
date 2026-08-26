@@ -25,6 +25,7 @@ gha-creds-*.json
 !**/.env.example
 .dev.vars
 .dev.vars.*
+!.dev.vars.example
 *.pem
 *.key
 *.p12
@@ -46,13 +47,6 @@ __pycache__/
 **/.mypy_cache/
 .ty/
 **/.ty/
-
-# Google Agents CLI local state and generated evaluation artifacts
-.agents-cli-scripts/
-**/.agents-cli-scripts/
-.google-agents-cli/
-**/.google-agents-cli/
-agentid-revenue-agents/artifacts/
 
 # Terraform local state, plans, and environment-specific inputs
 **/.terraform/

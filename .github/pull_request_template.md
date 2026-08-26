@@ -10,9 +10,9 @@ Explain the user, revenue, reliability, security, or maintenance impact.
 
 - [ ] `npm run validate`
 - [ ] `npm run validate:links:live`
-- [ ] `cd agentid-revenue-agents && uv run pytest tests/unit tests/integration -m "not live_model" -q`
+- [ ] `npm run test:revenue-agent`
 - [ ] No secrets, local credentials, generated state, or customer data are included
 
 ## Deployment
 
-State whether this changes the Cloudflare Worker, Google Agent Runtime, infrastructure, or public URLs. Include rollback considerations for production changes.
+State whether this changes the Cloudflare Worker, revenue agent, infrastructure, or public URLs. Include rollback considerations for production changes.

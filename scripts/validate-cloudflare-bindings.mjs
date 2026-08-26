@@ -40,6 +40,7 @@ const paypalCpcSource = readFileSync(new URL("../src/cpc-campaign.js", import.me
 const workerSource = readFileSync(new URL("../src/index.js", import.meta.url), "utf8");
 const siteSource = readFileSync(new URL("../src/agentid-site.js", import.meta.url), "utf8");
 const searchConsoleSource = readFileSync(new URL("../src/google-search-console.js", import.meta.url), "utf8");
+const revenueAgentSource = readFileSync(new URL("../src/revenue-agent.js", import.meta.url), "utf8");
 const failures = [];
 
 function htmlScriptUrls(html, baseUrl) {
@@ -288,7 +289,8 @@ for (const requiredSalesFunnelControl of [
   'const LEAD_SPIDER_TASK_SYNC_VERSION = "v2"',
   'leadSpiderTaskSyncVersion',
   'leadSpiderTaskSyncPending',
-  'const taskSyncOnly = leadSpiderTaskSyncPending && !bootstrapPending;',
+  'const taskSyncOnly = leadSpiderTaskSyncPending && !bootstrapPending && !revenueAiBootstrapPending;',
+  'runAgentLoop(scopedEnv, "durable_object_alarm", bootstrapPending || revenueAiBootstrapPending)',
   'async function reconcileLeadSpiderTasks(env)',
   'const syncReport = taskSyncOnly ? await reconcileLeadSpiderTasks(scopedEnv) : null;',
   'reason: "lead_spider_task_sync", status: "not_run"',
@@ -521,6 +523,13 @@ if (!/"binding"\s*:\s*"GMP_ASSETS"[\s\S]{0,160}?"bucket_name"\s*:\s*"gptmarketpl
 
 if (!/"binding"\s*:\s*"AGENTID_AI_SEARCH"[\s\S]{0,180}?"instance_name"\s*:\s*"agentid-services-search"/.test(raw)) {
   failures.push("AGENTID_AI_SEARCH binding is missing or targets the wrong instance");
+}
+if (!/"ai"\s*:\s*\{[\s\S]{0,120}?"binding"\s*:\s*"AI"/.test(raw)
+    || !raw.includes('"REVENUE_AI_MODEL": "@cf/zai-org/glm-4.7-flash"')
+    || !workerSource.includes("runRevenueAgent(env, deterministicPlan)")
+    || !revenueAgentSource.includes("response_format")
+    || !revenueAgentSource.includes("Deterministic application policy controls every real action")) {
+  failures.push("the guarded revenue coordinator must use the Workers AI binding and structured bounded decisions");
 }
 
 if (!/"binding"\s*:\s*"ANALYTICS_ENGINE"[\s\S]{0,180}?"dataset"\s*:\s*"agentid_services_events"/.test(raw)) {

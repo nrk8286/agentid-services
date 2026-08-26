@@ -2,7 +2,7 @@
   "name": "agentid-services",
   "version": "1.0.0",
   "private": true,
-  "description": "Production Cloudflare Worker and Google Agent Runtime for AgentID Services.",
+  "description": "Production Cloudflare Worker and Workers AI revenue agent for AgentID Services.",
   "homepage": "https://gptmarketplus.com",
   "repository": {
     "type": "git",
@@ -15,8 +15,8 @@
   "keywords": [
     "ai-agents",
     "cloudflare-workers",
+    "workers-ai",
     "google-cloud",
-    "vertex-ai",
     "agentid"
   ],
   "engines": {
@@ -24,8 +24,10 @@
   },
   "type": "module",
   "scripts": {
-    "check": "node --check src/index.js && node --check src/agentid-site.js && node --check src/customer-apps.js && node --check src/customer-app-ui.js",
-    "test": "npm run check && npm run validate:bindings && npm run validate:links && npm run validate:google-ads && npm run validate:paypal-cpc && npm run validate:paypal-subscription-approvals",
+    "check": "node --check src/index.js && node --check src/revenue-agent.js && node --check src/agentid-site.js && node --check src/customer-apps.js && node --check src/customer-app-ui.js",
+    "test": "npm run check && npm run test:revenue-agent && npm run validate:bindings && npm run validate:links && npm run validate:google-ads && npm run validate:paypal-cpc && npm run validate:paypal-subscription-approvals",
+    "test:revenue-agent": "node --test tests/revenue-agent.test.mjs",
+    "test:revenue-agent:live": "node scripts/validate-revenue-agent-live.mjs",
     "validate": "npm test && npx wrangler deploy --dry-run",
     "dev": "wrangler dev --port 8787",
     "deploy": "npm run validate && npm run migrate:d1 && wrangler deploy",

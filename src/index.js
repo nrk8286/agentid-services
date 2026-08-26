@@ -1,5 +1,10 @@
 import { DurableObject } from "cloudflare:workers";
 import {
+  prioritizeRevenueDecision,
+  revenueAgentStatus,
+  runRevenueAgent,
+} from "./revenue-agent.js";
+import {
   AGENTID_THIN_TRAFFIC_REDIRECTS,
   activeSponsorPlacement,
   agentIdIndexablePaths,
@@ -92,6 +97,7 @@ const AGENT_ALARM_RETRY_MS = 5 * 60 * 1000;
 const AGENT_SCHEDULER_NAME = "agentid-primary";
 const GROWTH_SNAPSHOT_VERSION = "v1";
 const LEAD_SPIDER_TASK_SYNC_VERSION = "v2";
+const REVENUE_AI_VERSION = "workers-ai-v4";
 const RUN_INTERVAL_SECONDS = 60 * 30;
 const LEAD_SPIDER_INTERVAL_SECONDS = 60 * 60 * 6;
 const MAX_SPIDER_SOURCES = 8;
@@ -1253,6 +1259,8 @@ export class AgentScheduler extends DurableObject {
     const growthSnapshotBootstrapPending = await this.ctx.storage.get("growthSnapshotBootstrapPending");
     const leadSpiderTaskSyncVersion = await this.ctx.storage.get("leadSpiderTaskSyncVersion");
     const leadSpiderTaskSyncPending = await this.ctx.storage.get("leadSpiderTaskSyncPending");
+    const revenueAiVersion = await this.ctx.storage.get("revenueAiVersion");
+    const revenueAiBootstrapPending = await this.ctx.storage.get("revenueAiBootstrapPending");
     let nextAlarmAt = await this.ctx.storage.getAlarm();
 
     if (!initializedAt) {
@@ -1295,6 +1303,15 @@ export class AgentScheduler extends DurableObject {
       }
     }
 
+    if (revenueAiVersion !== REVENUE_AI_VERSION && !revenueAiBootstrapPending) {
+      const setupAlarmAt = Date.now() + AGENT_ALARM_BOOTSTRAP_DELAY_MS;
+      await this.ctx.storage.put("revenueAiBootstrapPending", true);
+      if (nextAlarmAt === null || nextAlarmAt > setupAlarmAt) {
+        nextAlarmAt = setupAlarmAt;
+        await this.ctx.storage.setAlarm(nextAlarmAt);
+      }
+    }
+
     return this.status();
   }
 
@@ -1309,6 +1326,9 @@ export class AgentScheduler extends DurableObject {
       growthSnapshotBootstrapPending,
       leadSpiderTaskSyncVersion,
       leadSpiderTaskSyncPending,
+      revenueAiVersion,
+      revenueAiBootstrapPending,
+      revenueAiLastOutcome,
       nextAlarmAt,
     ] = await Promise.all([
       this.ctx.storage.get("initializedAt"),
@@ -1320,12 +1340,16 @@ export class AgentScheduler extends DurableObject {
       this.ctx.storage.get("growthSnapshotBootstrapPending"),
       this.ctx.storage.get("leadSpiderTaskSyncVersion"),
       this.ctx.storage.get("leadSpiderTaskSyncPending"),
+      this.ctx.storage.get("revenueAiVersion"),
+      this.ctx.storage.get("revenueAiBootstrapPending"),
+      this.ctx.storage.get("revenueAiLastOutcome"),
       this.ctx.storage.getAlarm(),
     ]);
 
     return {
       ok: true,
       provider: "durable-object-alarm",
+      aiAgent: revenueAgentStatus(this.env),
       initialized: Boolean(initializedAt),
       initializedAt: initializedAt || null,
       intervalSeconds: AGENT_ALARM_INTERVAL_MS / 1000,
@@ -1338,6 +1362,9 @@ export class AgentScheduler extends DurableObject {
       growthSnapshotBootstrapPending: Boolean(growthSnapshotBootstrapPending),
       leadSpiderTaskSyncVersion: leadSpiderTaskSyncVersion || null,
       leadSpiderTaskSyncPending: Boolean(leadSpiderTaskSyncPending),
+      revenueAiVersion: revenueAiVersion || null,
+      revenueAiBootstrapPending: Boolean(revenueAiBootstrapPending),
+      revenueAiLastOutcome: revenueAiLastOutcome || null,
       duplicateRunGuardSeconds: RUN_INTERVAL_SECONDS,
     };
   }
@@ -1363,7 +1390,8 @@ export class AgentScheduler extends DurableObject {
       const paypalCpcWebhookPending = Boolean(await this.ctx.storage.get("paypalCpcWebhookPending"));
       const growthSnapshotBootstrapPending = Boolean(await this.ctx.storage.get("growthSnapshotBootstrapPending"));
       const leadSpiderTaskSyncPending = Boolean(await this.ctx.storage.get("leadSpiderTaskSyncPending"));
-      const taskSyncOnly = leadSpiderTaskSyncPending && !bootstrapPending;
+      const revenueAiBootstrapPending = Boolean(await this.ctx.storage.get("revenueAiBootstrapPending"));
+      const taskSyncOnly = leadSpiderTaskSyncPending && !bootstrapPending && !revenueAiBootstrapPending;
       if (!taskSyncOnly && paypalCpcWebhookPending) {
         const webhook = await ensurePaypalCpcWebhook(scopedEnv);
         await this.ctx.storage.put({
@@ -1388,7 +1416,7 @@ export class AgentScheduler extends DurableObject {
       }
       let plan = null;
       if (!taskSyncOnly) {
-        plan = await runAgentLoop(scopedEnv, "durable_object_alarm", bootstrapPending);
+        plan = await runAgentLoop(scopedEnv, "durable_object_alarm", bootstrapPending || revenueAiBootstrapPending);
       }
       const syncReport = taskSyncOnly ? await reconcileLeadSpiderTasks(scopedEnv) : null;
       const effectivePlan = taskSyncOnly
@@ -1445,6 +1473,20 @@ export class AgentScheduler extends DurableObject {
       if (effectivePlan?.leadSpider?.taskPersistenceStatus === "ok") {
         await this.ctx.storage.put("leadSpiderTaskSyncVersion", LEAD_SPIDER_TASK_SYNC_VERSION);
         await this.ctx.storage.delete("leadSpiderTaskSyncPending");
+      }
+      if (!taskSyncOnly && effectivePlan?.aiDecision) {
+        await this.ctx.storage.put("revenueAiLastOutcome", {
+          ok: Boolean(effectivePlan.aiDecision.ok),
+          reason: effectivePlan.aiDecision.reason || null,
+          decision: effectivePlan.aiDecision.decision || "hold",
+          model: effectivePlan.aiDecision.model || null,
+          error: effectivePlan.aiDecision.error || null,
+          completedAt,
+        });
+      }
+      if (!taskSyncOnly && revenueAiBootstrapPending) {
+        await this.ctx.storage.put("revenueAiVersion", REVENUE_AI_VERSION);
+        await this.ctx.storage.delete("revenueAiBootstrapPending");
       }
       const retryRequired = !outcome.ok
         || (!taskSyncOnly && !growthSnapshot?.ok)
@@ -4844,7 +4886,7 @@ async function runAgentLoop(env, trigger, force) {
   ]);
 
   const plan = buildPlan(env, trigger, now, siteHealth, metrics, tasks.items);
-  const finalPlan = {
+  const deterministicPlan = {
     ...plan,
     ok: plan.ok !== false && leadSpider.ok !== false,
     leadSpider: summarizeLeadSpider(leadSpider),
@@ -4852,6 +4894,21 @@ async function runAgentLoop(env, trigger, force) {
     customerFollowups,
     salesQueue: publicTaskSnapshot(await loadTasks(env)),
   };
+  const aiDecision = await runRevenueAgent(env, deterministicPlan);
+  if (!aiDecision.ok) {
+    console.warn(JSON.stringify({
+      event: "revenue_ai_degraded",
+      provider: aiDecision.provider,
+      model: aiDecision.model,
+      reason: aiDecision.reason,
+      error: aiDecision.error || null,
+      generatedAt: deterministicPlan.generatedAt,
+    }));
+  }
+  const finalPlan = prioritizeRevenueDecision({
+    ...deterministicPlan,
+    aiDecision,
+  }, aiDecision);
   await recordPlaybook(env, finalPlan.playbook || dailyPlaybook(env, { latest: finalPlan, tasks: { items: tasks.items }, metrics, spider: null, revenue: null }), finalPlan);
 
   await putJson(env, "agents:latest", finalPlan, 60 * 60 * 24 * 30);
@@ -9838,6 +9895,7 @@ function agentHealthStatus(env, request = null) {
     artifacts: Boolean(env.GMP_ASSETS),
     analyticsEngine: Boolean(env.ANALYTICS_ENGINE),
     cloudflareAiSearch: Boolean(env.AGENTID_AI_SEARCH),
+    aiAgent: revenueAgentStatus(env),
     nativeRateLimiting: Boolean(env.FORM_RATE_LIMITER && env.EVENT_RATE_LIMITER),
     scheduler: {
       configured: Boolean(env.AGENT_SCHEDULER),

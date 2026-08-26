@@ -12,9 +12,10 @@ Cloudflare Worker agent layer for `gptmarketplus.com` with lead capture, site-he
 
 - Cloudflare Worker: public pages, lead capture, checkout, measurement, API routes, and automation control.
 - Cloudflare D1, KV, R2, Queues, Analytics Engine, AI Search, Flagship, and native rate limiting.
-- Google Vertex AI Agent Runtime: scheduled multi-agent revenue operations with A2A support.
+- Cloudflare Workers AI revenue agent: bounded planning with `@cf/zai-org/glm-4.7-flash`, enforced by Worker-side safety controls.
+- Cloudflare Durable Objects: guarded revenue-agent scheduling every six hours without a separate agent server.
 - Google Discovery Engine: grounded public-site retrieval for customer chat.
-- Google Cloud Logging, Monitoring, Trace, Scheduler, BigQuery, and budget controls.
+- Cloudflare logs, traces, analytics, storage, queues, rate limits, and spend controls.
 
 The canonical public-link registry is [deployment/public-links.json](deployment/public-links.json). Run `npm run validate:links:live` to verify those endpoints.
 
@@ -44,7 +45,11 @@ npm run deploy
 
 The shell needs `CLOUDFLARE_API_TOKEN` set for `wrangler deploy`.
 
-The AgentID Worker uses a SQLite-backed Durable Object alarm to run its guarded agent cycle every six hours without consuming an account Cron Trigger. A health request idempotently initializes or repairs the alarm, and `GET /api/agents/scheduler` reports its next run and last outcome. The Worker also exposes the duplicate-run-guarded `POST /api/agents/run` endpoint for operational testing and recovery.
+The AgentID Worker uses a SQLite-backed Durable Object alarm to run its guarded revenue-agent cycle every six hours without consuming an account Cron Trigger. A health request idempotently initializes or repairs the alarm, and `GET /api/agents/scheduler` reports its next run and last outcome. The Worker also exposes the duplicate-run-guarded `POST /api/agents/run` endpoint for operational testing and recovery.
+
+The coordinator uses the in-process Workers AI binding and the free-plan-compatible `@cf/zai-org/glm-4.7-flash` model. It can prioritize at most one task from the deterministic plan; exact task selection, consent, payment evidence, spend ceilings, access control, and idempotency remain enforced by Worker code. See [Workers AI revenue agent operations](docs/revenue-agent-operations.md) for allocation details, validation, failure behavior, and rollback.
+
+No model-provider API key or prepaid credit is required. [Workers AI pricing](https://developers.cloudflare.com/workers-ai/platform/pricing/) currently includes 10,000 neurons per account per day at no charge; the four scheduled, bounded agent calls are designed to remain well below that shared allocation.
 
 Cloudflare routes are configured to send the full `gptmarketplus.com/*` site surface through this Worker, so the Worker owns the live site instead of only selected subpaths.
 

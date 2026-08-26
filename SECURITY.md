@@ -17,4 +17,4 @@ Include:
 
 Do not access data that is not yours, disrupt production, automate payment or ad interactions, or perform denial-of-service testing. Reports will be reviewed as quickly as operationally possible.
 
-Secrets belong in Cloudflare Worker secrets, Google Secret Manager, GitHub Actions secrets, or local ignored environment files. They must never be committed.
+Secrets belong in Cloudflare Worker secrets, GitHub Actions secrets, or local ignored environment files. They must never be committed. The Workers AI revenue agent uses an in-process binding and does not require a model-provider API key.

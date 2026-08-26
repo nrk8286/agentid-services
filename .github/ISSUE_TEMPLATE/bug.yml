@@ -9,7 +9,7 @@ body:
       label: Area
       options:
         - Cloudflare Worker
-        - Google Agent Runtime
+        - Workers AI revenue agent
         - Public website
         - Analytics and attribution
         - Payments and monetization
