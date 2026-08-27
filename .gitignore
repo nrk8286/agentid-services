@@ -65,6 +65,7 @@ htmlcov/
 dist/
 build/
 tmp/
+.superdesign/tmp/
 *.log
 *.cpuprofile
 

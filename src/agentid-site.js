@@ -130,7 +130,7 @@ let googleAccessTokenCache = {
   expiresAt: 0,
 };
 
-const SITE_CONTENT_LAST_MODIFIED = "2026-08-26";
+const SITE_CONTENT_LAST_MODIFIED = "2026-08-27";
 
 // Keep the public scope-request catalog server-authoritative. The software-build
 // index is rendered by the Worker entrypoint, but contact requests are handled
@@ -159,6 +159,7 @@ const BUILD_STAGES = [
 
 const NAV_LINKS = [
   { path: "/", label: "Home" },
+  { path: "/products", label: "Products" },
   { path: "/services", label: "Services" },
   { path: "/ai-agents", label: "AI Agents" },
   { path: "/use-cases", label: "Use Cases" },
@@ -623,7 +624,252 @@ const DIGITAL_PRODUCTS = [
       "Private workspace with copy and download actions",
     ],
   },
+  {
+    id: "auto_dropshipping_agent_team",
+    name: "Auto Dropshipping Agent Team",
+    price: 4900,
+    packageTier: "digital_product",
+    checkoutType: "digital_product",
+    delivery: "dropshipping_workspace",
+    summary: "A private operations workspace that turns your store brief and product candidates into supplier checks, landed-cost and margin scenarios, reviewable listing drafts, inventory and price monitoring rules, customer-support drafts, and a human approval queue.",
+    includes: [
+      "Product Scout candidate organizer",
+      "Supplier Risk Checker and evidence checklist",
+      "Landed-cost, fee, profit, and margin scenarios",
+      "Reviewable listing titles, bullets, and claim notes",
+      "Inventory and price monitoring thresholds",
+      "Customer-support drafts and escalation rules",
+      "Human approval queue for every operational action",
+      "Private workspace with copy and download actions",
+    ],
+  },
+  {
+    id: "local_lead_follow_up_agent_team",
+    name: "Local Lead Follow-Up Agent Team",
+    price: 4900,
+    packageTier: "digital_product",
+    checkoutType: "digital_product",
+    delivery: "agent_team_workspace",
+    summary: "A private lead-operations workspace that turns your offer, qualification rules, consent basis, CRM fields, and handoff policy into reviewable intake rules, follow-up drafts, sequencing, and a measurement scorecard.",
+    includes: [
+      "Lead intake and CRM-ready field plan",
+      "Qualification criteria and review rubric",
+      "Consent-aware follow-up sequence drafts",
+      "Human handoff and escalation rules",
+      "Owner review queue before any message is sent",
+      "Lead-response performance scorecard",
+      "Private workspace with copy and download actions",
+    ],
+  },
+  {
+    id: "content_seo_agent_team",
+    name: "Content & SEO Agent Team",
+    price: 3900,
+    packageTier: "digital_product",
+    checkoutType: "digital_product",
+    delivery: "agent_team_workspace",
+    summary: "A private content-operations workspace that turns your audience, offer, topics, evidence, and existing pages into topic maps, reviewable briefs, internal-link suggestions, claims checks, and a publishing queue.",
+    includes: [
+      "Audience, intent, and topic-map organizer",
+      "Reviewable content brief templates",
+      "Internal-link suggestion queue",
+      "Claims, evidence, and quality checklist",
+      "Human publishing approval queue",
+      "Content measurement plan without ranking promises",
+      "Private workspace with copy and download actions",
+    ],
+  },
+  {
+    id: "ecommerce_support_agent_team",
+    name: "Ecommerce Support Agent Team",
+    price: 3900,
+    packageTier: "digital_product",
+    checkoutType: "digital_product",
+    delivery: "agent_team_workspace",
+    summary: "A private support-operations workspace that turns your store policies, verified order sources, common issues, and escalation rules into reviewable macros for order status, delays, returns, and sensitive cases.",
+    includes: [
+      "Support intake and routing matrix",
+      "Verified order-status response drafts",
+      "Delay and exception response drafts",
+      "Return and refund-policy review prompts",
+      "Sensitive-case escalation matrix",
+      "Human approval queue before messages or refunds",
+      "Private workspace with copy and download actions",
+    ],
+  },
 ];
+
+const DROPSHIPPING_PRODUCT_ID = "auto_dropshipping_agent_team";
+const DROPSHIPPING_PRODUCT = DIGITAL_PRODUCTS.find((product) => product.id === DROPSHIPPING_PRODUCT_ID);
+const AGENT_TEAM_WORKSPACE_PRODUCT_IDS = new Set([
+  "local_lead_follow_up_agent_team",
+  "content_seo_agent_team",
+  "ecommerce_support_agent_team",
+]);
+const DROPSHIPPING_AGENT_ROLES = [
+  ["01", "Product Scout", "Organizes candidates around the niche, customer, marketplace, budget, and evidence you provide."],
+  ["02", "Supplier Risk Checker", "Creates a verification queue for documentation, fulfillment, returns, inventory, and supplier follow-up."],
+  ["03", "Margin Analyst", "Calculates landed cost, marketplace fees, estimated profit, and scenario margin for each candidate."],
+  ["04", "Listing Builder", "Prepares reviewable titles, positioning bullets, and explicit claim checks without publishing anything."],
+  ["05", "Inventory & Price Watcher", "Defines stock, cost, delivery-time, and margin thresholds that should trigger a human review."],
+  ["06", "Customer Support Draft Agent", "Drafts order-status, delay, return, and escalation replies for a person to approve and send."],
+];
+
+const AGENT_TEAM_WORKSPACE_DEFINITIONS = {
+  local_lead_follow_up_agent_team: {
+    slug: "local-lead-follow-up",
+    eyebrow: "Private lead operations workspace",
+    title: "Run your Local Lead Follow-Up Agent Team",
+    description: "Turn your offer, lead sources, consent basis, qualification rules, and handoff policy into a reviewable lead-response operating pack. The workspace drafts; a person decides what is sent.",
+    filename: "GPTMarketPlus-Local-Lead-Follow-Up-Agent-Team-Pack.txt",
+    requiredFields: ["businessName", "mainOffer", "idealLead", "qualificationCriteria", "consentBasis", "approvalOwner"],
+    summaryFields: [["businessName", "Business"], ["mainOffer", "Offer"], ["followUpChannel", "Channel"], ["approvalOwner", "Approval owner"]],
+    fields: [
+      ["businessName", "Business name", "text", "Your business or project name"],
+      ["mainOffer", "Primary offer", "textarea", "What you offer, typical price range, service area, and the problem it addresses"],
+      ["idealLead", "Best-fit lead", "textarea", "Who is a good fit, location or service constraints, urgency, budget, and exclusions"],
+      ["leadSource", "Lead sources", "text", "Website form, phone, referral, directory, event, or paid campaign"],
+      ["qualificationCriteria", "Qualification criteria", "textarea", "Required fit signals, disqualifiers, questions, and the evidence a person should review"],
+      ["consentBasis", "Consent and contact basis", "textarea", "How consent is collected, what channel is authorized, opt-out wording, and any local rules to verify"],
+      ["followUpChannel", "Approved follow-up channels", "text", "Email, phone-call task, or SMS only where valid consent exists"],
+      ["followUpCadence", "Follow-up cadence", "textarea", "For example: immediate acknowledgment, next-business-day check-in, then two useful reminders over 7 days"],
+      ["crmFields", "CRM-ready fields", "textarea", "Name, contact method, consent source/time, service requested, location, urgency, fit notes, owner, and status"],
+      ["handoffRules", "Human handoff rules", "textarea", "Which leads need immediate owner review, scheduling, a quote, sensitive-case handling, or no further contact"],
+      ["successMeasures", "Scorecard measures", "textarea", "Response time, qualified rate, booked rate, opt-out rate, handoff time, and owner-reviewed outcome"],
+      ["tone", "Draft tone", "text", "Helpful, concise, specific, and free of pressure or unsupported promises"],
+      ["approvalOwner", "Human approval owner", "text", "The person who reviews consent, fit, drafts, scheduling, and final outreach"],
+    ],
+    example: {
+      businessName: "Northside Home Services",
+      mainOffer: "Residential HVAC maintenance visits in the north metro area. Typical diagnostic visit starts at $129; final scope requires a technician review.",
+      idealLead: "Homeowners in the north metro service area requesting maintenance or a repair assessment. Emergency gas or safety concerns require an immediate phone escalation.",
+      leadSource: "Website estimate request and consented phone inquiries",
+      qualificationCriteria: "Confirm service address, requested service, property type, timing, and safe callback window. Do not quote repairs or diagnose equipment from a form submission.",
+      consentBasis: "The website form includes separate consent for email or SMS follow-up and records timestamp, source page, and opt-out preference. Verify applicable messaging rules before use.",
+      followUpChannel: "Email by default; SMS only with recorded consent",
+      followUpCadence: "Acknowledgment after review, one next-business-day follow-up, then two useful reminders over seven days unless the lead opts out or responds.",
+      crmFields: "Name, email, phone, service address, service requested, consent channel, consent timestamp, urgency, qualification notes, owner, status, and next review date",
+      handoffRules: "Escalate safety concerns, angry contacts, accessibility requests, price disputes, legal threats, and anyone asking for an unsupported promise. A person approves scheduling and quotes.",
+      successMeasures: "Median reviewed response time, qualified rate, booked rate, opt-out rate, escalation time, and owner-confirmed outcome",
+      tone: "Neighborly, concise, and useful; no pressure, diagnosis, or guaranteed arrival times",
+      approvalOwner: "Service manager",
+    },
+    roles: [
+      ["Intake Mapper", (v) => `Organizes ${v.leadSource || "approved lead sources"} into the CRM-ready field set: ${v.crmFields || "add the fields your team can reliably maintain"}.`],
+      ["Qualification Planner", (v) => `Applies this review rubric without rejecting leads automatically: ${v.qualificationCriteria || "add fit signals, disqualifiers, and review questions"}.`],
+      ["Consent Guard", (v) => `Requires a person to confirm channel permission and opt-out handling: ${v.consentBasis || "document the consent source and local rules before outreach"}.`],
+      ["Follow-Up Drafter", (v) => `Prepares reviewable ${v.followUpChannel || "follow-up"} drafts using this cadence: ${v.followUpCadence || "add a bounded cadence"}.`],
+      ["Handoff Coordinator", (v) => `Routes sensitive or qualified leads to ${v.approvalOwner || "the assigned owner"}: ${v.handoffRules || "add handoff and escalation rules"}.`],
+      ["Scorecard Analyst", (v) => `Tracks outcomes without claiming attribution: ${v.successMeasures || "response time, qualification, booked outcome, opt-outs, and escalations"}.`],
+    ],
+    generatedSections: (v) => [
+      ["INTAKE AND QUALIFICATION PLAN", `Lead sources: ${v.leadSource || "Not specified"}\nBest-fit lead: ${v.idealLead || "Not specified"}\nQualification review: ${v.qualificationCriteria || "Add review criteria before use."}\nCRM fields: ${v.crmFields || "Add the fields your team will maintain."}`],
+      ["CONSENT AND CONTACT CHECK", `Approved channel: ${v.followUpChannel || "Not specified"}\nConsent basis: ${v.consentBasis || "Not specified - do not contact a lead until permission and applicable rules are verified."}\nEvery draft must include the applicable identity, preference, and opt-out handling.`],
+      ["REVIEWABLE FOLLOW-UP DRAFTS", `Acknowledgment draft:\nHi [NAME] - thanks for contacting ${v.businessName || "our team"} about [REQUEST]. A person is reviewing the details you provided. We will reply through [APPROVED CHANNEL] after confirming fit and next steps.\n\nUseful follow-up draft:\nHi [NAME] - following up on your request about ${v.mainOffer || "our service"}. If you still want help, reply with [MISSING QUALIFICATION DETAIL]. A person will review the response before scheduling, pricing, or making a commitment.\n\nCadence: ${v.followUpCadence || "Add a bounded cadence and stop conditions."}\nTone: ${v.tone || "Helpful and specific."}`],
+      ["HUMAN HANDOFF AND SCORECARD", `Handoff rules: ${v.handoffRules || "Add escalation and owner-review rules."}\nApproval owner: ${v.approvalOwner || "Assign an owner"}\nMeasures: ${v.successMeasures || "Track reviewed response time, qualified rate, booked outcome, opt-outs, and escalations."}`],
+    ],
+  },
+  content_seo_agent_team: {
+    slug: "content-seo",
+    eyebrow: "Private content operations workspace",
+    title: "Run your Content & SEO Agent Team",
+    description: "Turn your audience, offer, topic priorities, evidence, and existing pages into a reviewable topic map, brief queue, internal-link plan, and publishing checklist.",
+    filename: "GPTMarketPlus-Content-SEO-Agent-Team-Pack.txt",
+    requiredFields: ["brandName", "mainOffer", "targetAudience", "priorityTopics", "proofSources", "approvalOwner"],
+    summaryFields: [["brandName", "Brand"], ["targetAudience", "Audience"], ["publishingCadence", "Cadence"], ["approvalOwner", "Approval owner"]],
+    fields: [
+      ["brandName", "Brand or site name", "text", "Your business, publication, or website"],
+      ["mainOffer", "Primary offer and conversion goal", "textarea", "What the business offers and the useful next action content may support"],
+      ["targetAudience", "Target audience", "textarea", "Who they are, what decision they are making, and what they already know"],
+      ["priorityTopics", "Priority topics", "textarea", "One topic or customer question per line"],
+      ["searchIntent", "Search intent and journey notes", "textarea", "Informational, comparison, local, transactional, or support intent and the next useful step"],
+      ["proofSources", "Approved evidence sources", "textarea", "First-party data, product documentation, interviews, policies, and authoritative sources that writers may cite"],
+      ["existingPages", "Existing pages for internal links", "textarea", "One page title and URL path per line; include only pages that really exist"],
+      ["brandVoice", "Brand voice", "text", "Clear, practical, direct, and specific"],
+      ["publishingCadence", "Review and publishing cadence", "text", "For example: two reviewed briefs and one approved page per week"],
+      ["prohibitedClaims", "Claims and topics to avoid", "textarea", "Unsupported statistics, guarantees, copied content, regulated advice, invented experience, or sensitive claims"],
+      ["callToAction", "Approved call to action", "text", "The honest next step readers may take"],
+      ["approvalOwner", "Human approval owner", "text", "The person responsible for evidence, originality, links, claims, and publication"],
+    ],
+    example: {
+      brandName: "Northside Home Services",
+      mainOffer: "Residential HVAC maintenance and repair assessments in the north metro. Content should help homeowners decide when to inspect, maintain, or request a technician review.",
+      targetAudience: "Homeowners comparing maintenance options, diagnosing non-emergency warning signs, or preparing for seasonal service",
+      priorityTopics: "What an HVAC maintenance visit includes\nWhen a noisy system needs professional inspection\nRepair versus replacement questions to ask\nSeasonal filter and airflow checklist",
+      searchIntent: "Start with useful informational answers, connect comparison questions to transparent service scope, and reserve booking prompts for readers who need a technician review.",
+      proofSources: "Published service scope, manufacturer documentation, technician-reviewed notes, current refund and scheduling policies, and cited government energy guidance where relevant",
+      existingPages: "HVAC maintenance service | /services/hvac-maintenance\nService area | /service-area\nContact | /contact\nRefund policy | /refund-policy",
+      brandVoice: "Clear, reassuring, practical, and careful about safety boundaries",
+      publishingCadence: "Two reviewed briefs and one human-approved page per week",
+      prohibitedClaims: "No guaranteed savings, rankings, lifespan, diagnosis, safety outcome, invented statistics, or copied competitor language",
+      callToAction: "Request a technician-reviewed service assessment",
+      approvalOwner: "Marketing manager with technician review",
+    },
+    roles: [
+      ["Audience & Intent Analyst", (v) => `Frames content for ${v.targetAudience || "the defined audience"} using these journey notes: ${v.searchIntent || "add the reader intent and next useful step"}.`],
+      ["Topic Mapper", (v) => `Organizes the approved topic queue without inventing keyword volumes: ${v.priorityTopics || "add real customer questions"}.`],
+      ["Brief Builder", (v) => `Creates reviewable briefs tied to ${v.mainOffer || "the actual offer"} and the approved CTA: ${v.callToAction || "add an honest next action"}.`],
+      ["Internal Link Planner", (v) => `Suggests links only from the supplied page inventory: ${v.existingPages || "add existing titles and paths"}.`],
+      ["Claims & Quality Reviewer", (v) => `Checks originality and evidence against: ${v.proofSources || "add approved evidence sources"}. Avoid: ${v.prohibitedClaims || "unsupported claims and guarantees"}.`],
+      ["Publishing Queue Manager", (v) => `Queues work for ${v.approvalOwner || "a human owner"} using this cadence: ${v.publishingCadence || "add a review cadence"}. It never publishes automatically.`],
+    ],
+    generatedSections: (v) => [
+      ["AUDIENCE AND INTENT MAP", `Audience: ${v.targetAudience || "Not specified"}\nOffer: ${v.mainOffer || "Not specified"}\nJourney notes: ${v.searchIntent || "Not specified"}\nApproved CTA: ${v.callToAction || "Add an honest next action."}`],
+      ["TOPIC AND BRIEF QUEUE", `${v.priorityTopics || "Add one real customer question per line."}\n\nBrief pattern for every topic:\n- Reader decision and intent\n- Direct answer and boundaries\n- Evidence needed\n- Useful sections and examples\n- Existing page links\n- Claims requiring review\n- Approved next action`],
+      ["INTERNAL LINKS AND EVIDENCE", `Existing page inventory:\n${v.existingPages || "No pages supplied - do not invent destination URLs."}\n\nApproved evidence:\n${v.proofSources || "No sources supplied - require evidence before factual or quantitative claims."}`],
+      ["QUALITY AND PUBLISHING QUEUE", `Voice: ${v.brandVoice || "Clear and practical"}\nAvoid: ${v.prohibitedClaims || "Unsupported claims, guarantees, copied content, and invented experience"}\nCadence: ${v.publishingCadence || "Not specified"}\nApproval owner: ${v.approvalOwner || "Assign an owner"}\nNo ranking, traffic, lead, or revenue result is promised.`],
+    ],
+  },
+  ecommerce_support_agent_team: {
+    slug: "ecommerce-support",
+    eyebrow: "Private support operations workspace",
+    title: "Run your Ecommerce Support Agent Team",
+    description: "Turn verified order sources, store policies, common issues, and escalation rules into reviewable support macros and a human decision queue.",
+    filename: "GPTMarketPlus-Ecommerce-Support-Agent-Team-Pack.txt",
+    requiredFields: ["storeName", "commonIssues", "orderStatusSources", "returnPolicy", "approvalOwner"],
+    summaryFields: [["storeName", "Store"], ["supportChannels", "Channels"], ["responseWindow", "Response goal"], ["approvalOwner", "Approval owner"]],
+    fields: [
+      ["storeName", "Store name", "text", "Your store or support team name"],
+      ["supportChannels", "Approved support channels", "text", "Email, help desk, marketplace inbox, or another reviewed channel"],
+      ["commonIssues", "Common support issues", "textarea", "One per line: order status, address change, delay, damaged item, return request, product question, etc."],
+      ["orderStatusSources", "Verified order-status sources", "textarea", "Systems and fields a person must check before a status statement, such as order admin, carrier tracking, and supplier confirmation"],
+      ["responseWindow", "Response-time goal", "text", "For example: human-reviewed reply within one business day"],
+      ["delayThreshold", "Delay review threshold", "textarea", "When a late order requires carrier review, supplier follow-up, customer options, or manager escalation"],
+      ["returnPolicy", "Published return and refund policy", "textarea", "Eligibility window, item condition, exclusions, return authorization, destination, fees, refund timing, and policy URL"],
+      ["refundAuthority", "Refund and replacement authority", "textarea", "Who may approve refunds, replacements, credits, exceptions, and maximum amounts"],
+      ["escalationRules", "Escalation rules", "textarea", "Chargebacks, threats, safety issues, legal claims, privacy requests, repeat failures, policy exceptions, or vulnerable customers"],
+      ["supportTone", "Support tone", "text", "Calm, specific, empathetic, and free of promises that have not been verified"],
+      ["approvalOwner", "Human approval owner", "text", "The person responsible for policy exceptions, refunds, replacements, and sensitive messages"],
+    ],
+    example: {
+      storeName: "Organized Desk Store",
+      supportChannels: "Email and Shopify inbox",
+      commonIssues: "Order-status request\nAddress change before fulfillment\nCarrier delay\nDamaged product\nReturn request\nCompatibility question",
+      orderStatusSources: "Shopify order record, current carrier tracking event and timestamp, supplier fulfillment confirmation, and the published delivery estimate shown at purchase",
+      responseWindow: "Human-reviewed reply within one business day",
+      delayThreshold: "Review when tracking has no new event for three business days, delivery exceeds the published window, or the supplier cannot confirm fulfillment.",
+      returnPolicy: "Returns require approval within 30 days of delivery, unused condition unless defective, and the authorized return destination. Refund timing begins after the approved inspection. Policy URL: /refund-policy",
+      refundAuthority: "Support may draft options. The store owner approves every refund, replacement, credit, fee waiver, or policy exception.",
+      escalationRules: "Escalate chargebacks, threats, safety concerns, legal claims, privacy requests, repeated delivery failure, vulnerable-customer issues, and any conflict between order facts and policy.",
+      supportTone: "Calm, concise, empathetic, and precise about what has and has not been verified",
+      approvalOwner: "Store owner",
+    },
+    roles: [
+      ["Inquiry Router", (v) => `Sorts the supplied issue categories for human review: ${v.commonIssues || "add common issue types"}.`],
+      ["Order Status Draft Agent", (v) => `Requires these sources before stating status: ${v.orderStatusSources || "add order, carrier, and fulfillment sources"}.`],
+      ["Delay Response Agent", (v) => `Uses this review threshold without promising a remedy: ${v.delayThreshold || "add the approved delay threshold"}.`],
+      ["Returns Draft Agent", (v) => `Drafts from the published policy only: ${v.returnPolicy || "add the actual return and refund policy"}.`],
+      ["Policy & Claims Checker", (v) => `Blocks unverified promises and applies this authority boundary: ${v.refundAuthority || "a human approves every financial remedy"}.`],
+      ["Escalation Coordinator", (v) => `Routes sensitive cases to ${v.approvalOwner || "the assigned owner"}: ${v.escalationRules || "add escalation rules"}.`],
+    ],
+    generatedSections: (v) => [
+      ["SUPPORT INTAKE AND ROUTING", `Channels: ${v.supportChannels || "Not specified"}\nResponse goal: ${v.responseWindow || "Not specified"}\nIssue categories:\n${v.commonIssues || "Add common support issues."}`],
+      ["VERIFIED ORDER-STATUS MACRO", `Hi [NAME] - thanks for checking on order [ORDER]. The latest status verified from [SOURCE] is [STATUS] as of [TIME]. The published delivery estimate is [WINDOW]. A person will review any exception before promising a date, refund, replacement, or credit.\n\nRequired sources:\n${v.orderStatusSources || "Add the systems and fields that must be checked first."}`],
+      ["DELAY, RETURN, AND REFUND DRAFTS", `Delay draft:\nHi [NAME] - your order appears to be outside the expected update window. We are reviewing the latest carrier, supplier, and order information. A person will confirm the available options before a remedy is promised.\n\nReturn draft:\nHi [NAME] - we received your return request for order [ORDER]. A person will check eligibility under the published policy before sending authorization or a destination.\n\nPolicy: ${v.returnPolicy || "Not supplied"}\nAuthority: ${v.refundAuthority || "A human must approve all financial actions."}`],
+      ["ESCALATION AND APPROVAL MATRIX", `Delay threshold: ${v.delayThreshold || "Not specified"}\nEscalation rules: ${v.escalationRules || "Not specified"}\nApproval owner: ${v.approvalOwner || "Assign an owner"}\nThe workspace never sends a message, changes an order, or issues a refund.`],
+    ],
+  },
+};
 
 const LAUNCH_KIT_FAQS = [
   {
@@ -5442,6 +5688,830 @@ export function renderLaunchKitWorkspacePage(env, context = {}) {
   });
 }
 
+function renderLegacyProductsPage(env, requestUrl = null) {
+  const product = DROPSHIPPING_PRODUCT;
+  const paypalReady = paypalCheckoutReady(env);
+  const paypalCancelled = requestUrl?.searchParams.get("paypal") === "cancel"
+    && requestUrl?.searchParams.get("product") === product.id;
+  const paymentNotice = paypalCancelled
+    ? `<p class="form-status" role="status">PayPal checkout was canceled. No payment was captured. You can restart whenever you are ready.</p>`
+    : "";
+  const checkout = `
+    <div class="checkout-stack storefront-checkout-stack">
+      ${paypalReady ? `
+        <form class="checkout-form paypal-checkout-form product-checkout-form" data-agentid-form="1" data-endpoint="/api/paypal/orders/create" ${ecommerceCheckoutAttributes(product)}>
+          <input type="hidden" name="productId" value="${escapeHtml(product.id)}">
+          <input type="hidden" name="sourcePage" value="/products">
+          <button class="button-primary" type="submit">Build my agent team with PayPal</button>
+          <p class="form-status"></p>
+        </form>` : `<a class="button-primary" href="/contact?intent=dropshipping_agent_team">Request purchase access</a>`}
+      <p class="form-note">${moneyWithCents(product.price)} one-time. Private access opens only after PayPal verifies the completed capture.</p>
+    </div>`;
+  const roleCards = DROPSHIPPING_AGENT_ROLES.map(([number, name, description]) => `
+    <article class="agent-role-card">
+      <span>${escapeHtml(number)}</span>
+      <h3>${escapeHtml(name)}</h3>
+      <p>${escapeHtml(description)}</p>
+    </article>`).join("");
+  const body = `
+    <section class="page-hero split-section product-store-hero">
+      <div class="storefront-hero-copy">
+        <p class="eyebrow">Private workspace · one-time purchase</p>
+        <h1>Auto Dropshipping <span>Agent Team</span></h1>
+        <p class="hero-lede">Turn a niche, marketplace, budget, and candidate list into a structured operating pack for product research, supplier screening, margin planning, listings, monitoring, and customer-support drafts.</p>
+        ${paymentNotice}
+        <div class="cta-row">
+          ${checkout}
+          <a class="button-secondary" href="#sample-command-center">See a sample run</a>
+        </div>
+        <p class="trust-line">This is a planning and operations workspace—not guaranteed income or an unattended store. You approve publishing, supplier contact, prices, orders, refunds, and customer messages.</p>
+      </div>
+      <aside class="storefront-operating-card">
+        <div class="storefront-card-heading">
+          <div><p class="card-kicker">Your operating pack</p><strong>One workspace. Six specialist agents.</strong></div>
+          <span class="price-badge">${moneyWithCents(product.price)} one-time</span>
+        </div>
+        <div class="storefront-ready-list">
+          <p><span class="storefront-status success">Ready</span> Research brief and supplier review rules</p>
+          <p><span class="storefront-status accent">Generated</span> Landed-cost and margin worksheet</p>
+          <p><span class="storefront-status warning">Approval</span> Queue before every operational action</p>
+        </div>
+      </aside>
+    </section>
+    <section class="storefront-trust-grid" aria-label="Purchase and product safeguards">
+      <article><strong>One-time payment</strong><span>No subscription</span></article>
+      <article><strong>Private delivery</strong><span>After verified PayPal capture</span></article>
+      <article><strong>Human approval gates</strong><span>Before operational action</span></article>
+      <article><strong>No revenue guarantee</strong><span>Clear scope and limits</span></article>
+    </section>
+    <section class="section">
+      ${renderSectionTitle("The team", "Specialists connected to one approval queue", "Each role produces a concrete section of the operating pack. Nothing publishes, contacts a supplier, changes a price, places an order, issues a refund, or messages a customer without your decision.")}
+      <div class="agent-role-grid">${roleCards}</div>
+    </section>
+    <section class="section sample-command-center" id="sample-command-center">
+      <div class="sample-command-heading">
+        <div><span class="sample-label">Sample · not a live store</span><h2>Command center preview</h2><p>A realistic example of what the private workspace organizes from your own inputs.</p></div>
+        <span>Illustrative data</span>
+      </div>
+      <div class="command-center-grid">
+        <article class="command-panel command-products">
+          <div class="command-panel-heading"><h3>Product candidates</h3><span>3 reviewed</span></div>
+          <div class="candidate-row"><strong>Adjustable desk cable tray</strong><span>$8.40 landed</span><em class="warning-text">Check MOQ</em></div>
+          <div class="candidate-row"><strong>Reusable travel bottle set</strong><span>$11.75 landed</span><em class="danger-text">Docs missing</em></div>
+          <div class="candidate-row"><strong>Magnetic pantry labels</strong><span>$4.10 landed</span><em class="success-text">Review</em></div>
+        </article>
+        <div class="command-side-stack">
+          <article class="command-panel"><p class="card-kicker">Margin example</p><strong class="command-metric">38%</strong><span>scenario margin at a $24.90 target price</span><p class="form-note">Includes item cost, shipping, and estimated marketplace fees. Verify actual local costs.</p></article>
+          <article class="command-panel"><div class="command-panel-heading"><p class="card-kicker">Approval queue</p><span class="warning-text">3 waiting</span></div><p>Supplier documentation · Listing claims · Price rule</p></article>
+        </div>
+      </div>
+      <article class="command-panel listing-sample"><div><p class="card-kicker">Listing draft</p><strong>Magnetic Pantry Labels — Clear, Reusable Organization Set</strong></div><span class="storefront-status warning">Needs human review</span></article>
+    </section>
+    <section class="section">
+      ${renderSectionTitle("Simple by design", "From store brief to reviewable operating pack", "The workspace does the organizing and calculations. You keep control of every external action.")}
+      <div class="workflow-steps">
+        <article><span>01</span><h3>Set your brief</h3><p>Add the niche, customer, marketplace, budget, costs, policies, and operating constraints.</p></article>
+        <article><span>02</span><h3>Run the team</h3><p>Generate candidate reviews, risk checks, margin math, listing drafts, monitoring rules, and support drafts.</p></article>
+        <article><span>03</span><h3>Review outputs</h3><p>Inspect assumptions, missing evidence, risk flags, claims, and the approval queue.</p></article>
+        <article><span>04</span><h3>Choose actions</h3><p>You decide what to publish, contact, price, order, refund, send, or reject.</p></article>
+      </div>
+    </section>
+    <section class="section split-section product-inclusions">
+      <div>
+        ${renderSectionTitle("Included", "A practical operating pack", "Use it in the private browser workspace, copy the complete pack, or download it for your team.")}
+        <ul class="benefit-list compact">${product.includes.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+      </div>
+      <div class="fit-grid">
+        <article class="fit-card good"><h3>Good fit</h3><p>You have a niche or product direction, can verify suppliers and costs, and want a structured pack to review before taking action.</p></article>
+        <article class="fit-card caution"><h3>Not a fit</h3><p>You want guaranteed winning products, automatic publishing or ordering, unattended pricing, or a system that handles customer money without approval.</p></article>
+      </div>
+    </section>
+    <section class="section other-products-section">
+      <div>${renderSectionTitle("More ways to start", "Other useful products", "Start smaller if you are still choosing your first workflow or evaluating an AI software idea.")}</div>
+      <div class="product-shelf">
+        <article><p class="card-kicker">Self-serve workspace</p><h3>AI Agent Launch Kit</h3><strong>$29 <small>one-time</small></strong><p>Plan one usable AI workflow with a guided starter pack.</p><a class="button-secondary" href="/ai-agent-launch-kit" data-track-event="product_view" data-track-label="Products Launch Kit">See the Launch Kit</a></article>
+        <article><p class="card-kicker">Research report</p><h3>AI Software Opportunity Report</h3><strong>$24 <small>one-time</small></strong><p>Compare practical software opportunities before you build.</p><a class="button-secondary" href="/software-builds/ai-software-opportunity-report" data-track-event="select_offer" data-track-label="Products Opportunity Report">View the report</a></article>
+      </div>
+    </section>
+    <section class="section storefront-final-checkout" id="checkout">
+      <div><p class="eyebrow">Ready when you are</p><h2>Build your reviewable agent team</h2><p>${moneyWithCents(product.price)} one-time. After verified PayPal capture, receive access to the private workspace and downloadable operating pack.</p><p class="trust-line">Publishing, supplier outreach, price changes, orders, refunds, customer communication, and marketplace compliance remain under your control. <a href="/refund-policy">Review the refund policy.</a></p></div>
+      <div class="storefront-price-box"><div><span>Auto Dropshipping Agent Team</span><strong>${moneyWithCents(product.price)}</strong></div>${checkout}</div>
+    </section>
+    ${renderViewItemTracking(product)}`;
+
+  return renderShell(env, {
+    path: "/products",
+    title: "Auto Dropshipping Agent Team and AI Products",
+    description: "Buy a $49 private Auto Dropshipping Agent Team workspace for product research, supplier checks, margin scenarios, listings, monitoring rules, support drafts, and human approval control.",
+    body,
+    schema: [
+      organizationSchema(env),
+      productSchema(env, product, "/products"),
+      breadcrumbSchema(env, [
+        { name: "Home", path: "/" },
+        { name: "Products", path: "/products" },
+      ]),
+    ],
+    bodyClass: "page-products",
+  });
+}
+
+function renderProductsPage(env, requestUrl = null) {
+  const paypalReady = paypalCheckoutReady(env);
+  const catalogProductIds = [
+    DROPSHIPPING_PRODUCT_ID,
+    "local_lead_follow_up_agent_team",
+    "content_seo_agent_team",
+    "ecommerce_support_agent_team",
+    "ai_agent_launch_kit",
+  ];
+  const catalogProducts = catalogProductIds
+    .map((productId) => DIGITAL_PRODUCTS.find((product) => product.id === productId))
+    .filter(Boolean);
+  const cancelledProductId = requestUrl?.searchParams.get("paypal") === "cancel"
+    ? cleanText(requestUrl.searchParams.get("product") || "", 120)
+    : "";
+  const cancelledProduct = catalogProducts.find((product) => product.id === cancelledProductId);
+  const paymentNotice = cancelledProduct
+    ? `<p class="form-status storefront-payment-notice" role="status">PayPal checkout for ${escapeHtml(cancelledProduct.name)} was canceled. No payment was captured.</p>`
+    : "";
+  const checkoutFor = (product, label = "Choose this product") => paypalReady ? `
+    <form class="checkout-form paypal-checkout-form product-checkout-form" data-agentid-form="1" data-endpoint="/api/paypal/orders/create" ${ecommerceCheckoutAttributes(product)}>
+      <input type="hidden" name="productId" value="${escapeHtml(product.id)}">
+      <input type="hidden" name="sourcePage" value="/products">
+      <button class="button-primary" type="submit">${escapeHtml(label)}</button>
+      <p class="form-status" aria-live="polite"></p>
+    </form>` : `<a class="button-primary" href="/contact?intent=product_purchase&amp;product=${encodeURIComponent(product.id)}">Request purchase access</a>`;
+  const productCards = catalogProducts.map((product, index) => {
+    const isLaunchKit = product.id === "ai_agent_launch_kit";
+    const limitation = product.id === DROPSHIPPING_PRODUCT_ID
+      ? "You approve suppliers, listings, prices, orders, refunds, and messages."
+      : product.id === "local_lead_follow_up_agent_team"
+        ? "It never contacts a lead automatically."
+        : product.id === "content_seo_agent_team"
+          ? "No ranking promises and no automatic publishing."
+          : product.id === "ecommerce_support_agent_team"
+            ? "It never sends messages or issues refunds automatically."
+            : "You review every workflow decision and external action.";
+    const detailLink = product.id === DROPSHIPPING_PRODUCT_ID
+      ? `<a class="storefront-detail-link" href="#featured-sample">See sample workspace</a>`
+      : isLaunchKit
+        ? `<a class="storefront-detail-link" href="/ai-agent-launch-kit">See workspace details</a>`
+        : "";
+    return `
+      <article class="marketplace-product-card storefront-reveal storefront-delay-${(index % 3) + 1}${product.id === DROPSHIPPING_PRODUCT_ID ? " featured" : ""}" id="${escapeHtml(product.id)}">
+        <div class="marketplace-card-top"><span class="product-type-badge">Private workspace</span><strong>${moneyWithCents(product.price)}</strong></div>
+        <h3>${escapeHtml(product.name)}</h3>
+        <p>${escapeHtml(product.summary)}</p>
+        <ul>${product.includes.slice(0, 3).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+        <p class="marketplace-limit">${escapeHtml(limitation)}</p>
+        <div class="marketplace-card-actions">${checkoutFor(product, isLaunchKit ? "Choose the Launch Kit" : "Choose this team")}${detailLink}</div>
+      </article>`;
+  }).join("");
+  const featuredCheckout = checkoutFor(DROPSHIPPING_PRODUCT, "Choose this team with PayPal");
+  const body = `
+    <section class="page-hero split-section product-store-hero animated-marketplace-hero" aria-labelledby="products-title">
+      <div class="storefront-hero-copy storefront-reveal">
+        <p class="eyebrow">GPTMarketPlus marketplace</p>
+        <h1 id="products-title">Choose a ready-to-run <span>agent team</span></h1>
+        <p class="hero-lede">Choose a focused private workspace or research report, then turn your inputs into structured drafts, checklists, and review queues. Every price is one-time and every external action stays under human control.</p>
+        ${paymentNotice}
+        <div class="cta-row"><a class="button-primary" href="#product-catalog">Browse the catalog</a><a class="button-secondary" href="#featured-sample">View a sample workspace</a></div>
+        <p class="trust-line">These products organize planning and operations. They do not guarantee revenue, rankings, leads, supplier approval, or unattended execution.</p>
+      </div>
+      <aside class="storefront-operating-card agent-network-card storefront-reveal storefront-delay-2" aria-label="Animated agent workflow illustration">
+        <div class="storefront-card-heading"><div><p class="card-kicker">Workspace network</p><strong>Inputs connected to human review</strong></div><span class="storefront-status success"><i aria-hidden="true"></i> Human in control</span></div>
+        <div class="agent-network-visual" aria-hidden="true">
+          <svg viewBox="0 0 520 270" focusable="false"><path class="network-path network-path-one" d="M70 135 C150 55 185 55 260 135 S370 215 450 135"></path><path class="network-path network-path-two" d="M70 135 C160 205 190 205 260 135 S360 65 450 135"></path><path class="network-guide" d="M260 45 V225 M70 135 H450"></path><g class="network-node"><circle cx="70" cy="135" r="12"></circle><circle cx="70" cy="135" r="4"></circle></g><g class="network-node"><circle cx="165" cy="73" r="10"></circle><circle cx="165" cy="73" r="3"></circle></g><g class="network-node network-node-main"><circle cx="260" cy="135" r="17"></circle><circle cx="260" cy="135" r="6"></circle></g><g class="network-node"><circle cx="355" cy="197" r="10"></circle><circle cx="355" cy="197" r="3"></circle></g><g class="network-node"><circle cx="450" cy="135" r="12"></circle><circle cx="450" cy="135" r="4"></circle></g></svg>
+          <div class="network-labels"><span>Brief</span><span>Specialist agents</span><span>Approval queue</span></div>
+        </div>
+      </aside>
+    </section>
+    <section class="storefront-trust-grid" aria-label="Marketplace safeguards"><article><strong>One-time prices</strong><span>No subscription required</span></article><article><strong>Verified delivery</strong><span>After completed PayPal capture</span></article><article><strong>Human approval</strong><span>Before every external action</span></article><article><strong>Clear scope</strong><span>No outcome guarantees</span></article></section>
+    <section class="section product-catalog-section" id="product-catalog">
+      <div class="catalog-heading-row">${renderSectionTitle("Product catalog", "Focused tools for practical work", "Every listing states what arrives, what it costs, and where your review is required.")}<span class="catalog-count">Six one-time products</span></div>
+      <div class="marketplace-product-grid">${productCards}
+        <article class="marketplace-product-card storefront-reveal storefront-delay-3" id="ai-software-opportunity-report"><div class="marketplace-card-top"><span class="product-type-badge report">Research report</span><strong>$24</strong></div><h3>AI Software Opportunity Report</h3><p>Compare practical AI software opportunities, customer problems, public demand signals, constraints, and build considerations before investing in development.</p><ul><li>Ranked opportunity comparison</li><li>Public-signal and scope notes</li><li>Downloadable private report</li></ul><p class="marketplace-limit">No private prospect data, signed buyers, revenue prediction, or implementation is included.</p><div class="marketplace-card-actions"><a class="button-primary" href="/software-builds/ai-software-opportunity-report">See report details</a></div></article>
+      </div>
+    </section>
+    <section class="section sample-command-center storefront-reveal" id="featured-sample">
+      <div class="sample-command-heading"><div><span class="sample-label">Sample &middot; not a live store</span><h2>Auto Dropshipping workspace preview</h2><p>A realistic example of how the flagship workspace organizes inputs, calculations, risk flags, and review states.</p></div><span>Illustrative data</span></div>
+      <div class="command-center-grid"><article class="command-panel command-products"><div class="command-panel-heading"><h3>Product candidates</h3><span>3 reviewed</span></div><div class="candidate-row"><strong>Adjustable desk cable tray</strong><span>$8.40 landed</span><em class="warning-text">Check MOQ</em></div><div class="candidate-row"><strong>Reusable travel bottle set</strong><span>$11.75 landed</span><em class="danger-text">Docs missing</em></div><div class="candidate-row"><strong>Magnetic pantry labels</strong><span>$4.10 landed</span><em class="success-text">Review</em></div></article><div class="command-side-stack"><article class="command-panel"><p class="card-kicker">Margin example</p><strong class="command-metric">38%</strong><span>scenario margin at a $24.90 target price</span><p class="form-note">Includes item cost, shipping, and estimated marketplace fees. Verify actual local costs.</p></article><article class="command-panel"><div class="command-panel-heading"><p class="card-kicker">Approval queue</p><span class="warning-text">3 waiting</span></div><p>Supplier documentation &middot; Listing claims &middot; Price rule</p></article></div></div>
+      <article class="command-panel listing-sample"><div><p class="card-kicker">Listing draft</p><strong>Magnetic Pantry Labels - Clear, Reusable Organization Set</strong></div><span class="storefront-status warning">Needs human review</span></article>
+      <div class="featured-sample-checkout"><div><p class="card-kicker">Featured private workspace</p><strong>Auto Dropshipping Agent Team &middot; $49 one-time</strong><p>Access opens only after PayPal verifies a completed capture.</p></div>${featuredCheckout}</div>
+    </section>
+    <section class="section">${renderSectionTitle("Clear delivery", "How purchase and access work", "No product unlocks from a browser message alone. The server verifies the completed PayPal capture before private delivery.")}<div class="workflow-steps"><article><span>01</span><h3>Choose a product</h3><p>Review its price, format, inclusions, limitations, and refund terms.</p></article><article><span>02</span><h3>Pay through PayPal</h3><p>Approve the stated one-time payment. No subscription is created.</p></article><article><span>03</span><h3>Capture is verified</h3><p>The server checks PayPal before issuing a random private access token.</p></article><article><span>04</span><h3>Open or download</h3><p>Use the private workspace or download the report, then review every output.</p></article></div></section>
+    <section class="section product-compare-section">${renderSectionTitle("At a glance", "Workspace or report?", "Choose the format that matches your next decision.")}<div class="table-wrap"><table class="data-table"><thead><tr><th>Product type</th><th>What you receive</th><th>Best for</th><th>Control point</th></tr></thead><tbody><tr><td><strong>Private workspace</strong></td><td>Guided inputs, structured outputs, checklists, drafts, and review queues</td><td>Operators building or improving a workflow</td><td>You approve all external actions</td></tr><tr><td><strong>Research report</strong></td><td>A downloadable comparison of practical software opportunities</td><td>People deciding what to validate or build</td><td>You validate fit, evidence, and scope</td></tr></tbody></table></div></section>
+    <section class="section human-control-strip"><div><p class="eyebrow">Human-control position</p><h2>Automation organizes the work. You decide the action.</h2><p>Publishing, outreach, prices, orders, refunds, customer communication, claims, compliance checks, and financial decisions remain under your review.</p></div><a class="button-secondary" href="/refund-policy">Review refund policy</a></section>
+    <section class="section storefront-faq">${renderSectionTitle("Before you choose", "Frequently asked questions", "Clear answers about access, scope, and control.")}<div class="faq-list"><details><summary>When do I receive my product?</summary><p>After PayPal reports a completed capture, the private workspace or report delivery link becomes available. Client-side success parameters alone cannot unlock access.</p></details><details><summary>Do the agent teams send messages or publish automatically?</summary><p>No. They prepare drafts, rules, checklists, calculations, and queues. You or your authorized team review and approve external actions.</p></details><details><summary>Are leads, rankings, suppliers, or revenue guaranteed?</summary><p>No. Examples are illustrative, costs and evidence require verification, and no product promises revenue, traffic, rankings, winning products, supplier approval, or unattended operations.</p></details><details><summary>Does a product include custom installation or integrations?</summary><p>No. These are self-serve workspaces or reports. Credentials, installation, custom integrations, production testing, and ongoing support require a separate written scope.</p></details></div></section>
+    ${renderViewItemTracking(DROPSHIPPING_PRODUCT)}`;
+
+  return renderShell(env, {
+    path: "/products",
+    title: "AI Agent Teams and Practical AI Products",
+    description: "Choose from four private AI agent team workspaces, the AI Agent Launch Kit, or an AI Software Opportunity Report with one-time PayPal pricing and verified private delivery.",
+    body,
+    schema: [organizationSchema(env), productSchema(env, DROPSHIPPING_PRODUCT, "/products"), breadcrumbSchema(env, [{ name: "Home", path: "/" }, { name: "Products", path: "/products" }])],
+    bodyClass: "page-products",
+  });
+}
+
+const DROPSHIPPING_WORKSPACE_FIELDS = [
+  ["storeName", "Store or project name", "text", "The name your team uses for this store."],
+  ["niche", "Niche or product category", "text", "Home organization, pet travel, office accessories, etc."],
+  ["targetCustomer", "Best-fit customer", "textarea", "Who is the product for, what problem are they solving, and where do they shop?"],
+  ["marketplace", "Marketplace or storefront", "text", "Shopify, eBay, Etsy, Amazon, TikTok Shop, or another channel."],
+  ["salesRegion", "Sales region", "text", "Country or region whose costs, delivery expectations, and rules you will verify."],
+  ["monthlyBudget", "Monthly test budget (USD)", "number", "500"],
+  ["targetMargin", "Target scenario margin (%)", "number", "30"],
+  ["feePercent", "Estimated marketplace/payment fees (%)", "number", "15"],
+  ["productCandidates", "Product candidates", "textarea", "One per line: Product name | supplier cost | shipping cost | target sale price"],
+  ["supplierRequirements", "Supplier evidence and requirements", "textarea", "Required documentation, sample order, tracking, return address, processing time, packaging, MOQ, and communication expectations."],
+  ["shippingWindow", "Acceptable delivery window", "text", "For example: 5–10 business days after processing."],
+  ["listingTone", "Listing tone", "text", "Clear, useful, specific, and free of unsupported claims."],
+  ["prohibitedClaims", "Claims and products to avoid", "textarea", "Health claims, trademarked terms, unsafe products, restricted categories, guarantees, or other boundaries."],
+  ["inventoryThreshold", "Inventory and cost review thresholds", "textarea", "For example: review below 20 units, above a 10% cost increase, or when delivery exceeds 10 business days."],
+  ["supportPolicy", "Customer support and return policy", "textarea", "Approved response window, order-status wording, delay handling, returns, refunds, and escalation rules."],
+  ["approvalOwner", "Human approval owner", "text", "The person responsible for supplier, listing, price, order, refund, and customer-message decisions."],
+];
+
+function normalizeWorkspaceNumber(value, fallback, minimum, maximum) {
+  const number = Number(String(value ?? "").replace(/[$,%\s]/g, ""));
+  if (!Number.isFinite(number)) return fallback;
+  return Math.min(maximum, Math.max(minimum, number));
+}
+
+function normalizeDropshippingWorkspaceInput(input = {}) {
+  const workspace = {};
+  for (const [name] of DROPSHIPPING_WORKSPACE_FIELDS) {
+    workspace[name] = cleanWorkspaceText(input[name], name === "productCandidates" || name === "supplierRequirements" || name === "supportPolicy" ? 5000 : 2400);
+  }
+  workspace.monthlyBudget = normalizeWorkspaceNumber(workspace.monthlyBudget, 500, 0, 1000000);
+  workspace.targetMargin = normalizeWorkspaceNumber(workspace.targetMargin, 30, 0, 95);
+  workspace.feePercent = normalizeWorkspaceNumber(workspace.feePercent, 15, 0, 60);
+  workspace.listingTone = workspace.listingTone || "Clear, useful, specific, and free of unsupported claims";
+  return workspace;
+}
+
+function dropshippingMoney(value) {
+  return `$${Number(value || 0).toFixed(2)}`;
+}
+
+function parseDropshippingCandidates(workspace = {}) {
+  const values = normalizeDropshippingWorkspaceInput(workspace);
+  return values.productCandidates
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(0, 12)
+    .map((line, index) => {
+      const parts = line.split("|").map((part) => part.trim());
+      const name = cleanWorkspaceText(parts[0] || `Candidate ${index + 1}`, 160);
+      const supplierCost = normalizeWorkspaceNumber(parts[1], 0, 0, 1000000);
+      const shippingCost = normalizeWorkspaceNumber(parts[2], 0, 0, 1000000);
+      const salePrice = normalizeWorkspaceNumber(parts[3], 0, 0, 1000000);
+      const landedCost = supplierCost + shippingCost;
+      const estimatedFees = salePrice * (values.feePercent / 100);
+      const estimatedProfit = salePrice - landedCost - estimatedFees;
+      const scenarioMargin = salePrice > 0 ? (estimatedProfit / salePrice) * 100 : 0;
+      const flags = [];
+      if (supplierCost <= 0) flags.push("Add supplier cost");
+      if (shippingCost <= 0) flags.push("Verify shipping cost");
+      if (salePrice <= 0) flags.push("Add target sale price");
+      if (salePrice > 0 && scenarioMargin < values.targetMargin) flags.push(`Below ${values.targetMargin.toFixed(0)}% target margin`);
+      if (!values.supplierRequirements) flags.push("Add supplier evidence requirements");
+      if (!values.shippingWindow) flags.push("Verify delivery window");
+      if (!flags.length) flags.push("Cost scenario meets the current target; evidence still needs human review");
+      return {
+        name,
+        supplierCost,
+        shippingCost,
+        salePrice,
+        landedCost,
+        estimatedFees,
+        estimatedProfit,
+        scenarioMargin,
+        flags,
+        status: supplierCost <= 0 || salePrice <= 0
+          ? "Needs cost inputs"
+          : scenarioMargin < values.targetMargin
+            ? "Below margin target"
+            : "Ready for review",
+      };
+    });
+}
+
+export function buildDropshippingWorkspace(input = {}) {
+  const values = normalizeDropshippingWorkspaceInput(input);
+  return {
+    version: 1,
+    updatedAt: new Date().toISOString(),
+    ...values,
+  };
+}
+
+export function dropshippingWorkspacePack(workspace = {}) {
+  const values = normalizeDropshippingWorkspaceInput(workspace);
+  const candidates = parseDropshippingCandidates(values);
+  const candidateRows = candidates.length
+    ? candidates.map((candidate, index) => `${index + 1}. ${candidate.name}
+   Supplier cost: ${dropshippingMoney(candidate.supplierCost)}
+   Shipping cost: ${dropshippingMoney(candidate.shippingCost)}
+   Landed cost: ${dropshippingMoney(candidate.landedCost)}
+   Target sale price: ${dropshippingMoney(candidate.salePrice)}
+   Estimated fees (${values.feePercent.toFixed(1)}%): ${dropshippingMoney(candidate.estimatedFees)}
+   Estimated profit before ads, tax, returns, and overhead: ${dropshippingMoney(candidate.estimatedProfit)}
+   Scenario margin: ${candidate.scenarioMargin.toFixed(1)}%
+   Status: ${candidate.status}
+   Review flags: ${candidate.flags.join("; ")}`).join("\n\n")
+    : "No product candidates were provided.";
+  const listingDrafts = candidates.length
+    ? candidates.map((candidate) => `- ${candidate.name}: ${candidate.name} for ${values.targetCustomer || "the intended customer"}. Draft angle: practical use, clear specifications, delivery expectations, and policy terms. Remove any unsupported claim before publishing.`).join("\n")
+    : "- Add product candidates to generate listing drafts.";
+  return `GPTMARKETPLUS AUTO DROPSHIPPING AGENT TEAM — OPERATING PACK
+Generated: ${workspace.updatedAt || new Date().toISOString()}
+
+STORE BRIEF
+Store or project: ${values.storeName || "Not specified"}
+Niche: ${values.niche || "Not specified"}
+Best-fit customer: ${values.targetCustomer || "Not specified"}
+Marketplace: ${values.marketplace || "Not specified"}
+Sales region: ${values.salesRegion || "Not specified"}
+Monthly test budget: ${dropshippingMoney(values.monthlyBudget)}
+Target scenario margin: ${values.targetMargin.toFixed(1)}%
+Estimated marketplace/payment fees: ${values.feePercent.toFixed(1)}%
+Human approval owner: ${values.approvalOwner || "Assign an approval owner before taking action"}
+
+IMPORTANT BOUNDARY
+This pack organizes research and drafts. It does not guarantee sales or product performance. It does not contact suppliers, publish listings, change prices, place orders, issue refunds, or send customer messages. A human must verify facts, laws, marketplace rules, intellectual-property rights, product safety, suppliers, costs, taxes, shipping, claims, and customer actions.
+
+AGENT 1 — PRODUCT SCOUT
+Candidate brief:
+${candidateRows}
+
+Research queue for every candidate:
+- Confirm the recurring customer problem and search language with current evidence.
+- Compare at least three supplier options and order a sample before relying on quality claims.
+- Check marketplace restrictions, product safety, intellectual-property risk, seasonality, size/weight, and return exposure.
+- Record the evidence source and date. Do not label a product a winner or predict revenue.
+
+AGENT 2 — SUPPLIER RISK CHECKER
+Required evidence and rules:
+${values.supplierRequirements || "Add supplier documentation, sample-order, tracking, processing-time, return-address, packaging, MOQ, inventory, and communication requirements."}
+Acceptable delivery window: ${values.shippingWindow || "Not specified — verify before approval"}
+Supplier approval checklist:
+- Business identity and contact details verified independently
+- Current product photos/specifications and sample order reviewed
+- Processing time, tracking method, shipping cost, and delivery window documented
+- Inventory update process and out-of-stock handling documented
+- Return address, defect remedy, refund responsibility, and chargeback evidence documented
+- Product restrictions, safety documents, and intellectual-property rights checked for the sales region
+- No order or supplier contact proceeds without ${values.approvalOwner || "the human approval owner"}
+
+AGENT 3 — MARGIN ANALYST
+The candidate math above excludes advertising, taxes, duties, returns, chargebacks, discounts, apps, and overhead unless you added them to supplier or shipping cost. Recalculate with actual marketplace statements before approving a price.
+
+AGENT 4 — LISTING BUILDER
+Listing tone: ${values.listingTone}
+Claims and products to avoid: ${values.prohibitedClaims || "Add restricted claims, trademark terms, unsafe products, guarantees, and marketplace-specific boundaries."}
+Reviewable listing drafts:
+${listingDrafts}
+Pre-publish checks: verify every specification, image right, delivery statement, price, policy, material, compatibility claim, and regulated or safety claim.
+
+AGENT 5 — INVENTORY & PRICE WATCHER
+Review thresholds:
+${values.inventoryThreshold || "Review when inventory is low, supplier cost changes by 10% or more, delivery time exceeds the approved window, or the scenario margin falls below the target."}
+Monitoring rule: create an alert and approval task; never change the live price or availability automatically.
+
+AGENT 6 — CUSTOMER SUPPORT DRAFT AGENT
+Approved support and return policy:
+${values.supportPolicy || "Add the response window, order-status wording, delay process, return/refund terms, and escalation rules before using these drafts."}
+
+Order-status draft:
+Hi [NAME] — thanks for checking on order [ORDER]. The latest verified status is [STATUS] as of [TIME]. The current delivery estimate is [VERIFIED WINDOW]. If that changes, ${values.approvalOwner || "a human owner"} will review the next step.
+
+Delay draft:
+Hi [NAME] — your order is taking longer than the verified estimate. We are reviewing the current carrier and supplier information. A person will confirm the available options under the approved policy before any refund, replacement, or promise is made.
+
+Return or refund draft:
+Hi [NAME] — we received your request about order [ORDER]. A human will review it against the published return and refund policy. Please do not send the item until you receive the approved instructions and return destination.
+
+Escalate immediately: payment disputes, threats, safety issues, legal claims, privacy requests, repeated delivery failure, damaged products, policy exceptions, refunds, replacements, or any fact the workspace cannot verify.
+
+HUMAN APPROVAL QUEUE
+[ ] Candidate evidence reviewed
+[ ] Supplier identity, documentation, sample, inventory, shipping, and return terms verified
+[ ] Landed cost, fees, taxes, ads, returns, overhead, and target price recalculated
+[ ] Listing specifications, images, claims, intellectual property, safety, and policies approved
+[ ] Inventory and price alert thresholds approved
+[ ] Customer support drafts and escalation owner approved
+[ ] Marketplace and sales-region compliance reviewed
+[ ] Final decision recorded by ${values.approvalOwner || "the assigned human owner"}
+
+NEXT STEP
+Choose one candidate, obtain current supplier evidence and a sample, replace every assumption with verified data, then approve or reject it. Do not scale until real fulfillment, returns, customer feedback, and unit economics have been measured.`;
+}
+
+export function renderDropshippingWorkspaceOutput(workspace = {}) {
+  const values = normalizeDropshippingWorkspaceInput(workspace);
+  const candidates = parseDropshippingCandidates(values);
+  const candidateRows = candidates.length
+    ? candidates.map((candidate) => `<tr><td><strong>${escapeHtml(candidate.name)}</strong><br><span>${escapeHtml(candidate.status)}</span></td><td>${escapeHtml(dropshippingMoney(candidate.landedCost))}</td><td>${escapeHtml(dropshippingMoney(candidate.salePrice))}</td><td>${escapeHtml(dropshippingMoney(candidate.estimatedProfit))}</td><td>${escapeHtml(candidate.scenarioMargin.toFixed(1))}%</td><td>${candidate.flags.map((flag) => escapeHtml(flag)).join("<br>")}</td></tr>`).join("")
+    : `<tr><td colspan="6">Add at least one candidate using the requested pipe-separated format.</td></tr>`;
+  return `
+    <section class="blueprint dropshipping-output">
+      <header><p class="eyebrow">Generated operating pack</p><h2>${escapeHtml(values.storeName || "Your store")} Agent Team Command Center</h2><p>Six bounded roles organized your inputs into reviewable research, risk, margin, listing, monitoring, and customer-support outputs.</p></header>
+      <div class="workspace-summary-grid">
+        <article><span>Niche</span><strong>${escapeHtml(values.niche || "Not specified")}</strong></article>
+        <article><span>Marketplace</span><strong>${escapeHtml(values.marketplace || "Not specified")}</strong></article>
+        <article><span>Test budget</span><strong>${escapeHtml(dropshippingMoney(values.monthlyBudget))}</strong></article>
+        <article><span>Approval owner</span><strong>${escapeHtml(values.approvalOwner || "Assign an owner")}</strong></article>
+      </div>
+      <div class="table-wrap"><table class="data-table"><thead><tr><th>Candidate</th><th>Landed</th><th>Target price</th><th>Est. profit</th><th>Margin</th><th>Review flags</th></tr></thead><tbody>${candidateRows}</tbody></table></div>
+      <div class="agent-role-grid compact-team-grid">
+        ${DROPSHIPPING_AGENT_ROLES.map(([number, name], index) => `<article class="agent-role-card"><span>${escapeHtml(number)}</span><h3>${escapeHtml(name)}</h3><p>${escapeHtml(index === 0 ? `${candidates.length} candidate${candidates.length === 1 ? "" : "s"} organized for review.` : index === 1 ? (values.supplierRequirements || "Supplier evidence checklist requires completion.") : index === 2 ? `Scenario calculations use ${values.feePercent.toFixed(1)}% estimated fees and a ${values.targetMargin.toFixed(1)}% target margin.` : index === 3 ? `Draft tone: ${values.listingTone}.` : index === 4 ? (values.inventoryThreshold || "Add inventory and price thresholds.") : (values.supportPolicy || "Add the approved support and return policy."))}</p></article>`).join("")}
+      </div>
+      <div class="review-panel"><p class="card-kicker">Human approval queue</p><p>Verify candidate evidence, supplier identity and sample, full unit economics, listing claims and rights, monitoring thresholds, customer policies, and marketplace compliance before any external action.</p><p><strong>Approval owner:</strong> ${escapeHtml(values.approvalOwner || "Assign an owner before taking action")}</p></div>
+      <details class="review-panel"><summary>Open the complete operating pack</summary><pre class="code-block">${escapeHtml(dropshippingWorkspacePack(workspace))}</pre></details>
+    </section>`;
+}
+
+export function renderDropshippingWorkspacePage(env, context = {}) {
+  if (context.accessDenied) {
+    return renderShell(env, {
+      path: "/dropshipping-agent-team/workspace",
+      title: "Dropshipping Agent Team Workspace",
+      description: "A verified purchase is required to open the Auto Dropshipping Agent Team workspace.",
+      body: `<section class="page-hero"><p class="eyebrow">Private customer workspace</p><h1>Verify your Agent Team purchase</h1><p>Open this workspace from the secure PayPal completion or delivery link. If you need help, contact support with your PayPal order ID.</p><div class="cta-row"><a class="button-primary" href="/products">Return to Products</a><a class="button-secondary" href="/contact">Contact support</a></div></section>`,
+      robots: "noindex,nofollow,noarchive",
+      bodyClass: "page-dropshipping-workspace",
+      privatePage: true,
+    });
+  }
+
+  const orderId = cleanWorkspaceText(context.orderId || "", 80);
+  const accessToken = cleanWorkspaceText(context.accessToken || "", 180);
+  const workspace = context.workspace && typeof context.workspace === "object" ? context.workspace : null;
+  const requiredFields = new Set(["storeName", "niche", "marketplace", "productCandidates", "approvalOwner"]);
+  const defaults = { monthlyBudget: "500", targetMargin: "30", feePercent: "15" };
+  const formFields = DROPSHIPPING_WORKSPACE_FIELDS.map(([name, label, type, placeholder]) => {
+    const value = escapeHtml(workspace?.[name] ?? defaults[name] ?? "");
+    const required = requiredFields.has(name);
+    if (type === "textarea") {
+      return `<label class="field full"><span>${escapeHtml(label)}</span><textarea name="${escapeHtml(name)}" rows="4" placeholder="${escapeHtml(placeholder)}" ${required ? "required" : ""}>${value}</textarea></label>`;
+    }
+    return `<label class="field"><span>${escapeHtml(label)}</span><input type="${escapeHtml(type)}" name="${escapeHtml(name)}" value="${value}" placeholder="${escapeHtml(placeholder)}" ${type === "number" ? "step=\"0.01\" min=\"0\"" : ""} ${required ? "required" : ""}></label>`;
+  }).join("");
+  const initialOutput = workspace
+    ? renderDropshippingWorkspaceOutput(workspace)
+    : `<div class="review-panel"><p>Your six-agent operating pack will appear here after you save the store brief.</p><p>Use current supplier and marketplace information. The workspace calculates scenarios; it cannot verify a supplier, predict sales, or approve an external action for you.</p></div>`;
+  const example = {
+    storeName: "Organized Desk Test Store",
+    niche: "Small-space desk organization",
+    targetCustomer: "Remote workers and students who want a cleaner desk without permanent installation.",
+    marketplace: "Shopify test storefront",
+    salesRegion: "United States",
+    monthlyBudget: "500",
+    targetMargin: "30",
+    feePercent: "15",
+    productCandidates: "Adjustable desk cable tray | 5.90 | 2.50 | 24.90\nReusable cable label set | 2.10 | 1.25 | 12.90\nClamp-on headphone holder | 4.80 | 2.20 | 18.90",
+    supplierRequirements: "Verify business identity, sample quality, current inventory, product dimensions, processing time, tracked shipping, return address, defect remedy, packaging, and written permission for supplied images.",
+    shippingWindow: "5–10 business days after processing",
+    listingTone: "Clear, practical, and specific; no productivity or compatibility guarantees",
+    prohibitedClaims: "No medical, ergonomic, productivity, brand-compatibility, environmental, safety, or guaranteed-delivery claims without documented evidence.",
+    inventoryThreshold: "Review below 20 available units, above a 10% landed-cost increase, below 30% scenario margin, or when delivery exceeds 10 business days.",
+    supportPolicy: "Reply within one business day. A human approves delays, replacements, returns, refunds, chargebacks, policy exceptions, and safety complaints.",
+    approvalOwner: "Store owner",
+  };
+  const body = `
+    <section class="page-hero split-section">
+      <div>${renderPageTitle("Private customer workspace", "Run your six-agent dropshipping planning team", "Add your store brief and product candidates. The workspace calculates reviewable unit economics and produces supplier, listing, monitoring, support, and approval materials you can copy or download.")}<p class="status-pill">Verified purchase · Auto Dropshipping Agent Team</p></div>
+      <div class="info-card"><p class="card-kicker">Six bounded roles</p><ul>${DROPSHIPPING_AGENT_ROLES.map(([, name]) => `<li>${escapeHtml(name)}</li>`).join("")}</ul><p class="form-note">No role takes an external action. You remain the operator and approval owner.</p></div>
+    </section>
+    <section class="section split-section workspace-form-layout">
+      <div>
+        <form class="lead-form dropshipping-workspace-form" id="dropshipping-workspace-form" data-endpoint="/api/paypal/dropshipping/workspace">
+          <input type="hidden" name="orderId" value="${escapeHtml(orderId)}">
+          <input type="hidden" name="accessToken" value="${escapeHtml(accessToken)}">
+          ${formFields}
+          <button class="button-primary" type="submit">Run My Agent Team</button>
+          <button class="button-secondary" type="button" id="dropshipping-example">Load an editable example</button>
+          <p class="form-note">Required: store name, niche, marketplace, at least one candidate, and an approval owner. Candidate format: name | supplier cost | shipping cost | target sale price.</p>
+          <p class="form-note">Do not enter passwords, payment details, customer personal data, or confidential supplier credentials.</p>
+          <p class="form-status" id="dropshipping-workspace-status" aria-live="polite"></p>
+        </form>
+      </div>
+      <aside class="side-note"><p class="card-kicker">What the math includes</p><p>Supplier cost, shipping cost, target sale price, and your estimated marketplace/payment fee percentage.</p><p class="card-kicker">What you still verify</p><p>Advertising, taxes, duties, apps, discounts, returns, chargebacks, overhead, product safety, intellectual property, marketplace rules, and actual supplier performance.</p></aside>
+    </section>
+    <section class="section" id="dropshipping-workspace-output">
+      ${initialOutput}
+      <div class="cta-row" id="dropshipping-workspace-actions"${workspace ? "" : " hidden"}>
+        <button class="button-primary" type="button" id="dropshipping-copy">Copy operating pack</button>
+        <a class="button-secondary" href="/api/paypal/dropshipping/workspace/download?order_id=${encodeURIComponent(orderId)}&access_token=${encodeURIComponent(accessToken)}">Download operating pack</a>
+        <a class="button-secondary" href="/contact?intent=dropshipping_implementation">Request implementation help</a>
+      </div>
+    </section>
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        const form = document.getElementById("dropshipping-workspace-form");
+        const status = document.getElementById("dropshipping-workspace-status");
+        const output = document.getElementById("dropshipping-workspace-output");
+        const actions = document.getElementById("dropshipping-workspace-actions");
+        const copy = document.getElementById("dropshipping-copy");
+        const exampleButton = document.getElementById("dropshipping-example");
+        const example = ${JSON.stringify(example).replace(/</g, "\\u003c")};
+        let packText = ${JSON.stringify(workspace ? dropshippingWorkspacePack(workspace) : "").replace(/</g, "\\u003c")};
+        exampleButton.addEventListener("click", function () {
+          Object.entries(example).forEach(function ([name, value]) {
+            const field = form.elements.namedItem(name);
+            if (field && !String(field.value || "").trim()) field.value = value;
+          });
+          status.textContent = "Example values were added to empty fields. Replace them with verified store and supplier information before using the output.";
+        });
+        async function copyPack(value) {
+          if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(value);
+          const fallback = document.createElement("textarea");
+          fallback.value = value;
+          fallback.setAttribute("readonly", "");
+          fallback.style.position = "fixed";
+          fallback.style.opacity = "0";
+          document.body.appendChild(fallback);
+          fallback.focus();
+          fallback.select();
+          const copied = document.execCommand("copy");
+          fallback.remove();
+          if (!copied) throw new Error("Clipboard unavailable");
+        }
+        form.addEventListener("submit", async function (event) {
+          event.preventDefault();
+          status.textContent = "Running the six-agent planning team…";
+          const payload = Object.fromEntries(new FormData(form).entries());
+          try {
+            const response = await fetch("/api/paypal/dropshipping/workspace", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
+            const result = await response.json();
+            if (!response.ok || !result.ok) throw new Error(result.error || "The workspace could not be saved.");
+            output.innerHTML = result.outputHtml;
+            packText = result.packText || "";
+            actions.hidden = false;
+            status.textContent = "Saved. Your operating pack is ready below.";
+            output.scrollIntoView({ behavior: "smooth", block: "start" });
+          } catch (error) {
+            status.textContent = error.message || "The workspace could not be saved. Please try again.";
+          }
+        });
+        copy.addEventListener("click", async function () {
+          if (!packText) return;
+          try { await copyPack(packText); copy.textContent = "Copied"; setTimeout(function () { copy.textContent = "Copy operating pack"; }, 1800); }
+          catch { status.textContent = "Copy was blocked by the browser. Use Download operating pack instead."; }
+        });
+      });
+    </script>`;
+
+  return renderShell(env, {
+    path: "/dropshipping-agent-team/workspace",
+    title: "Auto Dropshipping Agent Team Workspace",
+    description: "Run a private six-agent dropshipping planning workspace from a verified purchase.",
+    body,
+    robots: "noindex,nofollow,noarchive",
+    bodyClass: "page-dropshipping-workspace",
+    privatePage: true,
+  });
+}
+
+function agentTeamWorkspaceDefinition(productId) {
+  return AGENT_TEAM_WORKSPACE_DEFINITIONS[cleanWorkspaceText(productId || "", 120)] || null;
+}
+
+export function agentTeamWorkspaceProduct(productId) {
+  const normalizedProductId = cleanWorkspaceText(productId || "", 120);
+  if (!AGENT_TEAM_WORKSPACE_PRODUCT_IDS.has(normalizedProductId)) return null;
+  const product = DIGITAL_PRODUCTS.find((item) => item.id === normalizedProductId && item.delivery === "agent_team_workspace");
+  return product ? { ...product, includes: [...product.includes] } : null;
+}
+
+function normalizeAgentTeamWorkspaceInput(productId, input = {}) {
+  const definition = agentTeamWorkspaceDefinition(productId);
+  if (!definition) return null;
+  const values = {};
+  for (const [name, , type] of definition.fields) {
+    values[name] = cleanWorkspaceText(input[name], type === "textarea" ? 5000 : 1600);
+  }
+  return values;
+}
+
+export function buildAgentTeamWorkspace(productId, input = {}) {
+  const values = normalizeAgentTeamWorkspaceInput(productId, input);
+  if (!values) return null;
+  return {
+    version: 1,
+    productId: cleanWorkspaceText(productId, 120),
+    updatedAt: new Date().toISOString(),
+    ...values,
+  };
+}
+
+export function agentTeamWorkspaceMissingFields(productId, workspace = {}) {
+  const definition = agentTeamWorkspaceDefinition(productId);
+  if (!definition) return ["productId"];
+  return definition.requiredFields.filter((field) => !String(workspace?.[field] || "").trim());
+}
+
+export function agentTeamWorkspaceFilename(productId) {
+  return agentTeamWorkspaceDefinition(productId)?.filename || "GPTMarketPlus-Agent-Team-Operating-Pack.txt";
+}
+
+export function agentTeamWorkspacePack(productId, workspace = {}) {
+  const definition = agentTeamWorkspaceDefinition(productId);
+  const product = agentTeamWorkspaceProduct(productId);
+  const values = normalizeAgentTeamWorkspaceInput(productId, workspace);
+  if (!definition || !product || !values) return "Unknown agent team workspace.";
+  const brief = definition.summaryFields
+    .map(([field, label]) => `${label}: ${values[field] || "Not specified"}`)
+    .join("\n");
+  const roles = definition.roles
+    .map(([name, output], index) => `AGENT ${index + 1} - ${String(name).toUpperCase()}\n${output(values)}`)
+    .join("\n\n");
+  const sections = definition.generatedSections(values)
+    .map(([title, content]) => `${title}\n${content}`)
+    .join("\n\n");
+  return `GPTMARKETPLUS ${product.name.toUpperCase()} - OPERATING PACK
+Generated: ${workspace.updatedAt || new Date().toISOString()}
+
+WORKSPACE BRIEF
+${brief}
+
+IMPORTANT BOUNDARY
+This pack organizes inputs, rules, checklists, and drafts. It does not verify facts or legal compliance, contact a lead or supplier, publish content, change an order or price, issue a refund, send a customer message, or promise a business result. A human must verify current evidence, permissions, policies, platform rules, and every external action.
+
+${roles}
+
+${sections}
+
+FINAL HUMAN APPROVAL QUEUE
+[ ] Required inputs and evidence are current
+[ ] Permissions, policies, claims, and applicable rules were checked
+[ ] Drafts were reviewed for accuracy, tone, and unsupported promises
+[ ] Sensitive cases and exceptions were escalated to ${values.approvalOwner || "the assigned human owner"}
+[ ] Every external action remains paused until a person approves it
+
+NEXT STEP
+Replace example values with current business information, review every generated section, and approve or reject each proposed action. Measure real outcomes before expanding the workflow.`;
+}
+
+export function renderAgentTeamWorkspaceOutput(productId, workspace = {}) {
+  const definition = agentTeamWorkspaceDefinition(productId);
+  const product = agentTeamWorkspaceProduct(productId);
+  const values = normalizeAgentTeamWorkspaceInput(productId, workspace);
+  if (!definition || !product || !values) return `<div class="review-panel"><p>This agent team workspace is unavailable.</p></div>`;
+  const summary = definition.summaryFields.map(([field, label]) => `
+    <article><span>${escapeHtml(label)}</span><strong>${escapeHtml(values[field] || "Not specified")}</strong></article>`).join("");
+  const roleCards = definition.roles.map(([name, output], index) => `
+    <article class="agent-role-card"><span>${String(index + 1).padStart(2, "0")}</span><h3>${escapeHtml(name)}</h3><p>${escapeHtml(output(values))}</p></article>`).join("");
+  return `
+    <section class="blueprint agent-team-workspace-output">
+      <header><p class="eyebrow">Generated operating pack</p><h2>${escapeHtml(product.name)} Command Center</h2><p>Six bounded roles organized your inputs into a reviewable operating pack. Nothing has been sent, published, changed, or refunded.</p></header>
+      <div class="workspace-summary-grid">${summary}</div>
+      <div class="agent-role-grid compact-team-grid">${roleCards}</div>
+      <div class="review-panel"><p class="card-kicker">Human approval queue</p><p>Verify current evidence, permissions, policies, claims, platform rules, and every proposed external action.</p><p><strong>Approval owner:</strong> ${escapeHtml(values.approvalOwner || "Assign an owner before taking action")}</p></div>
+      <details class="review-panel"><summary>Open the complete operating pack</summary><pre class="code-block">${escapeHtml(agentTeamWorkspacePack(productId, workspace))}</pre></details>
+    </section>`;
+}
+
+export function renderAgentTeamWorkspacePage(env, context = {}) {
+  const productId = cleanWorkspaceText(context.productId || "", 120);
+  const definition = agentTeamWorkspaceDefinition(productId);
+  const product = agentTeamWorkspaceProduct(productId);
+  if (!definition || !product) {
+    return renderShell(env, {
+      path: "/agent-team/workspace",
+      title: "Agent Team Workspace",
+      description: "The requested agent team workspace was not found.",
+      body: `<section class="page-hero"><p class="eyebrow">Private customer workspace</p><h1>Workspace not found</h1><p>Choose an available agent team from the product marketplace.</p><a class="button-primary" href="/products">Return to Products</a></section>`,
+      robots: "noindex,nofollow,noarchive",
+      bodyClass: "page-agent-team-workspace",
+      privatePage: true,
+    });
+  }
+  if (context.accessDenied) {
+    return renderShell(env, {
+      path: "/agent-team/workspace",
+      title: `${product.name} Workspace`,
+      description: `A verified purchase is required to open the ${product.name} workspace.`,
+      body: `<section class="page-hero"><p class="eyebrow">Private customer workspace</p><h1>Verify your ${escapeHtml(product.name)} purchase</h1><p>Open this workspace from the secure PayPal completion or delivery link. If you need help, contact support with your PayPal order ID.</p><div class="cta-row"><a class="button-primary" href="/products">Return to Products</a><a class="button-secondary" href="/contact?intent=purchase_access">Contact support</a></div></section>`,
+      robots: "noindex,nofollow,noarchive",
+      bodyClass: "page-agent-team-workspace",
+      privatePage: true,
+    });
+  }
+
+  const orderId = cleanWorkspaceText(context.orderId || "", 80);
+  const accessToken = cleanWorkspaceText(context.accessToken || "", 180);
+  const workspace = context.workspace && typeof context.workspace === "object" ? context.workspace : null;
+  const requiredFields = new Set(definition.requiredFields);
+  const formFields = definition.fields.map(([name, label, type, placeholder]) => {
+    const value = escapeHtml(workspace?.[name] ?? "");
+    const required = requiredFields.has(name);
+    if (type === "textarea") {
+      return `<label class="field full"><span>${escapeHtml(label)}</span><textarea name="${escapeHtml(name)}" rows="4" placeholder="${escapeHtml(placeholder)}" ${required ? "required" : ""}>${value}</textarea></label>`;
+    }
+    return `<label class="field"><span>${escapeHtml(label)}</span><input type="${escapeHtml(type)}" name="${escapeHtml(name)}" value="${value}" placeholder="${escapeHtml(placeholder)}" ${required ? "required" : ""}></label>`;
+  }).join("");
+  const initialOutput = workspace
+    ? renderAgentTeamWorkspaceOutput(productId, workspace)
+    : `<div class="review-panel"><p>Your six-agent operating pack will appear here after you save the brief.</p><p>Use current business information and policies. The workspace drafts and organizes; it cannot verify facts, permissions, or approve an external action.</p></div>`;
+  const downloadQuery = new URLSearchParams({
+    product_id: productId,
+    order_id: orderId,
+    access_token: accessToken,
+  });
+  const body = `
+    <section class="page-hero workspace-hero">
+      <div>${renderPageTitle(definition.eyebrow, definition.title, definition.description)}<p class="status-pill">Verified purchase &middot; ${escapeHtml(product.name)}</p></div>
+      <aside class="review-panel"><p class="card-kicker">Human-in-control workspace</p><p>Generate drafts, queues, rules, and checklists. Review every fact and approve every external action yourself.</p><a class="button-secondary" href="/products">View all products</a></aside>
+    </section>
+    <section class="section split-section workspace-form-layout">
+      <div>
+        <div class="section-heading"><p class="eyebrow">Business brief</p><h2>Configure the team</h2><p>Required fields are marked by your browser. Avoid passwords, payment-card data, health records, or other regulated personal information.</p></div>
+        <form class="lead-form agent-team-workspace-form" id="agent-team-workspace-form" data-endpoint="/api/paypal/agent-team/workspace">
+          <input type="hidden" name="productId" value="${escapeHtml(productId)}">
+          <input type="hidden" name="orderId" value="${escapeHtml(orderId)}">
+          <input type="hidden" name="accessToken" value="${escapeHtml(accessToken)}">
+          <div class="form-grid">${formFields}</div>
+          <div class="cta-row"><button class="button-primary" type="submit">Run the six-agent team</button><button class="button-secondary" type="button" id="agent-team-example">Add safe example inputs</button></div>
+          <p class="form-status" id="agent-team-workspace-status" aria-live="polite"></p>
+        </form>
+      </div>
+      <aside class="review-panel"><p class="card-kicker">Before using an output</p><ul class="benefit-list compact"><li>Replace examples with current facts and evidence.</li><li>Confirm permission, policies, and applicable rules.</li><li>Review tone, links, claims, and sensitive cases.</li><li>Keep sending, publishing, order changes, and money movement under human control.</li></ul></aside>
+    </section>
+    <section class="section" id="agent-team-workspace-output">${initialOutput}</section>
+    <section class="section"><div class="cta-row" id="agent-team-workspace-actions"${workspace ? "" : " hidden"}><button class="button-primary" type="button" id="agent-team-copy">Copy operating pack</button><a class="button-secondary" href="/api/paypal/agent-team/workspace/download?${escapeHtml(downloadQuery.toString())}">Download operating pack</a><a class="button-secondary" href="/contact?intent=agent_team_implementation&amp;product=${encodeURIComponent(productId)}">Request implementation help</a></div></section>
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        const form = document.getElementById("agent-team-workspace-form");
+        const status = document.getElementById("agent-team-workspace-status");
+        const output = document.getElementById("agent-team-workspace-output");
+        const actions = document.getElementById("agent-team-workspace-actions");
+        const copy = document.getElementById("agent-team-copy");
+        const exampleButton = document.getElementById("agent-team-example");
+        const example = ${JSON.stringify(definition.example).replace(/</g, "\\u003c")};
+        let packText = ${JSON.stringify(workspace ? agentTeamWorkspacePack(productId, workspace) : "").replace(/</g, "\\u003c")};
+        exampleButton.addEventListener("click", function () {
+          Object.entries(example).forEach(function ([name, value]) {
+            const field = form.elements.namedItem(name);
+            if (field && !String(field.value || "").trim()) field.value = value;
+          });
+          status.textContent = "Example values were added to empty fields. Replace them with current business information before using the output.";
+        });
+        async function copyPack(value) {
+          if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(value);
+          const fallback = document.createElement("textarea");
+          fallback.value = value;
+          fallback.setAttribute("readonly", "");
+          fallback.style.position = "fixed";
+          fallback.style.opacity = "0";
+          document.body.appendChild(fallback);
+          fallback.focus();
+          fallback.select();
+          const copied = document.execCommand("copy");
+          fallback.remove();
+          if (!copied) throw new Error("Clipboard unavailable");
+        }
+        form.addEventListener("submit", async function (event) {
+          event.preventDefault();
+          status.textContent = "Running the six-agent planning team...";
+          const payload = Object.fromEntries(new FormData(form).entries());
+          try {
+            const response = await fetch("/api/paypal/agent-team/workspace", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
+            const result = await response.json();
+            if (!response.ok || !result.ok) throw new Error(result.error || "The workspace could not be saved.");
+            output.innerHTML = result.outputHtml;
+            packText = result.packText || "";
+            actions.hidden = false;
+            status.textContent = "Saved. Your operating pack is ready below.";
+            output.scrollIntoView({ behavior: "smooth", block: "start" });
+          } catch (error) {
+            status.textContent = error.message || "The workspace could not be saved. Please try again.";
+          }
+        });
+        copy.addEventListener("click", async function () {
+          if (!packText) return;
+          try { await copyPack(packText); copy.textContent = "Copied"; setTimeout(function () { copy.textContent = "Copy operating pack"; }, 1800); }
+          catch { status.textContent = "Copy was blocked by the browser. Use Download operating pack instead."; }
+        });
+      });
+    </script>`;
+
+  return renderShell(env, {
+    path: "/agent-team/workspace",
+    title: `${product.name} Workspace`,
+    description: `Run the private ${product.name} workspace from a verified purchase.`,
+    body,
+    robots: "noindex,nofollow,noarchive",
+    bodyClass: "page-agent-team-workspace",
+    privatePage: true,
+  });
+}
+
 function renderAboutPage(env) {
   const body = `
     <section class="page-hero split-section">
@@ -7183,6 +8253,7 @@ async function publicAgentState(env) {
 
 const AGENTID_PUBLIC_PAGES = [
   { path: "/", title: "AI Agents for Small Business", description: "Start with a $29 AI Agent Launch Kit for a usable first workflow, or request a scoped custom AI agent plan for lead capture, follow-up, and operations." },
+  { path: "/products", title: "Auto Dropshipping Agent Team and AI Products", description: "Buy a $49 private Auto Dropshipping Agent Team workspace with supplier checks, margin scenarios, listing drafts, monitoring rules, support drafts, and human approval control." },
   { path: "/services", title: "Services", description: "Custom AI agent services, workflow automation, and AI website buildout." },
   { path: "/ai-agents", title: "AI Agents", description: "The agent types GPTMarketPlus can build for your business." },
   { path: "/pricing", title: "Pricing", description: "Starter, Growth, and Business Automation pricing tiers with deposit options." },
@@ -7282,10 +8353,13 @@ export function activeSponsorPlacement(env, now = Date.now()) {
 function renderSponsorHouseAd(env, path) {
   if (isAgentIdSite(env)) return "";
   const excluded = new Set([
+    "/products",
     "/pricing",
     "/contact",
     "/book-a-consultation",
     "/ai-agent-launch-kit",
+    "/dropshipping-agent-team/workspace",
+    "/agent-team/workspace",
     "/privacy",
     "/terms",
     "/onboarding",
@@ -7749,6 +8823,7 @@ function adSenseAllowedPath(path) {
   const normalized = normalizePath(path);
   if (normalized.startsWith("/downloads/")) return false;
   return !new Set([
+    "/products",
     "/pricing",
     "/contact",
     "/book-a-consultation",
@@ -8618,6 +9693,8 @@ function renderFormsBootstrap(env) {
 }
 
 const AGENTID_PRIVATE_PATHS = new Set([
+  "/dropshipping-agent-team/workspace",
+  "/agent-team/workspace",
   "/onboarding",
   "/customer-dashboard",
   "/admin-dashboard",
@@ -8877,6 +9954,16 @@ body::before {
 a {
   color: inherit;
   text-decoration: none;
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+summary:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 4px;
 }
 
 img,
@@ -10540,6 +11627,706 @@ main {
   font-size: clamp(1.35rem, 3vw, 2rem);
 }
 
+.product-store-hero {
+  min-height: 610px;
+  padding: 48px 0 18px;
+}
+
+.storefront-hero-copy h1 {
+  margin: 0;
+  max-width: 12ch;
+  font-size: clamp(3rem, 6vw, 5.7rem);
+  line-height: 0.98;
+  letter-spacing: -0.055em;
+}
+
+.storefront-hero-copy h1 span {
+  color: var(--accent);
+}
+
+.storefront-hero-copy .hero-lede {
+  max-width: 64ch;
+}
+
+.storefront-checkout-stack {
+  align-items: stretch;
+}
+
+.storefront-checkout-stack .form-note {
+  max-width: 34rem;
+}
+
+.storefront-operating-card,
+.sample-command-center,
+.storefront-final-checkout {
+  padding: clamp(22px, 4vw, 34px);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-xl);
+  background:
+    radial-gradient(circle at top right, rgba(97, 168, 255, 0.14), transparent 30%),
+    linear-gradient(180deg, rgba(10, 21, 36, 0.95), rgba(7, 15, 27, 0.92));
+  box-shadow: var(--shadow);
+}
+
+.storefront-card-heading,
+.sample-command-heading,
+.command-panel-heading,
+.listing-sample,
+.storefront-price-box > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.storefront-card-heading {
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.storefront-card-heading strong {
+  display: block;
+  max-width: 18ch;
+  font-size: clamp(1.2rem, 2.4vw, 1.7rem);
+  line-height: 1.2;
+}
+
+.storefront-ready-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.storefront-ready-list p {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+  padding: 13px;
+  border: 1px solid rgba(127, 205, 255, 0.1);
+  border-radius: var(--radius-sm);
+  background: rgba(13, 26, 43, 0.78);
+}
+
+.storefront-status,
+.sample-label {
+  display: inline-flex;
+  width: fit-content;
+  padding: 6px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-style: normal;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.storefront-status.success,
+.success-text {
+  color: var(--success);
+}
+
+.storefront-status.accent {
+  color: var(--accent);
+}
+
+.storefront-status.warning,
+.warning-text,
+.sample-label {
+  color: var(--warning);
+}
+
+.danger-text {
+  color: var(--danger);
+}
+
+.storefront-trust-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  margin-top: 34px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--line);
+}
+
+.storefront-trust-grid article {
+  display: grid;
+  gap: 4px;
+  padding: 20px;
+  background: rgba(8, 18, 31, 0.94);
+}
+
+.storefront-trust-grid span,
+.agent-role-card p,
+.workflow-steps p,
+.fit-card p,
+.product-shelf p,
+.command-panel p,
+.command-panel span,
+.workspace-summary-grid span {
+  color: var(--muted);
+}
+
+.agent-role-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 26px;
+}
+
+.agent-role-card,
+.command-panel,
+.fit-card,
+.product-shelf article,
+.workspace-summary-grid article {
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: rgba(8, 18, 31, 0.82);
+}
+
+.agent-role-card > span {
+  color: var(--accent);
+  font-size: 1.45rem;
+  font-weight: 800;
+}
+
+.agent-role-card h3,
+.workflow-steps h3,
+.fit-card h3,
+.product-shelf h3 {
+  margin: 14px 0 6px;
+}
+
+.agent-role-card p,
+.workflow-steps p,
+.fit-card p,
+.product-shelf p {
+  margin-bottom: 0;
+}
+
+.sample-command-center {
+  display: grid;
+  gap: 18px;
+}
+
+.sample-command-heading h2,
+.storefront-final-checkout h2 {
+  margin: 14px 0 6px;
+  font-size: clamp(2rem, 4vw, 3.2rem);
+  line-height: 1.05;
+}
+
+.sample-command-heading p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.sample-command-heading > span {
+  color: var(--muted-2);
+  font-size: 0.86rem;
+}
+
+.command-center-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+  gap: 14px;
+}
+
+.command-panel-heading h3,
+.command-panel-heading p {
+  margin: 0;
+}
+
+.command-products {
+  display: grid;
+  gap: 0;
+}
+
+.candidate-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 14px;
+  align-items: center;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.candidate-row:last-child {
+  border-bottom: 0;
+}
+
+.candidate-row em {
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.command-side-stack {
+  display: grid;
+  gap: 14px;
+}
+
+.command-metric {
+  display: block;
+  margin: 8px 0;
+  color: var(--success);
+  font-size: clamp(2rem, 4vw, 3.1rem);
+}
+
+.listing-sample > div p {
+  margin-bottom: 5px;
+}
+
+.workflow-steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 18px;
+  margin-top: 26px;
+}
+
+.workflow-steps article {
+  padding-top: 18px;
+  border-top: 1px solid var(--accent);
+}
+
+.workflow-steps article > span {
+  color: var(--accent);
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.fit-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.fit-card.good {
+  border-color: rgba(109, 240, 198, 0.28);
+  background: rgba(109, 240, 198, 0.06);
+}
+
+.fit-card.good h3 {
+  color: var(--success);
+}
+
+.fit-card.caution {
+  border-color: rgba(243, 196, 111, 0.28);
+  background: rgba(243, 196, 111, 0.06);
+}
+
+.fit-card.caution h3 {
+  color: var(--warning);
+}
+
+.other-products-section {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  gap: 28px;
+  align-items: start;
+}
+
+.product-shelf {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.product-shelf article {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+}
+
+.product-shelf h3,
+.product-shelf p {
+  margin-top: 0;
+}
+
+.product-shelf > article > strong {
+  color: var(--accent);
+  font-size: 1.8rem;
+}
+
+.product-shelf small {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+
+.product-shelf .button-secondary {
+  width: 100%;
+  margin-top: 10px;
+}
+
+.storefront-final-checkout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(300px, 0.8fr);
+  gap: 30px;
+  align-items: center;
+}
+
+.storefront-price-box {
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: rgba(8, 18, 31, 0.88);
+}
+
+.storefront-price-box > div > span {
+  color: var(--muted);
+}
+
+.storefront-price-box > div > strong {
+  color: var(--accent);
+  font-size: 1.7rem;
+}
+
+.storefront-price-box .storefront-checkout-stack {
+  margin-top: 18px;
+}
+
+.workspace-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.workspace-summary-grid article {
+  display: grid;
+  gap: 6px;
+}
+
+.workspace-summary-grid span {
+  font-size: 0.78rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.compact-team-grid {
+  margin-top: 0;
+}
+
+.compact-team-grid .agent-role-card p {
+  font-size: 0.88rem;
+}
+
+.dropshipping-output details summary {
+  cursor: pointer;
+  color: var(--accent);
+  font-weight: 800;
+}
+
+.dropshipping-workspace-form input[type="number"] {
+  appearance: textfield;
+}
+
+@keyframes storefrontReveal {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes networkFlow {
+  from { stroke-dashoffset: 80; }
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes networkPulse {
+  0%, 100% { opacity: 0.58; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.16); }
+}
+
+.storefront-reveal {
+  animation: storefrontReveal 650ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+.storefront-delay-1 { animation-delay: 80ms; }
+.storefront-delay-2 { animation-delay: 160ms; }
+.storefront-delay-3 { animation-delay: 240ms; }
+
+.agent-network-card {
+  overflow: hidden;
+}
+
+.agent-network-card .storefront-status.success {
+  align-items: center;
+  gap: 7px;
+}
+
+.agent-network-card .storefront-status.success i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--success);
+  animation: networkPulse 3.8s ease-in-out infinite;
+}
+
+.agent-network-visual {
+  position: relative;
+  height: 270px;
+  margin-top: 20px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--bg-alt);
+}
+
+.agent-network-visual svg {
+  width: 100%;
+  height: 100%;
+}
+
+.network-path,
+.network-guide {
+  fill: none;
+  vector-effect: non-scaling-stroke;
+}
+
+.network-path {
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-dasharray: 7 9;
+  animation: networkFlow 5s linear infinite;
+}
+
+.network-path-two {
+  stroke: var(--accent-2);
+  animation-direction: reverse;
+  animation-duration: 6s;
+}
+
+.network-guide {
+  stroke: rgba(113, 214, 255, 0.2);
+  stroke-width: 1;
+}
+
+.network-node {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: networkPulse 3.8s ease-in-out infinite;
+}
+
+.network-node:nth-of-type(2) { animation-delay: 800ms; }
+.network-node:nth-of-type(3) { animation-delay: 1.5s; }
+.network-node:nth-of-type(4) { animation-delay: 2.1s; }
+.network-node:nth-of-type(5) { animation-delay: 2.8s; }
+
+.network-node circle:first-child {
+  fill: var(--bg-alt);
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
+.network-node circle:last-child {
+  fill: var(--accent);
+}
+
+.network-node-main circle:first-child { stroke: var(--success); }
+.network-node-main circle:last-child { fill: var(--success); }
+
+.network-labels {
+  position: absolute;
+  right: 14px;
+  bottom: 12px;
+  left: 14px;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted-2);
+  font-size: 0.72rem;
+}
+
+.catalog-heading-row {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 22px;
+}
+
+.catalog-count,
+.product-type-badge {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--accent);
+  background: rgba(113, 214, 255, 0.07);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.product-type-badge.report {
+  color: var(--warning);
+  background: rgba(243, 196, 111, 0.07);
+}
+
+.marketplace-product-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 28px;
+}
+
+.marketplace-product-card {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: rgba(8, 18, 31, 0.84);
+  transition: transform 180ms ease, border-color 180ms ease, background-color 180ms ease;
+}
+
+.marketplace-product-card.featured {
+  border-color: var(--line-strong);
+  background: radial-gradient(circle at top right, rgba(97, 168, 255, 0.14), transparent 34%), rgba(13, 26, 43, 0.9);
+}
+
+.marketplace-product-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--accent);
+}
+
+.marketplace-card-top {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.marketplace-card-top > strong {
+  color: var(--accent);
+  font-size: 1.55rem;
+}
+
+.marketplace-product-card h3 {
+  margin: 20px 0 8px;
+  font-size: 1.32rem;
+  line-height: 1.2;
+}
+
+.marketplace-product-card > p,
+.marketplace-product-card li {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.marketplace-product-card > p {
+  margin: 0;
+}
+
+.marketplace-product-card ul {
+  margin: 18px 0 0;
+  padding-left: 19px;
+}
+
+.marketplace-product-card .marketplace-limit {
+  margin-top: 16px;
+  color: var(--muted-2);
+  font-size: 0.78rem;
+}
+
+.marketplace-card-actions {
+  display: grid;
+  gap: 10px;
+  margin-top: auto;
+  padding-top: 20px;
+}
+
+.marketplace-card-actions .button-primary,
+.marketplace-card-actions .checkout-form {
+  width: 100%;
+}
+
+.storefront-detail-link {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.storefront-payment-notice {
+  margin-top: 18px;
+}
+
+.featured-sample-checkout,
+.human-control-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: rgba(8, 18, 31, 0.82);
+}
+
+.featured-sample-checkout p,
+.human-control-strip p {
+  margin-bottom: 0;
+  color: var(--muted);
+}
+
+.featured-sample-checkout .checkout-form {
+  width: min(100%, 360px);
+  flex: 0 0 360px;
+}
+
+.human-control-strip {
+  border-color: rgba(109, 240, 198, 0.28);
+  background: rgba(109, 240, 198, 0.06);
+}
+
+.human-control-strip h2 {
+  margin: 8px 0 0;
+}
+
+.human-control-strip .button-secondary {
+  flex: 0 0 auto;
+}
+
+.storefront-faq .faq-list {
+  margin-top: 26px;
+}
+
+.storefront-faq details {
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: rgba(8, 18, 31, 0.82);
+}
+
+.storefront-faq details + details {
+  margin-top: 12px;
+}
+
+.storefront-faq summary {
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.storefront-faq details p {
+  max-width: 78ch;
+  margin-bottom: 0;
+  color: var(--muted);
+}
+
+.agent-team-workspace-output details summary {
+  cursor: pointer;
+  color: var(--accent);
+  font-weight: 800;
+}
+
 .site-footer {
   width: min(var(--content-width), calc(100% - 32px));
   margin: 0 auto 28px;
@@ -10799,8 +12586,30 @@ main {
   }
 
   .resource-layout,
-  .calculator-layout {
+  .calculator-layout,
+  .command-center-grid,
+  .other-products-section,
+  .storefront-final-checkout {
     grid-template-columns: 1fr;
+  }
+
+  .storefront-trust-grid,
+  .workflow-steps,
+  .workspace-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .agent-role-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .marketplace-product-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .catalog-heading-row {
+    align-items: start;
+    flex-direction: column;
   }
 
   .resource-sidebar,
@@ -10883,8 +12692,51 @@ main {
   }
 
   .roi-calculator fieldset,
-  .result-grid {
+  .result-grid,
+  .storefront-trust-grid,
+  .workflow-steps,
+  .agent-role-grid,
+  .product-shelf,
+  .workspace-summary-grid,
+  .marketplace-product-grid {
     grid-template-columns: 1fr;
+  }
+
+  .product-store-hero {
+    min-height: auto;
+    padding-top: 24px;
+  }
+
+  .storefront-hero-copy h1 {
+    font-size: clamp(2.7rem, 15vw, 4.2rem);
+  }
+
+  .storefront-card-heading,
+  .sample-command-heading,
+  .listing-sample,
+  .storefront-price-box > div {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .candidate-row {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .featured-sample-checkout,
+  .human-control-strip {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .featured-sample-checkout .checkout-form {
+    width: 100%;
+    flex-basis: auto;
+  }
+
+  .agent-network-visual {
+    height: 230px;
   }
 
   .hero-visual,
@@ -10929,6 +12781,25 @@ main {
 
   .site-footer {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .marketplace-product-card:hover {
+    transform: none;
   }
 }
 `;
@@ -11082,13 +12953,13 @@ function softwareApplicationSchema(env) {
   };
 }
 
-function productSchema(env, product) {
+function productSchema(env, product, productPath = "/ai-agent-launch-kit") {
   return {
     "@context": "https://schema.org",
     "@type": "Product",
     name: product.name,
     description: product.summary,
-    url: `${siteUrl(env)}/ai-agent-launch-kit`,
+    url: `${siteUrl(env)}${productPath}`,
     brand: {
       "@type": "Brand",
       name: brandName(env),
@@ -11098,7 +12969,7 @@ function productSchema(env, product) {
       price: (product.price / 100).toFixed(2),
       priceCurrency: "USD",
       availability: "https://schema.org/InStock",
-      url: `${siteUrl(env)}/ai-agent-launch-kit`,
+      url: `${siteUrl(env)}${productPath}`,
     },
   };
 }
@@ -11999,6 +13870,21 @@ export async function handleAgentIdSiteRequest(request, env, ctx) {
 
   if (path === "/services") {
     return respondHtml(renderServicesPage(env));
+  }
+
+  if (path === "/products/auto-dropshipping-agent-team" && ["GET", "HEAD"].includes(method)) {
+    return new Response(null, {
+      status: 301,
+      headers: {
+        ...SECURITY_HEADERS,
+        location: `${siteUrl(env)}/products#${DROPSHIPPING_PRODUCT_ID}`,
+        "cache-control": "public, max-age=3600",
+      },
+    });
+  }
+
+  if (path === "/products") {
+    return respondHtml(renderProductsPage(env, url));
   }
 
   if (path === "/ai-agents") {

@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "targets": {
+    "/products": {
+      "targetKind": "new-ui",
+      "projectId": "31255225-b2fb-4ec6-a5fa-c47968a88cf1",
+      "activeDraftId": "e0554f1f-8e74-4945-9531-4280796f5af1",
+      "designSystemPath": ".superdesign/design-system.md",
+      "contextFiles": [
+        ".superdesign/design-system.md",
+        ".superdesign/init/theme.md",
+        "src/agentid-site.js:608:873",
+        "src/agentid-site.js:5819:5937",
+        "src/agentid-site.js:8278:8345",
+        "src/agentid-site.js:8393:8445",
+        "src/agentid-site.js:9894:10050",
+        "src/agentid-site.js:11621:12325",
+        "src/agentid-site.js:12546:12810"
+      ],
+      "fingerprints": {
+        ".superdesign/design-system.md": "2844a2b47a60b584a705bf43fef5784f3e6ee0bb3dccd18a7f8d1a70f5c67447",
+        ".superdesign/init/theme.md": "9e4d48f979e123e05d3d77618029dcc428c452cdd14c8e905d0ff49c681123ed",
+        "src/agentid-site.js": "627197d52712d357b2691988bc245256805b44c3157ad06e517ea5423c3c509a"
+      },
+      "components": [
+        {
+          "name": "SiteFooter",
+          "id": "7fc32367-33d8-4392-92a6-696c244e7125",
+          "sourcePath": "src/agentid-site.js"
+        }
+      ],
+      "drafts": {
+        "e0554f1f-8e74-4945-9531-4280796f5af1": {
+          "title": "GPTMarketPlus Product Marketplace",
+          "visualDirection": "Animated multi-product agent marketplace with restrained CSS motion",
+          "currentVersion": 5
+        }
+      },
+      "updatedAt": "2026-08-27T19:29:45.1500382Z"
+    }
+  }
+}

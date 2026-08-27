@@ -137,6 +137,8 @@ If Cloudflare Managed `robots.txt` is enabled for the zone, it can prepend `Disa
 
 PayPal is the sole payment provider. Eligible self-service products use PayPal Orders, while approved services and sponsor placements use PayPal checkout, subscriptions, or invoices only after scope and fulfillment terms are accepted.
 
+The `/products` marketplace sells six one-time products: the $49 Auto Dropshipping Agent Team, $49 Local Lead Follow-Up Agent Team, $39 Content & SEO Agent Team, $39 Ecommerce Support Agent Team, $29 AI Agent Launch Kit, and $24 AI Software Opportunity Report. The four agent teams and Launch Kit open private, order-bound workspaces only after the Worker verifies a completed PayPal capture and random access token. The three newer teams share the hardened workspace API at `/api/paypal/agent-team/workspace`; each produces a product-specific, human-reviewed operating pack that can be saved, copied, or downloaded. Private workspace pages are `noindex` and `no-store`, and provider refunds or reversals can revoke the underlying entitlement.
+
 Google Analytics is wired through the Worker's first-party `/gtag` proxy path. `G-3BCSR51WHZ` loads directly, so measurement does not depend on a Tag Manager container. The verified GA4 stream identifies GPTMarketPlus at `https://gptmarketplus.com`; `generate_lead` and the default `purchase` are the only Key Events. Set a GTM or Ads identifier only when a real published container or conversion action exists:
 
 ```bash
@@ -234,9 +236,9 @@ operations application paths.
 
 ### PayPal one-time payments and sponsor subscriptions
 
-PayPal is the only payment provider across the $29 AI Agent Launch Kit, fixed-price builds, setup deposits, and recurring sponsor inventory. One-time purchases use PayPal Orders v2: the Worker creates the order from its server-owned product catalog, redirects the buyer to PayPal, captures the approved order on the server, checks the exact product/currency/amount, and only then records revenue or unlocks delivery. Sponsor inventory supports recurring PayPal subscriptions at $49, $99, and $149 per month, but remains approval-gated until placement fulfillment is ready.
+PayPal is the only payment provider across the $49 Auto Dropshipping Agent Team, $29 AI Agent Launch Kit, $24 AI Software Opportunity Report, fixed-price builds, setup deposits, and recurring sponsor inventory. One-time purchases use PayPal Orders v2: the Worker creates the order from its server-owned product catalog, redirects the buyer to PayPal, captures the approved order on the server, checks the exact product/currency/amount, and only then records revenue or unlocks delivery. Sponsor inventory supports recurring PayPal subscriptions at $49, $99, and $149 per month, but remains approval-gated until placement fulfillment is ready.
 
-The PayPal client secret is never sent to the browser. The secure Launch Kit URL requires the completed order ID plus a separate random access token stored in KV; a PayPal redirect alone cannot unlock the file.
+The PayPal client secret is never sent to the browser. Secure Launch Kit and Auto Dropshipping Agent Team workspace URLs require the completed order ID plus a separate random access token stored in KV; a PayPal redirect alone cannot unlock either product.
 
 Configure the live PayPal REST application credentials as Worker secrets:
 
