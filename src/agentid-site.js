@@ -699,6 +699,19 @@ const DIGITAL_PRODUCTS = [
   },
 ];
 
+const CUEKEEPER_X402_PRODUCT = {
+  id: "cuekeeper_agent_foundry_release",
+  name: "CueKeeper",
+  priceLabel: "$1 USDC",
+  checkoutUrl: "https://score.agentid.life/cuekeeper?utm_source=gptmarketplus.com&utm_medium=owned&utm_campaign=agent_foundry_release&utm_content=product_catalog",
+  summary: "A local Python toolkit that converts SRT and WebVTT subtitles into timestamp-preserving transcripts with deterministic JSON quality reports.",
+  includes: [
+    "Local CLI and browser interface",
+    "Timestamp-preserving transcript output",
+    "Deterministic quality and failure reports",
+  ],
+};
+
 const DROPSHIPPING_PRODUCT_ID = "auto_dropshipping_agent_team";
 const DROPSHIPPING_PRODUCT = DIGITAL_PRODUCTS.find((product) => product.id === DROPSHIPPING_PRODUCT_ID);
 const AGENT_TEAM_WORKSPACE_PRODUCT_IDS = new Set([
@@ -5869,6 +5882,16 @@ function renderProductsPage(env, requestUrl = null) {
       </article>`;
   }).join("");
   const featuredCheckout = checkoutFor(DROPSHIPPING_PRODUCT, "Choose this team with PayPal");
+  const cueKeeperCard = `
+    <article class="marketplace-product-card storefront-reveal storefront-delay-2" id="${escapeHtml(CUEKEEPER_X402_PRODUCT.id)}">
+      <div class="marketplace-card-top"><span class="product-type-badge">Agent Foundry release</span><strong>${escapeHtml(CUEKEEPER_X402_PRODUCT.priceLabel)}</strong></div>
+      <h3>${escapeHtml(CUEKEEPER_X402_PRODUCT.name)}</h3>
+      <p>${escapeHtml(CUEKEEPER_X402_PRODUCT.summary)}</p>
+      <ul>${CUEKEEPER_X402_PRODUCT.includes.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+      <p class="marketplace-limit">This separate x402 checkout requires a Base-compatible wallet with USDC. Review the live preview, release hash, and payment terms before signing.</p>
+      <div class="marketplace-card-actions"><a class="button-primary" href="${escapeHtml(CUEKEEPER_X402_PRODUCT.checkoutUrl)}"
+        data-track-event="select_offer" data-track-label="Products CueKeeper x402">View the $1 CueKeeper release</a></div>
+    </article>`;
   const body = `
     <section class="page-hero split-section product-store-hero animated-marketplace-hero" aria-labelledby="products-title">
       <div class="storefront-hero-copy storefront-reveal">
@@ -5887,11 +5910,12 @@ function renderProductsPage(env, requestUrl = null) {
         </div>
       </aside>
     </section>
-    <section class="storefront-trust-grid" aria-label="Marketplace safeguards"><article><strong>One-time prices</strong><span>No subscription required</span></article><article><strong>Verified delivery</strong><span>After completed PayPal capture</span></article><article><strong>Human approval</strong><span>Before every external action</span></article><article><strong>Clear scope</strong><span>No outcome guarantees</span></article></section>
+    <section class="storefront-trust-grid" aria-label="Marketplace safeguards"><article><strong>One-time prices</strong><span>No subscription required</span></article><article><strong>Verified delivery</strong><span>After PayPal capture or x402 settlement</span></article><article><strong>Human approval</strong><span>Before every external action</span></article><article><strong>Clear scope</strong><span>No outcome guarantees</span></article></section>
     <section class="section product-catalog-section" id="product-catalog">
-      <div class="catalog-heading-row">${renderSectionTitle("Product catalog", "Focused tools for practical work", "Every listing states what arrives, what it costs, and where your review is required.")}<span class="catalog-count">Six one-time products</span></div>
+      <div class="catalog-heading-row">${renderSectionTitle("Product catalog", "Focused tools for practical work", "Every listing states what arrives, what it costs, and where your review is required.")}<span class="catalog-count">Seven one-time products</span></div>
       <div class="marketplace-product-grid">${productCards}
         <article class="marketplace-product-card storefront-reveal storefront-delay-3" id="ai-software-opportunity-report"><div class="marketplace-card-top"><span class="product-type-badge report">Research report</span><strong>$24</strong></div><h3>AI Software Opportunity Report</h3><p>Compare practical AI software opportunities, customer problems, public demand signals, constraints, and build considerations before investing in development.</p><ul><li>Ranked opportunity comparison</li><li>Public-signal and scope notes</li><li>Downloadable private report</li></ul><p class="marketplace-limit">No private prospect data, signed buyers, revenue prediction, or implementation is included.</p><div class="marketplace-card-actions"><a class="button-primary" href="/software-builds/ai-software-opportunity-report">See report details</a></div></article>
+        ${cueKeeperCard}
       </div>
     </section>
     <section class="section sample-command-center storefront-reveal" id="featured-sample">
@@ -5900,16 +5924,16 @@ function renderProductsPage(env, requestUrl = null) {
       <article class="command-panel listing-sample"><div><p class="card-kicker">Listing draft</p><strong>Magnetic Pantry Labels - Clear, Reusable Organization Set</strong></div><span class="storefront-status warning">Needs human review</span></article>
       <div class="featured-sample-checkout"><div><p class="card-kicker">Featured private workspace</p><strong>Auto Dropshipping Agent Team &middot; $49 one-time</strong><p>Access opens only after PayPal verifies a completed capture.</p></div>${featuredCheckout}</div>
     </section>
-    <section class="section">${renderSectionTitle("Clear delivery", "How purchase and access work", "No product unlocks from a browser message alone. The server verifies the completed PayPal capture before private delivery.")}<div class="workflow-steps"><article><span>01</span><h3>Choose a product</h3><p>Review its price, format, inclusions, limitations, and refund terms.</p></article><article><span>02</span><h3>Pay through PayPal</h3><p>Approve the stated one-time payment. No subscription is created.</p></article><article><span>03</span><h3>Capture is verified</h3><p>The server checks PayPal before issuing a random private access token.</p></article><article><span>04</span><h3>Open or download</h3><p>Use the private workspace or download the report, then review every output.</p></article></div></section>
+    <section class="section">${renderSectionTitle("Clear delivery", "How purchase and access work", "No product unlocks from a browser message alone. GPTMarketPlus products use verified PayPal capture; the separately hosted CueKeeper release uses verified x402 settlement.")}<div class="workflow-steps"><article><span>01</span><h3>Choose a product</h3><p>Review its price, format, inclusions, limitations, and payment rail.</p></article><article><span>02</span><h3>Approve the payment</h3><p>Use PayPal for GPTMarketPlus products or Base USDC for the clearly labeled CueKeeper x402 release. No subscription is created.</p></article><article><span>03</span><h3>Settlement is verified</h3><p>The delivery service verifies the completed PayPal capture or x402 settlement before access opens.</p></article><article><span>04</span><h3>Open or download</h3><p>Use the private workspace or download the product, then review every output.</p></article></div></section>
     <section class="section product-compare-section">${renderSectionTitle("At a glance", "Workspace or report?", "Choose the format that matches your next decision.")}<div class="table-wrap"><table class="data-table"><thead><tr><th>Product type</th><th>What you receive</th><th>Best for</th><th>Control point</th></tr></thead><tbody><tr><td><strong>Private workspace</strong></td><td>Guided inputs, structured outputs, checklists, drafts, and review queues</td><td>Operators building or improving a workflow</td><td>You approve all external actions</td></tr><tr><td><strong>Research report</strong></td><td>A downloadable comparison of practical software opportunities</td><td>People deciding what to validate or build</td><td>You validate fit, evidence, and scope</td></tr></tbody></table></div></section>
     <section class="section human-control-strip"><div><p class="eyebrow">Human-control position</p><h2>Automation organizes the work. You decide the action.</h2><p>Publishing, outreach, prices, orders, refunds, customer communication, claims, compliance checks, and financial decisions remain under your review.</p></div><a class="button-secondary" href="/refund-policy">Review refund policy</a></section>
-    <section class="section storefront-faq">${renderSectionTitle("Before you choose", "Frequently asked questions", "Clear answers about access, scope, and control.")}<div class="faq-list"><details><summary>When do I receive my product?</summary><p>After PayPal reports a completed capture, the private workspace or report delivery link becomes available. Client-side success parameters alone cannot unlock access.</p></details><details><summary>Do the agent teams send messages or publish automatically?</summary><p>No. They prepare drafts, rules, checklists, calculations, and queues. You or your authorized team review and approve external actions.</p></details><details><summary>Are leads, rankings, suppliers, or revenue guaranteed?</summary><p>No. Examples are illustrative, costs and evidence require verification, and no product promises revenue, traffic, rankings, winning products, supplier approval, or unattended operations.</p></details><details><summary>Does a product include custom installation or integrations?</summary><p>No. These are self-serve workspaces or reports. Credentials, installation, custom integrations, production testing, and ongoing support require a separate written scope.</p></details></div></section>
+    <section class="section storefront-faq">${renderSectionTitle("Before you choose", "Frequently asked questions", "Clear answers about access, scope, and control.")}<div class="faq-list"><details><summary>When do I receive my product?</summary><p>GPTMarketPlus workspaces and reports open after PayPal reports a completed capture. CueKeeper downloads after its separate x402 service verifies Base USDC settlement. Browser success parameters alone cannot unlock access.</p></details><details><summary>Do the agent teams send messages or publish automatically?</summary><p>No. They prepare drafts, rules, checklists, calculations, and queues. You or your authorized team review and approve external actions.</p></details><details><summary>Are leads, rankings, suppliers, or revenue guaranteed?</summary><p>No. Examples are illustrative, costs and evidence require verification, and no product promises revenue, traffic, rankings, winning products, supplier approval, or unattended operations.</p></details><details><summary>Does a product include custom installation or integrations?</summary><p>No. These are self-serve workspaces, reports, or a local utility. Credentials, installation, custom integrations, production testing, and ongoing support require a separate written scope.</p></details></div></section>
     ${renderViewItemTracking(DROPSHIPPING_PRODUCT)}`;
 
   return renderShell(env, {
     path: "/products",
     title: "AI Agent Teams and Practical AI Products",
-    description: "Choose from four private AI agent team workspaces, the AI Agent Launch Kit, or an AI Software Opportunity Report with one-time PayPal pricing and verified private delivery.",
+    description: "Choose private AI agent workspaces, an opportunity report, or the $1 CueKeeper local subtitle utility with clearly labeled PayPal and x402 delivery.",
     body,
     schema: [organizationSchema(env), productSchema(env, DROPSHIPPING_PRODUCT, "/products"), breadcrumbSchema(env, [{ name: "Home", path: "/" }, { name: "Products", path: "/products" }])],
     bodyClass: "page-products",
