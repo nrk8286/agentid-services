@@ -131,6 +131,7 @@ let googleAccessTokenCache = {
 };
 
 export const GOOGLE_GROUNDED_LOOKUP_TIMEOUT_MS = 4_000;
+export const CLOUDFLARE_GROUNDED_LOOKUP_TIMEOUT_MS = 6_000;
 
 const GROUNDED_PROVIDERS = Object.freeze({
   google_cloud_agent_search: "Google Cloud Agent Search",
@@ -4146,7 +4147,7 @@ async function groundedAnswerForChat(env, message) {
     answer = await runGroundedProviderAttempt(
       "cloudflare_ai_search",
       () => answerFromCloudflareKnowledge(env, message),
-      { env },
+      { env, timeoutMs: CLOUDFLARE_GROUNDED_LOOKUP_TIMEOUT_MS },
     );
   }
   return isValidGroundedAnswer(answer) ? answer : null;

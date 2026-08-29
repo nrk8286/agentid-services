@@ -12,6 +12,7 @@ import {
   agentIdOneTimeProducts,
   buildAgentTeamWorkspace,
   buildDropshippingWorkspace,
+  CLOUDFLARE_GROUNDED_LOOKUP_TIMEOUT_MS,
   dropshippingWorkspacePack,
   GOOGLE_GROUNDED_LOOKUP_TIMEOUT_MS,
   handleAgentIdSiteRequest,
@@ -254,8 +255,9 @@ test("rejects a Cloudflare answer without a valid source", () => {
   );
 });
 
-test("bounds Google grounding attempts and redacts thrown error details from telemetry", async () => {
+test("bounds both grounded providers and redacts thrown error details from telemetry", async () => {
   assert.equal(GOOGLE_GROUNDED_LOOKUP_TIMEOUT_MS, 4_000);
+  assert.equal(CLOUDFLARE_GROUNDED_LOOKUP_TIMEOUT_MS, 6_000);
   const warnings = [];
   const originalWarn = console.warn;
   console.warn = (...args) => warnings.push(args.map(String).join(" "));
@@ -279,6 +281,26 @@ test("bounds Google grounding attempts and redacts thrown error details from tel
   const telemetry = JSON.parse(warnings[0]);
   assert.equal(telemetry.provider, "google_cloud_agent_search");
   assert.equal(telemetry.code, "timeout");
+
+  warnings.length = 0;
+  console.warn = (...args) => warnings.push(args.map(String).join(" "));
+  let cloudflareSignal;
+  try {
+    const result = await runGroundedProviderAttempt(
+      "cloudflare_ai_search",
+      (signal) => {
+        cloudflareSignal = signal;
+        return new Promise(() => {});
+      },
+      { timeoutMs: 15 },
+    );
+    assert.equal(result, null);
+  } finally {
+    console.warn = originalWarn;
+  }
+  assert.equal(cloudflareSignal.aborted, true);
+  assert.equal(JSON.parse(warnings[0]).provider, "cloudflare_ai_search");
+  assert.equal(JSON.parse(warnings[0]).code, "timeout");
 
   warnings.length = 0;
   console.warn = (...args) => warnings.push(args.map(String).join(" "));
