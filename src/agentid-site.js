@@ -130,7 +130,7 @@ let googleAccessTokenCache = {
   expiresAt: 0,
 };
 
-const SITE_CONTENT_LAST_MODIFIED = "2026-08-27";
+const SITE_CONTENT_LAST_MODIFIED = "2026-08-28";
 
 // Keep the public scope-request catalog server-authoritative. The software-build
 // index is rendered by the Worker entrypoint, but contact requests are handled
@@ -1056,6 +1056,101 @@ const USE_CASES = [
 ];
 
 const RESOURCE_PAGES = [
+  {
+    path: "/guides/supabase-project-recovery-evidence",
+    category: "Launch guide",
+    title: "Supabase Project Paused or Stuck? Build a Recovery Evidence Packet",
+    description: "Organize redacted Supabase billing, dashboard, status, and error evidence into a UTC timeline, contradiction matrix, safe checklist, and support-ready draft.",
+    summary: "Follow the official pause or billing path first. When the dashboard, invoice, and service states conflict, preserve timestamps and sources before changing anything or escalating.",
+    publishedAt: "2026-08-28",
+    updatedAt: "2026-08-28",
+    updatedLabel: "August 28, 2026",
+    faqKicker: "Recovery boundaries",
+    faqTitle: "Supabase recovery evidence FAQ",
+    faqDescription: "Separate evidence organization from account access, diagnosis, and repair.",
+    faqs: [
+      {
+        question: "Will an evidence packet unpause or repair my Supabase project?",
+        answer: "No. Only the relevant Supabase workflow or support team can change the project state. The packet organizes already-redacted evidence so you can see what is known, what conflicts, and what to verify next.",
+      },
+      {
+        question: "Should I include API keys, passwords, tokens, or connection strings?",
+        answer: "No. Redact credentials, secrets, personal information, and unnecessary customer data before using any evidence tool or sharing a support draft.",
+      },
+      {
+        question: "Is every paused project a billing problem?",
+        answer: "No. Supabase documents several reasons for restricted or paused states, including Free Plan inactivity and overdue invoices. Use your own dashboard, billing record, error codes, and official documentation to distinguish them.",
+      },
+    ],
+    sections: [
+      {
+        title: "Identify the documented state before acting",
+        body: "Supabase documents different pause and restriction paths. Free Plan inactivity, an overdue invoice, a usage restriction, and a project that appears stuck can require different next steps. Record the exact state shown in the dashboard and the time you observed it instead of assuming a cause.",
+        points: [
+          "Record the visible organization and project state with sensitive identifiers masked",
+          "Capture the invoice or plan state from the official billing page",
+          "Record relevant HTTP or dashboard error codes exactly",
+          "Check the official status page for a matching platform incident",
+        ],
+      },
+      {
+        title: "Build a source-linked UTC timeline",
+        body: "Put each event in UTC and retain its source label. A useful packet distinguishes what the dashboard showed, what an invoice showed, what an application request returned, what the public status page reported, and what a person inferred.",
+        points: [
+          "Normalize timestamps while preserving the original value",
+          "Label every observation with its file, page, or message source",
+          "Separate observed facts from assumptions and proposed causes",
+          "Flag missing times, unclear ownership, and unsupported conclusions",
+        ],
+      },
+      {
+        title: "Surface contradictions instead of hiding them",
+        body: "A support-ready packet should make conflicting states easy to see. For example, a paid invoice, a paused dashboard state, and an application error can coexist without proving why the project has not recovered.",
+        points: [
+          "Compare billing, dashboard, application, and platform-status evidence",
+          "Preserve exact wording without treating it as a root-cause determination",
+          "List which missing observation could resolve each conflict",
+          "Avoid repeated configuration changes while the state remains unclear",
+        ],
+      },
+      {
+        title: "Use the official recovery path and escalate safely",
+        body: "Follow the applicable Supabase instructions for the documented state. Preserve backups where available, verify services one at a time after a state change, and send support a concise packet when official steps do not match what you observe.",
+        points: [
+          "Use Supabase Studio or billing controls only through your authorized account",
+          "Do not paste credentials into an incident summary or support draft",
+          "Verify database, Auth, Storage, Realtime, and Functions separately",
+          "Ask support to reconcile the specific contradictory observations",
+        ],
+      },
+      {
+        title: "Automate organization, not recovery authority",
+        body: "The Supabase Recovery Evidence Agent is a local Python utility for already-redacted evidence. It produces deterministic JSON and Markdown, rejects common secret patterns, and makes no network requests. It does not access Supabase, repair a project, determine root cause, or contact support.",
+        points: [
+          "Local-only processing with no Supabase credentials",
+          "Timeline, contradictions, missing evidence, checklist, and escalation draft",
+          "Source, sample input, and 11 unit tests included",
+          "Operator review and redaction remain required before sharing",
+        ],
+      },
+    ],
+    sources: [
+      { name: "Supabase Billing FAQ", url: "https://supabase.com/docs/guides/platform/billing-faq" },
+      { name: "Supabase Project Pausing", url: "https://supabase.com/docs/guides/platform/free-project-pausing" },
+      { name: "Supabase HTTP status codes", url: "https://supabase.com/docs/guides/troubleshooting/http-status-codes" },
+      { name: "Supabase restore guidance for long-paused projects", url: "https://supabase.com/docs/guides/troubleshooting/restore-project-after-90-days-pause" },
+    ],
+    promotion: {
+      kicker: "New Agent Foundry release",
+      title: "Build the packet locally for $1",
+      description: "Download the reviewed Supabase Recovery Evidence Agent source, sample input, and tests after verified x402 settlement on Base.",
+      priceLabel: "$1 USDC one-time",
+      actionLabel: "Review the $1 recovery agent",
+      href: "https://score.agentid.life/supabase-recovery?utm_source=gptmarketplus.com&utm_medium=owned&utm_campaign=supabase_recovery_evidence_launch&utm_content=guide_cta",
+      limitation: "Requires a Base-compatible wallet with USDC. Evidence synthesis only; no Supabase access, repair, root-cause determination, or support contact.",
+    },
+    related: ["/products", "/resources", "/guides/ai-agent-for-small-business"],
+  },
   {
     path: "/guides/ai-agent-for-small-business",
     category: "Guide",
@@ -4741,7 +4836,8 @@ function renderResourcesPage(env) {
 function renderResourceEvidenceSection(page) {
   const pricing = Array.isArray(page.pricingSnapshot) ? page.pricingSnapshot : [];
   const faqs = Array.isArray(page.faqs) ? page.faqs : [];
-  if (!pricing.length && !faqs.length) return "";
+  const sources = Array.isArray(page.sources) ? page.sources : [];
+  if (!pricing.length && !faqs.length && !sources.length) return "";
 
   return `
     ${pricing.length ? `<section class="section resource-evidence">
@@ -4765,7 +4861,33 @@ function renderResourceEvidenceSection(page) {
       <div class="feature-rack">
         ${faqs.map((item) => `<article class="feature-card"><h3>${escapeHtml(item.question)}</h3><p>${escapeHtml(item.answer)}</p></article>`).join("")}
       </div>
+    </section>` : ""}
+    ${sources.length ? `<section class="section resource-sources">
+      ${renderSectionTitle("Primary sources", "Verify the current platform guidance", "These official references support the documented states and recovery boundaries in this guide. Platform behavior can change, so review the current source before acting.")}
+      <ul class="benefit-list compact">
+        ${sources.map((source) => `<li><a href="${escapeHtml(source.url)}" target="_blank" rel="noopener">${escapeHtml(source.name)}</a></li>`).join("")}
+      </ul>
     </section>` : ""}`;
+}
+
+function renderResourcePromotionBridge(page) {
+  const promotion = page.promotion;
+  if (!promotion) {
+    return renderConversionBridge(page.path === "/guides/ai-agent-for-small-business" ? "Small Business AI Guide" : page.title);
+  }
+  return `
+    <section class="section split-section final-cta" data-conversion-bridge="${escapeHtml(page.title)}">
+      <div>
+        ${renderSectionTitle(promotion.kicker, promotion.title, promotion.description)}
+        <p class="trust-line">${escapeHtml(promotion.limitation)}</p>
+      </div>
+      <div class="cta-box">
+        <strong>${escapeHtml(promotion.priceLabel)}</strong>
+        <p>Review the live scope, privacy boundary, archive hash, and payment terms before approving settlement.</p>
+        <a class="button-primary" href="${escapeHtml(promotion.href)}" data-track-event="select_offer" data-track-label="Supabase Recovery Guide x402">${escapeHtml(promotion.actionLabel)}</a>
+        <a class="button-secondary" href="/products" data-track-event="resource_click" data-track-label="Supabase Recovery Guide Product Catalog">Compare all products</a>
+      </div>
+    </section>`;
 }
 
 function renderResourceArticlePage(env, page) {
@@ -4785,7 +4907,7 @@ function renderResourceArticlePage(env, page) {
         </div>
       </header>
       ${renderResourceEvidenceSection(page)}
-      ${renderConversionBridge(page.path === "/guides/ai-agent-for-small-business" ? "Small Business AI Guide" : page.title)}
+      ${renderResourcePromotionBridge(page)}
       <div class="resource-layout">
         <div class="resource-content">
           ${page.sections.map((section, index) => `
@@ -4797,7 +4919,16 @@ function renderResourceArticlePage(env, page) {
             </section>`).join("")}
         </div>
         <aside class="resource-sidebar">
+          ${page.promotion ? `<div class="side-note">
+            <p class="card-kicker">Use the local agent</p>
+            <p>Prepare only already-redacted evidence. The utility organizes the packet locally and does not connect to Supabase or send a support request.</p>
+            <a class="button-primary" href="${escapeHtml(page.promotion.href)}" data-track-event="select_offer" data-track-label="Supabase Recovery Guide Sidebar x402">Review the $1 agent</a>
+          </div>
           <div class="side-note">
+            <p class="card-kicker">Before sharing</p>
+            <p>Review the generated files for secrets, personal data, unsupported conclusions, and details that are unnecessary for the recipient.</p>
+            <a class="button-secondary" href="/privacy">Review the privacy policy</a>
+          </div>` : `<div class="side-note">
             <p class="card-kicker">Use this guide</p>
             <p>Write down the workflow owner, baseline, target, approval boundary, and next action. Those five items turn a good idea into a testable project.</p>
             <a class="button-primary" href="/tools/ai-automation-roi-calculator">Estimate the ROI</a>
@@ -4806,7 +4937,7 @@ function renderResourceArticlePage(env, page) {
             <p class="card-kicker">Need the templates?</p>
             <p>The $29 launch kit includes a guided workspace that generates a launch setup brief, tailored starter prompt, workflow map, lead intake, follow-up sequence, scenario QA, and scorecard.</p>
             <a class="button-secondary" href="/ai-agent-launch-kit?source=resource-sidebar">Build the launch kit</a>
-          </div>
+          </div>`}
         </aside>
       </div>
       <section class="section related-resources">
@@ -9837,8 +9968,12 @@ function pageEntriesForSitemap(env) {
   });
 }
 
+export function agentIdPublicPageEntries(env = {}) {
+  return pageEntriesForSitemap(env).map((page) => ({ ...page }));
+}
+
 export function agentIdIndexablePaths(env = {}) {
-  return pageEntriesForSitemap(env).map((page) => page.path);
+  return agentIdPublicPageEntries(env).map((page) => page.path);
 }
 
 function scopedKvKey(env, key) {

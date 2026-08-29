@@ -209,6 +209,45 @@ test("renders the eight-product storefront with PayPal and labeled x402 checkout
   assert.doesNotMatch(html, /adsbygoogle|publisher-ad/);
 });
 
+test("publishes an evidence-first Supabase recovery launch guide with bounded x402 promotion", async () => {
+  const env = {
+    SITE_URL: "https://gptmarketplus.com",
+    BRAND_NAME: "GPTMarketPlus",
+  };
+  const response = await handleAgentIdSiteRequest(
+    new Request("https://gptmarketplus.com/guides/supabase-project-recovery-evidence"),
+    env,
+    { waitUntil() {} },
+  );
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /Supabase Project Paused or Stuck\?/);
+  assert.match(html, /Build the packet locally for \$1/);
+  assert.match(html, /score\.agentid\.life\/supabase-recovery\?utm_source=gptmarketplus\.com/);
+  assert.match(html, /Evidence synthesis only; no Supabase access, repair, root-cause determination, or support contact/);
+  assert.match(html, /Should I include API keys, passwords, tokens, or connection strings\?/);
+  assert.match(html, /https:\/\/supabase\.com\/docs\/guides\/platform\/billing-faq/);
+  assert.match(html, /https:\/\/supabase\.com\/docs\/guides\/troubleshooting\/http-status-codes/);
+  assert.doesNotMatch(html, /name="productId" value="supabase_recovery_agent_foundry_release"/);
+  assert.equal((html.match(/<h1\b/g) || []).length, 1);
+
+  const sitemap = await handleAgentIdSiteRequest(
+    new Request("https://gptmarketplus.com/sitemap.xml"),
+    env,
+    { waitUntil() {} },
+  );
+  assert.equal(sitemap.status, 200);
+  assert.match(await sitemap.text(), /guides\/supabase-project-recovery-evidence/);
+
+  const resources = await handleAgentIdSiteRequest(
+    new Request("https://gptmarketplus.com/resources"),
+    env,
+    { waitUntil() {} },
+  );
+  assert.equal(resources.status, 200);
+  assert.match(await resources.text(), /Supabase Project Paused or Stuck\?/);
+});
+
 test("publishes visible focus styles and a reduced-motion fallback", async () => {
   const response = await handleAgentIdSiteRequest(
     new Request("https://gptmarketplus.com/styles.css"),

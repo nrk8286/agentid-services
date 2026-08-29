@@ -12,6 +12,7 @@ import {
   agentTeamWorkspacePack,
   agentTeamWorkspaceProduct,
   agentIdIndexablePaths,
+  agentIdPublicPageEntries,
   agentIdOneTimeProducts,
   buildAgentTeamWorkspace,
   buildDropshippingWorkspace,
@@ -7491,6 +7492,21 @@ Host: ${new URL(siteUrl(env)).host}
 `;
 }
 
+function publicDiscoveryPages(env) {
+  const pages = [
+    ...agentIdPublicPageEntries(env),
+    ...trafficPageTemplates(env).map((page) => ({
+      path: page.path,
+      title: page.title,
+      description: page.description,
+      intent: page.intent,
+      keywords: page.keywords,
+    })),
+  ];
+  const seen = new Set();
+  return pages.filter((page) => !seen.has(page.path) && seen.add(page.path));
+}
+
 function renderSitemap(env) {
   const operationalUrls = isAgentIdSite(env) ? [] : [
     { path: "/agents/", changefreq: "daily", priority: "0.8" },
@@ -7504,12 +7520,17 @@ function renderSitemap(env) {
   const urls = [
     { path: "/", changefreq: "daily", priority: "1.0" },
     ...operationalUrls,
-    ...trafficPageTemplates(env).map((page) => ({ path: page.path, changefreq: "weekly", priority: "0.75" })),
+    ...publicDiscoveryPages(env).map((page) => ({
+      path: page.path,
+      changefreq: page.path.startsWith("/guides/") || page.path === "/products" ? "weekly" : "monthly",
+      priority: page.path === "/products" ? "0.9" : page.path.startsWith("/guides/") ? "0.82" : "0.7",
+    })),
   ];
+  const uniqueUrls = urls.filter((item, index) => urls.findIndex((candidate) => candidate.path === item.path) === index);
   const today = new Date().toISOString().slice(0, 10);
   return `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-${urls.map((item) => `  <url><loc>${siteUrl(env)}${item.path}</loc><lastmod>${today}</lastmod><changefreq>${item.changefreq}</changefreq><priority>${item.priority}</priority></url>`).join("\n")}
+${uniqueUrls.map((item) => `  <url><loc>${siteUrl(env)}${item.path}</loc><lastmod>${today}</lastmod><changefreq>${item.changefreq}</changefreq><priority>${item.priority}</priority></url>`).join("\n")}
 </urlset>`;
 }
 
@@ -7521,12 +7542,16 @@ function renderLlmsTxt(env) {
 Important notes:
 - AI crawlers and AI search systems are allowed to crawl, cite, summarize, and use public pages for search, answer grounding, and model improvement.
 - The verified self-service purchases are the $49 Auto Dropshipping Agent Team, the $29 AI Agent Launch Kit, and the $24 AI Software Opportunity Report. Each is delivered through access-controlled PayPal fulfillment.
+- The products marketplace also links to two separately hosted $1 USDC Agent Foundry releases: CueKeeper and the Supabase Recovery Evidence Agent. Their x402 storefront verifies settlement before ZIP delivery.
 - Custom services, software builds, and sponsor placements require review and written scope; their online billing is currently disabled.
 - Public API endpoints below expose only aggregate or discovery information. Prospect and administrative data require authorization.
 
 ## Primary Pages
 ${trafficPageTemplates(env).map((page) => `- [${page.title}](${siteUrl(env)}${page.path}): ${page.description}`).join("\n")}
 ${SOFTWARE_BUILDS.map((build) => `- [${build.name}](${siteUrl(env)}/software-builds/${build.id}): ${build.summary} ${build.priceLabel}.`).join("\n")}
+
+## Products and resources
+${agentIdPublicPageEntries(env).map((page) => `- [${page.title}](${siteUrl(env)}${page.path}): ${page.description}`).join("\n")}
 
 ## Discovery
 - [Agent dashboard](${siteUrl(env)}/agents/): Live agent dashboard, sponsor offers, lead capture, and acquisition targets.
@@ -7558,25 +7583,29 @@ ${SOFTWARE_BUILDS.map((build) => `- [${build.name}](${siteUrl(env)}/software-bui
 }
 
 function renderFeed(env) {
+  const pages = publicDiscoveryPages(env);
   return `<?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0"><channel><title>${escapeXml(brandName(env))} Traffic Feed</title><link>${siteUrl(env)}/agents/</link><description>AI marketing automation pages and sponsor opportunities.</description><lastBuildDate>${new Date().toUTCString()}</lastBuildDate>${trafficPageTemplates(env).map((page) => `<item><title>${escapeXml(page.title)}</title><link>${siteUrl(env)}${page.path}</link><guid>${siteUrl(env)}${page.path}</guid><description>${escapeXml(page.description)}</description></item>`).join("")}</channel></rss>`;
+<rss version="2.0"><channel><title>${escapeXml(brandName(env))} Public Feed</title><link>${siteUrl(env)}/</link><description>GPTMarketPlus products, resources, and buyer-intent guides.</description><lastBuildDate>${new Date().toUTCString()}</lastBuildDate>${pages.map((page) => `<item><title>${escapeXml(page.title)}</title><link>${siteUrl(env)}${page.path}</link><guid>${siteUrl(env)}${page.path}</guid><description>${escapeXml(page.description)}</description></item>`).join("")}</channel></rss>`;
 }
 
 function renderJsonFeed(env) {
+  const pages = publicDiscoveryPages(env);
   return {
     version: "https://jsonfeed.org/version/1.1",
-    title: `${brandName(env)} Traffic Feed`,
-    home_page_url: `${siteUrl(env)}/agents/`,
+    title: `${brandName(env)} Public Feed`,
+    home_page_url: siteUrl(env),
     feed_url: `${siteUrl(env)}/agents/feed.json`,
-    description: "AI marketing automation pages, sponsor opportunities, and crawler-ready buyer-intent content.",
+    description: "GPTMarketPlus products, resources, and crawler-ready buyer-intent content.",
     language: "en-US",
-    items: trafficPageTemplates(env).map((page) => ({
+    items: pages.map((page) => ({
       id: `${siteUrl(env)}${page.path}`,
       url: `${siteUrl(env)}${page.path}`,
       title: page.title,
       summary: page.description,
-      content_text: `${page.description} Buyer intent: ${page.intent}. Keywords: ${page.keywords}.`,
-      tags: page.keywords.split(",").map((keyword) => keyword.trim()),
+      content_text: page.intent
+        ? `${page.description} Buyer intent: ${page.intent}. Keywords: ${page.keywords}.`
+        : page.description,
+      tags: page.keywords ? page.keywords.split(",").map((keyword) => keyword.trim()) : [],
     })),
   };
 }
@@ -7918,6 +7947,13 @@ function renderLeadSpiderPage(env, spider, tasks = { items: [] }) {
 }
 
 function renderSocialPage(env) {
+  const recoveryGuidePath = "/guides/supabase-project-recovery-evidence";
+  const recoveryShareLinks = [
+    ["LinkedIn post", utmCampaignUrl(env, recoveryGuidePath, { source: "linkedin", medium: "social", campaign: "supabase_recovery_evidence_launch", content: "launch_post" })],
+    ["X post", utmCampaignUrl(env, recoveryGuidePath, { source: "x", medium: "social", campaign: "supabase_recovery_evidence_launch", content: "launch_post" })],
+    ["Facebook post", utmCampaignUrl(env, recoveryGuidePath, { source: "facebook", medium: "social", campaign: "supabase_recovery_evidence_launch", content: "launch_post" })],
+    ["Community post", utmCampaignUrl(env, recoveryGuidePath, { source: "community", medium: "referral", campaign: "supabase_recovery_evidence_launch", content: "launch_post" })],
+  ];
   const shareLinks = [
     ["LinkedIn bio", utmCampaignUrl(env, "/ai-agent-launch-kit", { source: "linkedin", medium: "social", campaign: "agentid_social_bio", content: "launch_kit" })],
     ["Facebook bio", utmCampaignUrl(env, "/ai-agent-launch-kit", { source: "facebook", medium: "social", campaign: "agentid_social_bio", content: "launch_kit" })],
@@ -8048,11 +8084,39 @@ ${googleTagGatewayBody(env)}
       <p class="eyebrow">Best links</p>
       <h2>What to share first</h2>
       <div class="page-list">
+        <article><a href="${escapeHtml(recoveryShareLinks[0][1])}"><strong>Supabase Recovery Evidence Guide</strong></a><p>New evidence-first guide and $1 local utility for organizing already-redacted project pause, billing, and status evidence.</p><span>new Agent Foundry release</span></article>
         <article><a href="${escapeHtml(primaryShareUrl)}"><strong>$29 AI Agent Launch Kit</strong></a><p>Primary self-serve product for a usable first workflow system after purchase.</p><span>share this first</span></article>
         <article><a href="/free-ai-automation-audit-checklist?source=social-hub"><strong>Free AI Automation Audit Checklist</strong></a><p>Low-friction entry point for people who need help identifying a useful workflow.</p><span>buyer-intent lead magnet</span></article>
         <article><a href="/book-a-consultation?source=social-hub"><strong>Scoped AI Strategy Call</strong></a><p>Use for buyers who need a written fit check before any custom work is considered.</p><span>honest consultation path</span></article>
         <article><a href="/agents/"><strong>Owner dashboard</strong></a><p>Internal control panel for the team; do not use this as a customer acquisition URL.</p><span>internal only</span></article>
         <article><a href="/social"><strong>Social share hub</strong></a><p>Share-ready entry points and crawl surface.</p><span>distribution hub</span></article>
+      </div>
+    </section>
+    <section class="section">
+      <p class="eyebrow">New organic launch</p>
+      <h2>Supabase Recovery Evidence Agent</h2>
+      <p>Use the channel-specific copy below only where the account is yours and the community permits product links. Do not present the utility as a Supabase repair tool or an official Supabase product.</p>
+      <div class="page-list">
+        ${recoveryShareLinks.map(([label, url]) => {
+          const postCopy = label === "X post"
+            ? `Supabase project paused or stuck? Build an evidence packet before guessing: redacted UTC timeline, conflict matrix, and support draft. Free guide; optional $1 local utility. No credentials or repair claims. Not affiliated with Supabase. ${url}`
+            : label === "Community post"
+              ? `I built a small local utility for an awkward incident-response problem: turning already-redacted Supabase billing, dashboard, status, and error evidence into a UTC timeline, contradiction matrix, missing-evidence list, safe checklist, and support-ready draft. It does not connect to Supabase, repair a project, determine root cause, or contact support. The guide is free; the reviewed source ZIP is $1 USDC through a separate x402 checkout. Sharing only where self-promotion is permitted: ${url}`
+              : `New Agent Foundry release: a practical guide and $1 local Python utility for organizing already-redacted Supabase project recovery evidence. It creates a source-linked timeline, contradiction matrix, missing-evidence list, safe checklist, and support-ready draft. No Supabase access, credentials, repair claims, or automatic support contact. Not affiliated with Supabase. ${url}`;
+          return `<article>
+          <strong>${escapeHtml(label)}</strong>
+          <div class="share-control">
+            <input class="share-url" type="text" readonly value="${escapeHtml(url)}" aria-label="${escapeHtml(label)} recovery guide URL">
+            <button class="button copy-share-button" type="button" data-copy-value="${escapeHtml(url)}">Copy URL</button>
+          </div>
+          <textarea class="share-post" readonly aria-label="${escapeHtml(label)} recovery launch post text">${escapeHtml(postCopy)}</textarea>
+          <div class="share-actions">
+            <button class="button copy-share-button" type="button" data-copy-value="${escapeHtml(postCopy)}" data-copy-target=".share-post">Copy post</button>
+          </div>
+          <p class="share-copy-status" aria-live="polite">Review the destination rules and add account-specific context before posting.</p>
+          <span>UTM tagged</span>
+        </article>`;
+        }).join("")}
       </div>
     </section>
     <section class="section">

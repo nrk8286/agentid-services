@@ -185,11 +185,12 @@ curl -X POST https://gptmarketplus.com/api/chat \
 
 ### Resource-led traffic and digital product revenue
 
-The primary site now contains an original resource hub, six buyer/operator
+The primary site now contains an original resource hub, seven buyer/operator
 resources, a client-side ROI calculator, and a paid launch kit:
 
 ```text
 https://gptmarketplus.com/resources
+https://gptmarketplus.com/guides/supabase-project-recovery-evidence
 https://gptmarketplus.com/guides/ai-agent-for-small-business
 https://gptmarketplus.com/guides/ai-receptionist-cost
 https://gptmarketplus.com/guides/ai-lead-follow-up
@@ -202,7 +203,10 @@ https://gptmarketplus.com/ai-agent-launch-kit
 
 These URLs are included in the primary sitemap, the RSS/JSON discovery feeds,
 `llms.txt`, `llms-full.txt`, and the automated IndexNow batch. The calculator
-runs entirely in the browser and does not submit the user's inputs.
+runs entirely in the browser and does not submit the user's inputs. The
+Supabase recovery guide links to the separately hosted $1 USDC Agent Foundry
+utility and keeps the product's local-only, credential-free, evidence-synthesis
+boundary explicit.
 
 The digital product endpoints are:
 
