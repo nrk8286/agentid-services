@@ -168,7 +168,7 @@ test("builds a six-agent dropshipping operating pack with transparent scenario m
   assert.match(output, /Human approval queue/);
 });
 
-test("renders the seven-product storefront with PayPal and labeled x402 checkout paths", async () => {
+test("renders the eight-product storefront with PayPal and labeled x402 checkout paths", async () => {
   const response = await handleAgentIdSiteRequest(
     new Request("https://gptmarketplus.com/products"),
     {
@@ -191,10 +191,13 @@ test("renders the seven-product storefront with PayPal and labeled x402 checkout
   assert.match(html, /name="productId" value="ecommerce_support_agent_team"/);
   assert.match(html, /AI Software Opportunity Report/);
   assert.match(html, /<h3>CueKeeper<\/h3>/);
-  assert.match(html, /Seven one-time products/);
+  assert.match(html, /<h3>Supabase Recovery Evidence Agent<\/h3>/);
+  assert.match(html, /Eight one-time products/);
   assert.match(html, /score\.agentid\.life\/cuekeeper\?utm_source=gptmarketplus\.com/);
+  assert.match(html, /score\.agentid\.life\/supabase-recovery\?utm_source=gptmarketplus\.com/);
   assert.match(html, /Base-compatible wallet with USDC/);
   assert.doesNotMatch(html, /name="productId" value="cuekeeper_agent_foundry_release"/);
+  assert.doesNotMatch(html, /name="productId" value="supabase_recovery_agent_foundry_release"/);
   assert.match(html, /Sample (?:&middot;|·) not a live store/i);
   assert.match(html, /No outcome guarantees/);
   assert.match(html, /human approval/i);
