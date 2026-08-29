@@ -532,8 +532,31 @@ if (!/"ai"\s*:\s*\{[\s\S]{0,120}?"binding"\s*:\s*"AI"/.test(raw)
   failures.push("the guarded revenue coordinator must use the Workers AI binding and structured bounded decisions");
 }
 
-if (!/"binding"\s*:\s*"ANALYTICS_ENGINE"[\s\S]{0,180}?"dataset"\s*:\s*"agentid_services_events"/.test(raw)) {
-  failures.push("ANALYTICS_ENGINE binding is missing or targets the wrong dataset");
+if (!/"binding"\s*:\s*"ATTRIBUTION_ANALYTICS"[\s\S]{0,180}?"dataset"\s*:\s*"agentid_attribution_events"/.test(raw)) {
+  failures.push("ATTRIBUTION_ANALYTICS binding is missing or targets the wrong dataset");
+}
+if (!/"binding"\s*:\s*"BUSINESS_ANALYTICS"[\s\S]{0,180}?"dataset"\s*:\s*"agentid_business_events"/.test(raw)) {
+  failures.push("BUSINESS_ANALYTICS binding is missing or targets the wrong dataset");
+}
+if (!siteSource.includes("env.ATTRIBUTION_ANALYTICS.writeDataPoint")) {
+  failures.push("attribution events must write only to ATTRIBUTION_ANALYTICS");
+}
+if (!workerSource.includes("env.BUSINESS_ANALYTICS.writeDataPoint")) {
+  failures.push("business events must write only to BUSINESS_ANALYTICS");
+}
+
+if (!/"binding"\s*:\s*"GROUNDED_PROVIDER_ANALYTICS"[\s\S]{0,180}?"dataset"\s*:\s*"agentid_grounded_provider_events"/.test(raw)) {
+  failures.push("GROUNDED_PROVIDER_ANALYTICS binding is missing or targets the wrong dataset");
+}
+for (const requiredGroundedAnalyticsControl of [
+  "env.GROUNDED_PROVIDER_ANALYTICS.writeDataPoint",
+  'event: "grounded_provider_attempt"',
+  'indexes: [telemetry.provider]',
+  'provider, "success", "ok"',
+]) {
+  if (!siteSource.includes(requiredGroundedAnalyticsControl)) {
+    failures.push(`grounded-provider analytics is missing ${requiredGroundedAnalyticsControl}`);
+  }
 }
 
 if (!/"send_email"\s*:\s*\[[\s\S]{0,260}?"name"\s*:\s*"TRANSACTIONAL_EMAIL"[\s\S]{0,180}?"destination_address"\s*:\s*"nrk8286@gmail\.com"[\s\S]{0,180}?"allowed_sender_addresses"\s*:\s*\[[\s\S]{0,80}?"admin@gptmarketplus\.com"/.test(raw)) {

@@ -141,6 +141,8 @@ The `/products` marketplace lists eight one-time products: the $49 Auto Dropship
 
 Google Analytics is wired through the Worker's first-party `/gtag` proxy path. `G-3BCSR51WHZ` loads directly, so measurement does not depend on a Tag Manager container. The verified GA4 stream identifies GPTMarketPlus at `https://gptmarketplus.com`; `generate_lead` and the default `purchase` are the only Key Events. Set a GTM or Ads identifier only when a real published container or conversion action exists:
 
+Cloudflare operational telemetry uses separate positional schemas for attribution, business, and grounded-provider events. The binding map, privacy boundary, and sampling-aware SQL are documented in [Analytics Engine schema](docs/analytics-engine.md).
+
 ```bash
 curl https://gptmarketplus.com/pricing
 curl -X POST https://gptmarketplus.com/api/agents/ads/checkout \

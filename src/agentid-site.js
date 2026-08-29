@@ -2038,33 +2038,35 @@ function safeGroundedTelemetryDetails(details = {}) {
   return safe;
 }
 
-function reportGroundedProviderFailure(env, provider, error, startedAt) {
+function groundedProviderTelemetry(env, provider, outcome, code, startedAt, details = {}) {
   const providerCode = Object.hasOwn(GROUNDED_PROVIDERS, provider) ? provider : "unknown";
-  const code = error instanceof GroundedProviderFailure
-    ? error.code
-    : error?.name === "AbortError"
-      ? "timeout"
-      : "provider_error";
+  const safeOutcome = outcome === "success" ? "success" : "failure";
+  const safeCode = safeOutcome === "success"
+    ? "ok"
+    : GROUNDED_PROVIDER_FAILURE_CODES.has(code) ? code : "provider_error";
   const telemetry = {
-    event: "grounded_provider_failure",
+    event: "grounded_provider_attempt",
     provider: providerCode,
-    code: GROUNDED_PROVIDER_FAILURE_CODES.has(code) ? code : "provider_error",
+    outcome: safeOutcome,
+    code: safeCode,
     durationMs: Math.max(0, Math.round(Date.now() - startedAt)),
-    ...safeGroundedTelemetryDetails(error instanceof GroundedProviderFailure ? error.safeDetails : {}),
+    ...safeGroundedTelemetryDetails(details),
   };
-  const httpStatus = error instanceof GroundedProviderFailure ? error.httpStatus : null;
+  const httpStatus = Number(details.httpStatus);
   if (Number.isInteger(httpStatus) && httpStatus >= 400 && httpStatus <= 599) {
     telemetry.httpStatus = httpStatus;
   }
 
-  // Never log prompts, response content, source URLs, exception messages, or stacks.
-  console.warn(JSON.stringify(telemetry));
-  if (env?.ANALYTICS_ENGINE && typeof env.ANALYTICS_ENGINE.writeDataPoint === "function") {
+  // Never record prompts, response content, source URLs, conversation IDs, exception messages, or stacks.
+  if (safeOutcome === "failure") console.warn(JSON.stringify(telemetry));
+  if (env?.GROUNDED_PROVIDER_ANALYTICS
+      && typeof env.GROUNDED_PROVIDER_ANALYTICS.writeDataPoint === "function") {
     try {
-      env.ANALYTICS_ENGINE.writeDataPoint({
+      env.GROUNDED_PROVIDER_ANALYTICS.writeDataPoint({
         blobs: [
           telemetry.event,
           telemetry.provider,
+          telemetry.outcome,
           telemetry.code,
           telemetry.httpStatus ? String(telemetry.httpStatus) : "none",
         ],
@@ -2075,12 +2077,24 @@ function reportGroundedProviderFailure(env, provider, error, startedAt) {
           telemetry.chunkCount || 0,
           telemetry.sourceCount || 0,
         ],
-        indexes: [crypto.randomUUID()],
+        indexes: [telemetry.provider],
       });
     } catch {
       // Provider fallback must not fail because telemetry ingestion is unavailable.
     }
   }
+}
+
+function reportGroundedProviderFailure(env, provider, error, startedAt) {
+  const code = error instanceof GroundedProviderFailure
+    ? error.code
+    : error?.name === "AbortError"
+      ? "timeout"
+      : "provider_error";
+  groundedProviderTelemetry(env, provider, "failure", code, startedAt, {
+    ...(error instanceof GroundedProviderFailure ? error.safeDetails : {}),
+    httpStatus: error instanceof GroundedProviderFailure ? error.httpStatus : null,
+  });
 }
 
 function normalizedGroundingSource(env, rawUri, rawTitle = "") {
@@ -2178,7 +2192,11 @@ export async function runGroundedProviderAttempt(provider, operation, options = 
         }),
       ])
       : await providerPromise;
-    return normalizeGroundedAnswer(result);
+    const normalized = normalizeGroundedAnswer(result);
+    groundedProviderTelemetry(options.env, provider, "success", "ok", startedAt, {
+      sourceCount: normalized.sources.length,
+    });
+    return normalized;
   } catch (error) {
     reportGroundedProviderFailure(options.env, provider, error, startedAt);
     return null;
@@ -3169,13 +3187,13 @@ async function dbInsertFollowups(env, leadId, sequence) {
 }
 
 function writeAttributionAnalytics(env, payload, properties = {}) {
-  if (!env.ANALYTICS_ENGINE || typeof env.ANALYTICS_ENGINE.writeDataPoint !== "function") return;
+  if (!env.ATTRIBUTION_ANALYTICS || typeof env.ATTRIBUTION_ANALYTICS.writeDataPoint !== "function") return;
   const source = cleanText(properties.utm_source || properties.source || properties.traffic_source || "direct", 120);
   const medium = cleanText(properties.utm_medium || properties.medium || "none", 120);
   const campaign = cleanText(properties.utm_campaign || properties.campaign || "none", 160);
   const referrer = cleanText(properties.referrer_host || properties.referrer || "none", 200);
   const numericValue = Number(properties.value || properties.amount_cents || properties.scroll_percent || 0);
-  env.ANALYTICS_ENGINE.writeDataPoint({
+  env.ATTRIBUTION_ANALYTICS.writeDataPoint({
     blobs: [
       payload.event_name,
       payload.source_page,

@@ -6245,14 +6245,14 @@ function queueBackgroundWork(env, ctx, type, payload, extraPromise = null) {
 }
 
 function writeBusinessAnalytics(env, type, payload = {}) {
-  if (!env.ANALYTICS_ENGINE || typeof env.ANALYTICS_ENGINE.writeDataPoint !== "function") return;
+  if (!env.BUSINESS_ANALYTICS || typeof env.BUSINESS_ANALYTICS.writeDataPoint !== "function") return;
   const eventId = cleanText(payload.id || payload.sessionId || payload.session_id || payload.packageId || payload.buildId || "", 160);
   const source = cleanText(payload.source || payload.sourcePage || payload.source_page || "worker", 160);
   const campaign = cleanText(payload.campaign || payload.utm_campaign || "", 160);
   const status = cleanText(payload.paymentStatus || payload.payment_status || payload.status || "recorded", 80);
   const currency = cleanText(payload.currency || "usd", 12).toLowerCase();
   const amountCents = Number(payload.amountCents || payload.amount_cents || 0);
-  env.ANALYTICS_ENGINE.writeDataPoint({
+  env.BUSINESS_ANALYTICS.writeDataPoint({
     blobs: [
       cleanText(type || "event", 120),
       source,
@@ -10165,7 +10165,14 @@ function agentHealthStatus(env, request = null) {
     storage: Boolean(env.GMP_KV),
     flagship: Boolean(env.FLAGSHIP),
     artifacts: Boolean(env.GMP_ASSETS),
-    analyticsEngine: Boolean(env.ANALYTICS_ENGINE),
+    analyticsEngine: Boolean(
+      env.ATTRIBUTION_ANALYTICS
+      && env.BUSINESS_ANALYTICS
+      && env.GROUNDED_PROVIDER_ANALYTICS
+    ),
+    attributionAnalytics: Boolean(env.ATTRIBUTION_ANALYTICS),
+    businessAnalytics: Boolean(env.BUSINESS_ANALYTICS),
+    groundedProviderAnalytics: Boolean(env.GROUNDED_PROVIDER_ANALYTICS),
     cloudflareAiSearch: Boolean(env.AGENTID_AI_SEARCH),
     aiAgent: revenueAgentStatus(env),
     nativeRateLimiting: Boolean(env.FORM_RATE_LIMITER && env.EVENT_RATE_LIMITER),

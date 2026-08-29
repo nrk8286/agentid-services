@@ -181,8 +181,16 @@
   },
   "analytics_engine_datasets": [
     {
-      "binding": "ANALYTICS_ENGINE",
-      "dataset": "agentid_services_events"
+      "binding": "ATTRIBUTION_ANALYTICS",
+      "dataset": "agentid_attribution_events"
+    },
+    {
+      "binding": "BUSINESS_ANALYTICS",
+      "dataset": "agentid_business_events"
+    },
+    {
+      "binding": "GROUNDED_PROVIDER_ANALYTICS",
+      "dataset": "agentid_grounded_provider_events"
     }
   ],
   "send_email": [

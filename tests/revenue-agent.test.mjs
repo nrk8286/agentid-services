@@ -96,6 +96,7 @@ test("holds safely when the Workers AI binding is unavailable", async () => {
 
 test("accepts the exact Cloudflare AI Search chatCompletions response shape", async () => {
   let requestBody;
+  const dataPoints = [];
   const response = await handleAgentIdSiteRequest(
     new Request("https://gptmarketplus.com/api/chat", {
       method: "POST",
@@ -108,6 +109,11 @@ test("accepts the exact Cloudflare AI Search chatCompletions response shape", as
     {
       SITE_URL: "https://gptmarketplus.com",
       BRAND_NAME: "GPTMarketPlus",
+      GROUNDED_PROVIDER_ANALYTICS: {
+        writeDataPoint(point) {
+          dataPoints.push(point);
+        },
+      },
       AGENTID_AI_SEARCH: {
         async chatCompletions(input) {
           requestBody = input;
@@ -147,6 +153,17 @@ test("accepts the exact Cloudflare AI Search chatCompletions response shape", as
   assert.equal(requestBody.messages[0].role, "system");
   assert.equal(requestBody.messages[1].role, "user");
   assert.equal(requestBody.ai_search_options.retrieval.retrieval_type, "hybrid");
+  assert.equal(dataPoints.length, 1);
+  assert.deepEqual(dataPoints[0].blobs, [
+    "grounded_provider_attempt",
+    "cloudflare_ai_search",
+    "success",
+    "ok",
+    "none",
+  ]);
+  assert.equal(dataPoints[0].doubles[0], 1);
+  assert.equal(dataPoints[0].doubles[4], 1);
+  assert.deepEqual(dataPoints[0].indexes, ["cloudflare_ai_search"]);
 });
 
 test("rejects malformed Cloudflare responses and logs only privacy-safe shape telemetry", async () => {
@@ -169,7 +186,7 @@ test("rejects malformed Cloudflare responses and logs only privacy-safe shape te
       {
         SITE_URL: "https://gptmarketplus.com",
         BRAND_NAME: "GPTMarketPlus",
-        ANALYTICS_ENGINE: {
+        GROUNDED_PROVIDER_ANALYTICS: {
           writeDataPoint(point) {
             dataPoints.push(point);
           },
@@ -198,8 +215,9 @@ test("rejects malformed Cloudflare responses and logs only privacy-safe shape te
 
   assert.equal(warnings.length, 1);
   const telemetry = JSON.parse(warnings[0]);
-  assert.equal(telemetry.event, "grounded_provider_failure");
+  assert.equal(telemetry.event, "grounded_provider_attempt");
   assert.equal(telemetry.provider, "cloudflare_ai_search");
+  assert.equal(telemetry.outcome, "failure");
   assert.equal(telemetry.code, "invalid_response_shape");
   assert.equal(telemetry.choicesArray, false);
   assert.doesNotMatch(warnings[0], new RegExp(privateMarker));
@@ -207,11 +225,13 @@ test("rejects malformed Cloudflare responses and logs only privacy-safe shape te
   assert.doesNotMatch(warnings[0], /private-conversation-marker/);
   assert.equal(dataPoints.length, 1);
   assert.deepEqual(dataPoints[0].blobs, [
-    "grounded_provider_failure",
+    "grounded_provider_attempt",
     "cloudflare_ai_search",
+    "failure",
     "invalid_response_shape",
     "none",
   ]);
+  assert.deepEqual(dataPoints[0].indexes, ["cloudflare_ai_search"]);
   assert.doesNotMatch(JSON.stringify(dataPoints[0]), new RegExp(privateMarker));
   assert.doesNotMatch(JSON.stringify(dataPoints[0]), new RegExp(generatedMarker));
 });
