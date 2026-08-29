@@ -246,6 +246,14 @@ test("publishes an evidence-first Supabase recovery launch guide with bounded x4
   );
   assert.equal(resources.status, 200);
   assert.match(await resources.text(), /Supabase Project Paused or Stuck\?/);
+
+  const llms = await handleAgentIdSiteRequest(
+    new Request("https://gptmarketplus.com/llms.txt"),
+    env,
+    { waitUntil() {} },
+  );
+  assert.equal(llms.status, 200);
+  assert.match(await llms.text(), /Supabase Recovery Evidence Agent guide/);
 });
 
 test("publishes visible focus styles and a reduced-motion fallback", async () => {
