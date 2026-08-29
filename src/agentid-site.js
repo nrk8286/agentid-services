@@ -130,6 +130,32 @@ let googleAccessTokenCache = {
   expiresAt: 0,
 };
 
+export const GOOGLE_GROUNDED_LOOKUP_TIMEOUT_MS = 4_000;
+
+const GROUNDED_PROVIDERS = Object.freeze({
+  google_cloud_agent_search: "Google Cloud Agent Search",
+  cloudflare_ai_search: "Cloudflare AI Search",
+});
+const GROUNDED_PROVIDER_LABELS = new Set(Object.values(GROUNDED_PROVIDERS));
+const GROUNDED_SOURCE_HOSTS = new Set([
+  "gptmarketplus.com",
+  "www.gptmarketplus.com",
+  "agentid.services",
+  "www.agentid.services",
+]);
+const GROUNDED_PROVIDER_FAILURE_CODES = new Set([
+  "answer_not_succeeded",
+  "auth_configuration_invalid",
+  "invalid_response_shape",
+  "missing_answer",
+  "missing_provider",
+  "missing_valid_source",
+  "provider_error",
+  "provider_unavailable",
+  "timeout",
+  "upstream_http_error",
+]);
+
 const SITE_CONTENT_LAST_MODIFIED = "2026-08-28";
 
 // Keep the public scope-request catalog server-authoritative. The software-build
@@ -1981,7 +2007,186 @@ function pemPrivateKeyBytes(pem) {
   return Uint8Array.from(binary, (character) => character.charCodeAt(0));
 }
 
-async function googleServiceAccountAccessToken(env) {
+class GroundedProviderFailure extends Error {
+  constructor(code, details = {}) {
+    super(code);
+    this.name = "GroundedProviderFailure";
+    this.code = GROUNDED_PROVIDER_FAILURE_CODES.has(code) ? code : "provider_error";
+    this.httpStatus = Number.isInteger(details.httpStatus) ? details.httpStatus : null;
+    this.safeDetails = details.safeDetails && typeof details.safeDetails === "object"
+      ? details.safeDetails
+      : {};
+  }
+}
+
+function safeGroundedTelemetryDetails(details = {}) {
+  const safe = {};
+  for (const key of [
+    "responseObject",
+    "choicesArray",
+    "firstMessageObject",
+    "contentTypeValid",
+    "chunksArray",
+  ]) {
+    if (typeof details[key] === "boolean") safe[key] = details[key];
+  }
+  for (const key of ["choiceCount", "chunkCount", "sourceCount"]) {
+    const value = Number(details[key]);
+    if (Number.isInteger(value) && value >= 0 && value <= 100) safe[key] = value;
+  }
+  return safe;
+}
+
+function reportGroundedProviderFailure(env, provider, error, startedAt) {
+  const providerCode = Object.hasOwn(GROUNDED_PROVIDERS, provider) ? provider : "unknown";
+  const code = error instanceof GroundedProviderFailure
+    ? error.code
+    : error?.name === "AbortError"
+      ? "timeout"
+      : "provider_error";
+  const telemetry = {
+    event: "grounded_provider_failure",
+    provider: providerCode,
+    code: GROUNDED_PROVIDER_FAILURE_CODES.has(code) ? code : "provider_error",
+    durationMs: Math.max(0, Math.round(Date.now() - startedAt)),
+    ...safeGroundedTelemetryDetails(error instanceof GroundedProviderFailure ? error.safeDetails : {}),
+  };
+  const httpStatus = error instanceof GroundedProviderFailure ? error.httpStatus : null;
+  if (Number.isInteger(httpStatus) && httpStatus >= 400 && httpStatus <= 599) {
+    telemetry.httpStatus = httpStatus;
+  }
+
+  // Never log prompts, response content, source URLs, exception messages, or stacks.
+  console.warn(JSON.stringify(telemetry));
+  if (env?.ANALYTICS_ENGINE && typeof env.ANALYTICS_ENGINE.writeDataPoint === "function") {
+    try {
+      env.ANALYTICS_ENGINE.writeDataPoint({
+        blobs: [
+          telemetry.event,
+          telemetry.provider,
+          telemetry.code,
+          telemetry.httpStatus ? String(telemetry.httpStatus) : "none",
+        ],
+        doubles: [
+          1,
+          telemetry.durationMs,
+          telemetry.choiceCount || 0,
+          telemetry.chunkCount || 0,
+          telemetry.sourceCount || 0,
+        ],
+        indexes: [crypto.randomUUID()],
+      });
+    } catch {
+      // Provider fallback must not fail because telemetry ingestion is unavailable.
+    }
+  }
+}
+
+function normalizedGroundingSource(env, rawUri, rawTitle = "") {
+  let sourceUrl;
+  try {
+    sourceUrl = new URL(String(rawUri || ""));
+  } catch {
+    return null;
+  }
+  if (sourceUrl.protocol !== "https:" || !GROUNDED_SOURCE_HOSTS.has(sourceUrl.hostname.toLowerCase())) {
+    return null;
+  }
+
+  let publicOrigin = "https://gptmarketplus.com";
+  try {
+    const configuredOrigin = new URL(siteUrl(env));
+    if (configuredOrigin.protocol === "https:" && GROUNDED_SOURCE_HOSTS.has(configuredOrigin.hostname.toLowerCase())) {
+      publicOrigin = configuredOrigin.origin;
+    }
+  } catch {
+    // Use the fixed public origin when SITE_URL is invalid.
+  }
+
+  const uri = new URL(`${sourceUrl.pathname}${sourceUrl.search}`, `${publicOrigin}/`).toString();
+  return {
+    title: cleanText(rawTitle || sourceUrl.pathname || "GPTMarketPlus", 140) || "GPTMarketPlus",
+    uri,
+  };
+}
+
+function isValidGroundingSource(source) {
+  if (!source || typeof source !== "object" || !cleanText(source.title || "", 140)) return false;
+  try {
+    const uri = new URL(String(source.uri || ""));
+    return uri.protocol === "https:" && GROUNDED_SOURCE_HOSTS.has(uri.hostname.toLowerCase());
+  } catch {
+    return false;
+  }
+}
+
+function groundedAnswerFailureCode(answer) {
+  if (!answer || typeof answer !== "object" || !cleanText(answer.answer || "", 2200)) return "missing_answer";
+  if (!GROUNDED_PROVIDER_LABELS.has(answer.provider)) return "missing_provider";
+  if (!Array.isArray(answer.sources) || !answer.sources.some(isValidGroundingSource)) return "missing_valid_source";
+  return "";
+}
+
+export function isValidGroundedAnswer(answer) {
+  return groundedAnswerFailureCode(answer) === "";
+}
+
+function normalizeGroundedAnswer(answer) {
+  const failureCode = groundedAnswerFailureCode(answer);
+  if (failureCode) {
+    throw new GroundedProviderFailure(failureCode, {
+      safeDetails: {
+        sourceCount: Array.isArray(answer?.sources) ? answer.sources.filter(isValidGroundingSource).length : 0,
+      },
+    });
+  }
+  return {
+    ...answer,
+    answer: cleanText(answer.answer, 2200),
+    sources: answer.sources.filter(isValidGroundingSource).slice(0, 3),
+    groundingScore: Number.isFinite(Number(answer.groundingScore)) ? Number(answer.groundingScore) : 0,
+    relatedQuestions: Array.isArray(answer.relatedQuestions)
+      ? answer.relatedQuestions.map((item) => cleanText(item, 160)).filter(Boolean).slice(0, 3)
+      : [],
+  };
+}
+
+export async function runGroundedProviderAttempt(provider, operation, options = {}) {
+  const startedAt = Date.now();
+  const requestedTimeout = Number(options.timeoutMs || 0);
+  const timeoutMs = Number.isFinite(requestedTimeout) && requestedTimeout > 0
+    ? Math.min(Math.max(Math.round(requestedTimeout), 1), 30_000)
+    : 0;
+  const controller = new AbortController();
+  let timeoutId;
+
+  try {
+    if (!Object.hasOwn(GROUNDED_PROVIDERS, provider) || typeof operation !== "function") {
+      throw new GroundedProviderFailure("provider_unavailable");
+    }
+
+    const providerPromise = Promise.resolve().then(() => operation(controller.signal));
+    const result = timeoutMs
+      ? await Promise.race([
+        providerPromise,
+        new Promise((_, reject) => {
+          timeoutId = setTimeout(() => {
+            controller.abort();
+            reject(new GroundedProviderFailure("timeout"));
+          }, timeoutMs);
+        }),
+      ])
+      : await providerPromise;
+    return normalizeGroundedAnswer(result);
+  } catch (error) {
+    reportGroundedProviderFailure(options.env, provider, error, startedAt);
+    return null;
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+}
+
+async function googleServiceAccountAccessToken(env, signal) {
   if (googleAccessTokenCache.token && googleAccessTokenCache.expiresAt > Date.now() + 60_000) {
     return googleAccessTokenCache.token;
   }
@@ -1990,9 +2195,11 @@ async function googleServiceAccountAccessToken(env) {
   try {
     credentials = JSON.parse(String(env.GOOGLE_SERVICE_ACCOUNT_JSON || ""));
   } catch {
-    return "";
+    throw new GroundedProviderFailure("auth_configuration_invalid");
   }
-  if (!credentials?.client_email || !credentials?.private_key) return "";
+  if (!credentials?.client_email || !credentials?.private_key) {
+    throw new GroundedProviderFailure("auth_configuration_invalid");
+  }
 
   const now = Math.floor(Date.now() / 1000);
   const header = textToBase64Url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
@@ -2020,13 +2227,17 @@ async function googleServiceAccountAccessToken(env) {
   const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
+    signal,
     body: new URLSearchParams({
       grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
       assertion,
     }),
   });
+  if (!tokenResponse.ok) {
+    throw new GroundedProviderFailure("upstream_http_error", { httpStatus: tokenResponse.status });
+  }
   const result = await tokenResponse.json().catch(() => null);
-  if (!tokenResponse.ok || !result?.access_token) return "";
+  if (!result?.access_token) throw new GroundedProviderFailure("invalid_response_shape");
 
   googleAccessTokenCache = {
     token: result.access_token,
@@ -2049,24 +2260,18 @@ function agentIdAnswerSources(env, answer) {
   const sources = [];
   for (const reference of references) {
     const metadata = reference?.chunkInfo?.documentMetadata || reference?.unstructuredDocumentInfo?.documentMetadata || {};
-    const uri = cleanUrl(metadata.uri || "");
-    const title = cleanText(metadata.title || "", 140);
-    if (!uri) continue;
-    const parsed = new URL(uri);
-    if (!["gptmarketplus.com", "www.gptmarketplus.com", "agentid.services", "www.agentid.services"].includes(parsed.hostname)) continue;
-    const canonicalUri = new URL(`${parsed.pathname}${parsed.search}`, `${siteUrl(env)}/`).toString();
-    if (sources.some((item) => item.uri === canonicalUri)) continue;
-    sources.push({ title: title || parsed.pathname, uri: canonicalUri });
+    const source = normalizedGroundingSource(env, metadata.uri, metadata.title);
+    if (!source || sources.some((item) => item.uri === source.uri)) continue;
+    sources.push(source);
     if (sources.length >= 3) break;
   }
   return sources;
 }
 
-async function answerFromAgentIdKnowledge(env, message) {
+async function answerFromAgentIdKnowledge(env, message, signal) {
   const config = agentIdGenAiConfig(env);
-  if (!config.configured || !shouldUseGroundedAgentIdAnswer(message)) return null;
-  const accessToken = await googleServiceAccountAccessToken(env);
-  if (!accessToken) return null;
+  if (!config.configured) throw new GroundedProviderFailure("provider_unavailable");
+  const accessToken = await googleServiceAccountAccessToken(env, signal);
 
   const endpoint = `https://discoveryengine.googleapis.com/v1/projects/${encodeURIComponent(config.projectId)}/locations/${encodeURIComponent(config.location)}/collections/default_collection/engines/${encodeURIComponent(config.engineId)}/servingConfigs/default_search:answer`;
   const response = await fetch(endpoint, {
@@ -2076,6 +2281,7 @@ async function answerFromAgentIdKnowledge(env, message) {
       "content-type": "application/json",
       "x-goog-user-project": config.projectId,
     },
+    signal,
     body: JSON.stringify({
       query: { text: cleanText(message, 700) },
       queryUnderstandingSpec: {
@@ -2103,12 +2309,19 @@ async function answerFromAgentIdKnowledge(env, message) {
       relatedQuestionsSpec: { enable: true },
     }),
   });
+  if (!response.ok) {
+    throw new GroundedProviderFailure("upstream_http_error", { httpStatus: response.status });
+  }
   const result = await response.json().catch(() => null);
   const answer = result?.answer;
   const answerText = cleanText(answer?.answerText || "", 2200);
-  if (!response.ok || answer?.state !== "SUCCEEDED" || !answerText) return null;
+  if (!result || typeof result !== "object") throw new GroundedProviderFailure("invalid_response_shape");
+  if (answer?.state !== "SUCCEEDED") throw new GroundedProviderFailure("answer_not_succeeded");
+  if (!answerText) throw new GroundedProviderFailure("missing_answer");
   const sources = agentIdAnswerSources(env, answer);
-  if (!sources.length) return null;
+  if (!sources.length) {
+    throw new GroundedProviderFailure("missing_valid_source", { safeDetails: { sourceCount: 0 } });
+  }
   return {
     answer: answerText,
     sources,
@@ -2124,23 +2337,60 @@ function cloudflareAnswerSources(env, result) {
   const chunks = Array.isArray(result?.chunks) ? result.chunks : [];
   const sources = [];
   for (const chunk of chunks) {
-    const uri = cleanUrl(chunk?.item?.key || "");
-    if (!uri) continue;
-    const parsed = new URL(uri);
-    if (!["gptmarketplus.com", "www.gptmarketplus.com", "agentid.services", "www.agentid.services"].includes(parsed.hostname)) continue;
-    const canonicalUri = new URL(`${parsed.pathname}${parsed.search}`, `${siteUrl(env)}/`).toString();
-    if (sources.some((item) => item.uri === canonicalUri)) continue;
-    sources.push({
-      title: cleanText(chunk?.item?.metadata?.title || parsed.pathname || "GPTMarketPlus", 140),
-      uri: canonicalUri,
-    });
+    const source = normalizedGroundingSource(env, chunk?.item?.key, chunk?.item?.metadata?.title);
+    if (!source || sources.some((item) => item.uri === source.uri)) continue;
+    sources.push(source);
     if (sources.length >= 3) break;
   }
   return sources;
 }
 
+export function parseCloudflareChatCompletionsResponse(env, result) {
+  const responseObject = Boolean(result && typeof result === "object" && !Array.isArray(result));
+  const choicesArray = responseObject && Array.isArray(result.choices);
+  const chunksArray = responseObject && Array.isArray(result.chunks);
+  const firstChoice = choicesArray ? result.choices[0] : null;
+  const firstMessage = firstChoice && typeof firstChoice === "object" ? firstChoice.message : null;
+  const firstMessageObject = Boolean(firstMessage && typeof firstMessage === "object" && !Array.isArray(firstMessage));
+  const contentTypeValid = firstMessageObject
+    && (typeof firstMessage.content === "string" || firstMessage.content === null);
+  const shape = {
+    responseObject,
+    choicesArray,
+    choiceCount: choicesArray ? result.choices.length : 0,
+    firstMessageObject,
+    contentTypeValid,
+    chunksArray,
+    chunkCount: chunksArray ? result.chunks.length : 0,
+  };
+  if (!responseObject || !choicesArray || !chunksArray || (result.choices.length > 0 && (!firstMessageObject || !contentTypeValid))) {
+    throw new GroundedProviderFailure("invalid_response_shape", { safeDetails: shape });
+  }
+
+  const answerText = cleanText(firstMessage?.content || "", 2200);
+  if (!answerText) throw new GroundedProviderFailure("missing_answer", { safeDetails: shape });
+  const sources = cloudflareAnswerSources(env, result);
+  if (!sources.length) {
+    throw new GroundedProviderFailure("missing_valid_source", {
+      safeDetails: { ...shape, sourceCount: 0 },
+    });
+  }
+  const scores = result.chunks
+    .map((chunk) => Number(chunk?.score || 0))
+    .filter(Number.isFinite);
+  return {
+    answer: answerText,
+    sources,
+    groundingScore: scores.length ? Math.max(...scores) : 0,
+    provider: GROUNDED_PROVIDERS.cloudflare_ai_search,
+    relatedQuestions: [],
+  };
+}
+
 async function answerFromCloudflareKnowledge(env, message) {
-  if (!env.AGENTID_AI_SEARCH || !shouldUseGroundedAgentIdAnswer(message)) return null;
+  if (!env.AGENTID_AI_SEARCH || typeof env.AGENTID_AI_SEARCH.chatCompletions !== "function") {
+    throw new GroundedProviderFailure("provider_unavailable");
+  }
   const result = await env.AGENTID_AI_SEARCH.chatCompletions({
     messages: [
       {
@@ -2168,19 +2418,7 @@ async function answerFromCloudflareKnowledge(env, message) {
       },
     },
   });
-  const answerText = cleanText(result?.choices?.[0]?.message?.content || "", 2200);
-  const sources = cloudflareAnswerSources(env, result);
-  if (!answerText || !sources.length) return null;
-  const scores = (Array.isArray(result?.chunks) ? result.chunks : [])
-    .map((chunk) => Number(chunk?.score || 0))
-    .filter(Number.isFinite);
-  return {
-    answer: answerText,
-    sources,
-    groundingScore: scores.length ? Math.max(...scores) : 0,
-    provider: "Cloudflare AI Search",
-    relatedQuestions: [],
-  };
+  return parseCloudflareChatCompletionsResponse(env, result);
 }
 
 function jsonResponse(data, status = 200, headers = {}) {
@@ -3891,6 +4129,29 @@ function coldLeadMessage() {
   return "That’s fine. I can keep this practical and simply send the AI Automation Audit Checklist so you can see what might be worth automating first.";
 }
 
+async function groundedAnswerForChat(env, message) {
+  if (!shouldUseGroundedAgentIdAnswer(message)) return null;
+
+  let answer = null;
+  if (agentIdGenAiConfig(env).configured) {
+    answer = await runGroundedProviderAttempt(
+      "google_cloud_agent_search",
+      (signal) => answerFromAgentIdKnowledge(env, message, signal),
+      { env, timeoutMs: GOOGLE_GROUNDED_LOOKUP_TIMEOUT_MS },
+    );
+  }
+  if (isValidGroundedAnswer(answer)) return answer;
+
+  if (env.AGENTID_AI_SEARCH) {
+    answer = await runGroundedProviderAttempt(
+      "cloudflare_ai_search",
+      () => answerFromCloudflareKnowledge(env, message),
+      { env },
+    );
+  }
+  return isValidGroundedAnswer(answer) ? answer : null;
+}
+
 async function handleChat(request, env, ctx) {
   const body = await readJson(request);
   if (body === BODY_TOO_LARGE) return payloadTooLargeResponse();
@@ -3930,10 +4191,8 @@ async function handleChat(request, env, ctx) {
     `Visitor: ${message}`,
   ].join("\n");
 
-  const googleGroundedAnswer = await answerFromAgentIdKnowledge(env, message).catch(() => null);
-  const groundedAnswer = googleGroundedAnswer
-    || await answerFromCloudflareKnowledge(env, message).catch(() => null);
-  if (groundedAnswer) {
+  const groundedAnswer = await groundedAnswerForChat(env, message);
+  if (isValidGroundedAnswer(groundedAnswer)) {
     state.fullTranscript = [
       state.fullTranscript,
       `GPTMarketPlus grounded answer: ${groundedAnswer.answer}`,
@@ -4195,6 +4454,9 @@ async function handleChat(request, env, ctx) {
       conversationId,
       reply,
       state,
+      grounded: false,
+      groundingProvider: null,
+      sources: [],
       leadCaptured: !classification.excluded && Boolean(state.email || state.phone),
       leadTag: classification.excluded ? "TEST" : leadTag,
       leadScore: score,
@@ -4266,6 +4528,9 @@ async function handleChat(request, env, ctx) {
     conversationId,
     reply,
     state,
+    grounded: false,
+    groundingProvider: null,
+    sources: [],
     leadCaptured: Boolean(state.email || state.phone),
     leadTag: state.leadTag,
     leadScore: state.leadScore,

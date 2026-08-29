@@ -13,9 +13,13 @@ import {
   buildAgentTeamWorkspace,
   buildDropshippingWorkspace,
   dropshippingWorkspacePack,
+  GOOGLE_GROUNDED_LOOKUP_TIMEOUT_MS,
   handleAgentIdSiteRequest,
+  isValidGroundedAnswer,
+  parseCloudflareChatCompletionsResponse,
   renderDropshippingWorkspaceOutput,
   renderAgentTeamWorkspaceOutput,
+  runGroundedProviderAttempt,
 } from "../src/agentid-site.js";
 
 const plan = {
@@ -87,6 +91,207 @@ test("holds safely when the Workers AI binding is unavailable", async () => {
   assert.equal(result.ok, false);
   assert.equal(result.reason, "not_configured");
   assert.equal(result.decision, "hold");
+});
+
+test("accepts the exact Cloudflare AI Search chatCompletions response shape", async () => {
+  let requestBody;
+  const response = await handleAgentIdSiteRequest(
+    new Request("https://gptmarketplus.com/api/chat", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        message: "What is the difference between an AI agent and a chatbot?",
+        conversationId: "cloudflare-grounding-shape-test",
+      }),
+    }),
+    {
+      SITE_URL: "https://gptmarketplus.com",
+      BRAND_NAME: "GPTMarketPlus",
+      AGENTID_AI_SEARCH: {
+        async chatCompletions(input) {
+          requestBody = input;
+          return {
+            id: "aisearch-test",
+            object: "chat.completion",
+            model: "@cf/zai-org/glm-4.7-flash",
+            choices: [{
+              index: 0,
+              message: {
+                role: "assistant",
+                content: "An AI agent follows a bounded workflow, while a basic chatbot primarily answers messages.",
+              },
+            }],
+            chunks: [{
+              id: "faq-agent-vs-chatbot",
+              type: "text",
+              score: 0.93,
+              text: "A basic chatbot only talks. A properly built AI agent follows a workflow.",
+              item: {
+                key: "https://gptmarketplus.com/faq",
+                metadata: { title: "GPTMarketPlus FAQ" },
+              },
+            }],
+          };
+        },
+      },
+    },
+    { waitUntil() {} },
+  );
+
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.grounded, true);
+  assert.equal(body.groundingProvider, "Cloudflare AI Search");
+  assert.deepEqual(body.sources, [{ title: "GPTMarketPlus FAQ", uri: "https://gptmarketplus.com/faq" }]);
+  assert.equal(requestBody.messages[0].role, "system");
+  assert.equal(requestBody.messages[1].role, "user");
+  assert.equal(requestBody.ai_search_options.retrieval.retrieval_type, "hybrid");
+});
+
+test("rejects malformed Cloudflare responses and logs only privacy-safe shape telemetry", async () => {
+  const privateMarker = "PRIVATE_PROMPT_MARKER_9f87";
+  const generatedMarker = "PRIVATE_GENERATED_MARKER_1c42";
+  const warnings = [];
+  const dataPoints = [];
+  const originalWarn = console.warn;
+  console.warn = (...args) => warnings.push(args.map(String).join(" "));
+  try {
+    const response = await handleAgentIdSiteRequest(
+      new Request("https://gptmarketplus.com/api/chat", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          message: `What agent services are available ${privateMarker}?`,
+          conversationId: "private-conversation-marker",
+        }),
+      }),
+      {
+        SITE_URL: "https://gptmarketplus.com",
+        BRAND_NAME: "GPTMarketPlus",
+        ANALYTICS_ENGINE: {
+          writeDataPoint(point) {
+            dataPoints.push(point);
+          },
+        },
+        AGENTID_AI_SEARCH: {
+          async chatCompletions() {
+            return {
+              response: {
+                choices: [{ message: { role: "assistant", content: generatedMarker } }],
+                chunks: [],
+              },
+            };
+          },
+        },
+      },
+      { waitUntil() {} },
+    );
+
+    const body = await response.json();
+    assert.equal(body.grounded, false);
+    assert.equal(body.groundingProvider, null);
+    assert.deepEqual(body.sources, []);
+  } finally {
+    console.warn = originalWarn;
+  }
+
+  assert.equal(warnings.length, 1);
+  const telemetry = JSON.parse(warnings[0]);
+  assert.equal(telemetry.event, "grounded_provider_failure");
+  assert.equal(telemetry.provider, "cloudflare_ai_search");
+  assert.equal(telemetry.code, "invalid_response_shape");
+  assert.equal(telemetry.choicesArray, false);
+  assert.doesNotMatch(warnings[0], new RegExp(privateMarker));
+  assert.doesNotMatch(warnings[0], new RegExp(generatedMarker));
+  assert.doesNotMatch(warnings[0], /private-conversation-marker/);
+  assert.equal(dataPoints.length, 1);
+  assert.deepEqual(dataPoints[0].blobs, [
+    "grounded_provider_failure",
+    "cloudflare_ai_search",
+    "invalid_response_shape",
+    "none",
+  ]);
+  assert.doesNotMatch(JSON.stringify(dataPoints[0]), new RegExp(privateMarker));
+  assert.doesNotMatch(JSON.stringify(dataPoints[0]), new RegExp(generatedMarker));
+});
+
+test("requires a recognized provider and at least one valid HTTPS source", () => {
+  const base = {
+    answer: "A grounded answer.",
+    provider: "Cloudflare AI Search",
+    sources: [{ title: "FAQ", uri: "https://gptmarketplus.com/faq" }],
+  };
+  assert.equal(isValidGroundedAnswer(base), true);
+  assert.equal(isValidGroundedAnswer({ ...base, provider: "" }), false);
+  assert.equal(isValidGroundedAnswer({ ...base, provider: "Unrecognized Search" }), false);
+  assert.equal(isValidGroundedAnswer({ ...base, sources: [] }), false);
+  assert.equal(isValidGroundedAnswer({
+    ...base,
+    sources: [{ title: "Untrusted", uri: "https://example.com/faq" }],
+  }), false);
+  assert.equal(isValidGroundedAnswer({
+    ...base,
+    sources: [{ title: "Insecure", uri: "http://gptmarketplus.com/faq" }],
+  }), false);
+});
+
+test("rejects a Cloudflare answer without a valid source", () => {
+  assert.throws(
+    () => parseCloudflareChatCompletionsResponse(
+      { SITE_URL: "https://gptmarketplus.com" },
+      {
+        choices: [{ message: { role: "assistant", content: "Unsupported answer text." } }],
+        chunks: [{
+          id: "external",
+          type: "text",
+          score: 0.8,
+          text: "External content",
+          item: { key: "https://example.com/private", metadata: { title: "External" } },
+        }],
+      },
+    ),
+    /missing_valid_source/,
+  );
+});
+
+test("bounds Google grounding attempts and redacts thrown error details from telemetry", async () => {
+  assert.equal(GOOGLE_GROUNDED_LOOKUP_TIMEOUT_MS, 4_000);
+  const warnings = [];
+  const originalWarn = console.warn;
+  console.warn = (...args) => warnings.push(args.map(String).join(" "));
+  let observedSignal;
+  try {
+    const result = await runGroundedProviderAttempt(
+      "google_cloud_agent_search",
+      (signal) => {
+        observedSignal = signal;
+        return new Promise(() => {});
+      },
+      { timeoutMs: 15 },
+    );
+    assert.equal(result, null);
+  } finally {
+    console.warn = originalWarn;
+  }
+
+  assert.equal(observedSignal.aborted, true);
+  assert.equal(warnings.length, 1);
+  const telemetry = JSON.parse(warnings[0]);
+  assert.equal(telemetry.provider, "google_cloud_agent_search");
+  assert.equal(telemetry.code, "timeout");
+
+  warnings.length = 0;
+  console.warn = (...args) => warnings.push(args.map(String).join(" "));
+  try {
+    await runGroundedProviderAttempt(
+      "cloudflare_ai_search",
+      async () => { throw new Error("SECRET_TOKEN_AND_PRIVATE_PROMPT"); },
+    );
+  } finally {
+    console.warn = originalWarn;
+  }
+  assert.equal(JSON.parse(warnings[0]).code, "provider_error");
+  assert.doesNotMatch(warnings[0], /SECRET_TOKEN_AND_PRIVATE_PROMPT/);
 });
 
 test("moves only the selected allowlisted task to the front", () => {
