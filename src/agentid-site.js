@@ -5038,6 +5038,11 @@ function resourceLinkTitle(path) {
   return RESOURCE_PAGES.find((page) => page.path === path)?.title || toTitle(path.split("/").filter(Boolean).pop() || path);
 }
 
+function canonicalInternalPath(env, path) {
+  if (!isAgentIdSite(env)) return path;
+  return AGENTID_THIN_TRAFFIC_REDIRECTS.get(normalizePath(path)) || path;
+}
+
 function renderResourcesPage(env) {
   const body = `
     <section class="page-hero split-section">
@@ -5061,7 +5066,7 @@ function renderResourcesPage(env) {
         kicker: page.category,
         title: page.title,
         description: page.description,
-        href: page.path,
+        href: canonicalInternalPath(env, page.path),
       })), "Read resource")}
     </section>
     <section class="section">
@@ -5077,13 +5082,13 @@ function renderResourcesPage(env) {
           kicker: "Implementation system",
           title: "AI Marketing Automation for Small Business",
           description: "Connect demand, capture, qualification, follow-up, human decisions, and revenue attribution.",
-          href: "/ai-marketing-automation",
+          href: canonicalInternalPath(env, "/ai-marketing-automation"),
         },
         {
           kicker: "Seven-stage playbook",
           title: "AI Sales Funnel Automation",
           description: "Map a measured sales funnel from search demand through qualification, payment, and verified profit.",
-          href: "/ai-sales-funnel",
+          href: canonicalInternalPath(env, "/ai-sales-funnel"),
         },
       ], "Open topic")}
     </section>
@@ -5230,7 +5235,7 @@ function renderResourceArticlePage(env, page) {
           kicker: path.startsWith("/guides") ? "Guide" : path.startsWith("/tools") ? "Tool" : "Next step",
           title: resourceLinkTitle(path),
           description: AGENTID_PUBLIC_PAGES.find((entry) => entry.path === path)?.description || "Continue from this guide with a practical next step.",
-          href: path,
+          href: canonicalInternalPath(env, path),
         })), "Open")}
       </section>
     </article>`;
@@ -10164,6 +10169,7 @@ const AGENTID_PRIVATE_PATHS = new Set([
 ]);
 const AGENTID_NON_INDEXABLE_PATHS = new Set([
   "/agents",
+  "/agents/playbook",
   "/social",
   "/playbook",
   "/submission-status",
@@ -10228,8 +10234,7 @@ function pageEntriesForSitemap(env) {
     { path: "/chatgpt-marketing", title: "ChatGPT Marketing Agents", description: "Marketing-agent workflows for useful content, SEO, outreach, conversion, and accountable daily execution." },
     { path: "/ai-sales-funnel", title: "AI Sales Funnel Automation", description: "A seven-stage AI sales funnel for demand, qualification, follow-up, human decisions, payment, and verified attribution, with a $29 Launch Kit path." },
     { path: "/agents/", title: "Autonomous Agent Operations", description: "Operational status and capabilities for GPTMarketPlus automation agents." },
-    { path: "/social", title: "GPTMarketPlus Social Hub", description: "Share-ready links for legitimate GPTMarketPlus discovery and customer acquisition." },
-    { path: "/playbook", title: "Growth Playbook", description: "Current public growth priorities and transparent agent operating status." },
+    { path: "/agents/playbook", title: "Growth Playbook", description: "Current public growth priorities and transparent agent operating status." },
     { path: "/software-builds", title: "AI Software Builds", description: "Fixed-scope AI software opportunities and implementation options." },
     { path: "/sponsor", title: "Sponsor GPTMarketPlus", description: "Apply for reviewed sponsor visibility across GPTMarketPlus buyer-intent pages." },
     { path: "/advertise", title: "Advertise with GPTMarketPlus", description: "Review sponsor inventory and apply for an approved placement." },

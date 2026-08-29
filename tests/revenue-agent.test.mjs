@@ -503,6 +503,50 @@ test("publishes an evidence-first Supabase recovery launch guide with bounded x4
   assert.match(await llms.text(), /Supabase Recovery Evidence Agent guide/);
 });
 
+test("keeps public sitemaps and AgentID content links canonical", async () => {
+  const gptMarketEnv = {
+    SITE_URL: "https://gptmarketplus.com",
+    BRAND_NAME: "GPTMarketPlus",
+  };
+  const sitemapResponse = await handleAgentIdSiteRequest(
+    new Request("https://gptmarketplus.com/sitemap.xml"),
+    gptMarketEnv,
+    { waitUntil() {} },
+  );
+  assert.equal(sitemapResponse.status, 200);
+  const sitemap = await sitemapResponse.text();
+  assert.match(sitemap, /<loc>https:\/\/gptmarketplus\.com\/agents\/playbook<\/loc>/);
+  assert.doesNotMatch(sitemap, /<loc>https:\/\/gptmarketplus\.com\/social<\/loc>/);
+  assert.doesNotMatch(sitemap, /<loc>https:\/\/gptmarketplus\.com\/playbook<\/loc>/);
+
+  const agentIdEnv = {
+    SITE_URL: "https://agentid.services",
+    BRAND_NAME: "AgentID Services",
+  };
+  const pages = [
+    "/resources",
+    "/guides/ai-agent-for-small-business",
+    "/guides/ai-lead-follow-up",
+  ];
+  const html = (await Promise.all(pages.map(async (path) => {
+    const response = await handleAgentIdSiteRequest(
+      new Request(`https://agentid.services${path}`),
+      agentIdEnv,
+      { waitUntil() {} },
+    );
+    assert.equal(response.status, 200);
+    return response.text();
+  }))).join("\n");
+  for (const redirectingPath of [
+    "/ai-marketing-automation",
+    "/ai-sales-funnel",
+    "/small-business-crm-automation",
+  ]) {
+    assert.doesNotMatch(html, new RegExp(`href=["']${redirectingPath}["']`));
+  }
+  assert.match(html, /href="\/services"/);
+});
+
 test("publishes visible focus styles and a reduced-motion fallback", async () => {
   const response = await handleAgentIdSiteRequest(
     new Request("https://gptmarketplus.com/styles.css"),

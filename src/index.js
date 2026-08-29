@@ -7510,10 +7510,9 @@ function publicDiscoveryPages(env) {
 function renderSitemap(env) {
   const operationalUrls = isAgentIdSite(env) ? [] : [
     { path: "/agents/", changefreq: "daily", priority: "0.8" },
-    { path: "/social", changefreq: "weekly", priority: "0.78" },
     { path: "/submission-status", changefreq: "weekly", priority: "0.7" },
     { path: "/security.txt", changefreq: "monthly", priority: "0.2" },
-    { path: "/playbook", changefreq: "daily", priority: "0.75" },
+    { path: "/agents/playbook", changefreq: "daily", priority: "0.75" },
     { path: "/software-builds", changefreq: "daily", priority: "0.85" },
     ...SOFTWARE_BUILDS.map((build) => ({ path: `/software-builds/${build.id}`, changefreq: "weekly", priority: "0.78" })),
   ];
@@ -9713,16 +9712,7 @@ function indexNowKeyLocation(env) {
 }
 
 function indexNowUrls(env) {
-  const urls = [
-    ...agentIdIndexablePaths(env).map((path) => `${siteUrl(env)}${path}`),
-    `${siteUrl(env)}/agents/`,
-    `${siteUrl(env)}/social`,
-    `${siteUrl(env)}/playbook`,
-    `${siteUrl(env)}/software-builds`,
-    ...trafficPageTemplates(env).map((page) => `${siteUrl(env)}${page.path}`),
-    ...SOFTWARE_BUILDS.map((build) => `${siteUrl(env)}/software-builds/${build.id}`),
-  ];
-  return [...new Set(urls)];
+  return [...new Set(agentIdIndexablePaths(env).map((path) => `${siteUrl(env)}${path}`))];
 }
 
 function indexNowStatus(env) {
