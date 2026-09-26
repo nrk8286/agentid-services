@@ -672,8 +672,8 @@ if (!workerSource.includes("LEGACY_WEBHOOK_HOSTS.has(requestHost) && LEGACY_WEBH
 if (!workerSource.includes('url.hostname = isAgentIdServicesHost ? "agentid.services" : CANONICAL_HOST')) {
   failures.push("agentid.services must remain on its own canonical host instead of redirecting to GPTMarketPlus");
 }
-if (!workerSource.includes('SITE_URL: "https://agentid.services"') || !workerSource.includes('ADSENSE_ENABLED: "true"')) {
-  failures.push("agentid.services must receive a host-scoped brand and review-ready AdSense configuration");
+if (!workerSource.includes('SITE_URL: "https://agentid.services"') || !workerSource.includes('ADSENSE_ENABLED: "false"')) {
+  failures.push("agentid.services must receive a host-scoped brand and disabled AdSense configuration");
 }
 if (!/"SITE_URL"\s*:\s*"https:\/\/gptmarketplus\.com"/.test(raw)) failures.push("SITE_URL must use the .com canonical origin");
 if (!/"STORAGE_SCOPE"\s*:\s*"agentid\.services"/.test(raw)) failures.push("STORAGE_SCOPE must preserve the existing production data namespace during migration");
@@ -1516,7 +1516,7 @@ const agentIdEnv = {
   BRAND_NAME: "AgentID Services",
   ADSENSE_CLIENT_ID: "ca-pub-7354323580032872",
   ADSENSE_AD_SLOT: "3045151068",
-  ADSENSE_ENABLED: "true",
+  ADSENSE_ENABLED: "false",
 };
 const agentIdHomeResponse = await handleAgentIdSiteRequest(
   new Request("https://agentid.services/"),
@@ -1530,9 +1530,11 @@ const hasAgentIdAdSenseLoader = agentIdScriptUrls.some((scriptUrl) => scriptUrl.
   && scriptUrl.pathname === "/pagead/js/adsbygoogle.js"
   && scriptUrl.searchParams.get("client") === "ca-pub-7354323580032872");
 if (!agentIdHomeBody.includes("AgentID Services")
-  || !hasAgentIdAdSenseLoader
-  || !agentIdHomeBody.includes('meta name="google-adsense-account" content="ca-pub-7354323580032872"')) {
-  failures.push("agentid.services homepage must retain AgentID branding and include the AdSense review code");
+  || hasAgentIdAdSenseLoader
+  || agentIdHomeBody.includes("pagead2.googlesyndication.com")
+  || agentIdHomeBody.includes("adsbygoogle")
+  || agentIdHomeBody.includes('meta name="google-adsense-account"')) {
+  failures.push("agentid.services homepage must retain AgentID branding without AdSense code");
 }
 const agentIdSitemapResponse = await handleAgentIdSiteRequest(
   new Request("https://agentid.services/sitemap.xml"),
@@ -1557,8 +1559,32 @@ const agentIdAdsResponse = await handleAgentIdSiteRequest(
   { waitUntil() {} },
 );
 const agentIdAdsBody = await agentIdAdsResponse.text();
-if (!agentIdAdsBody.includes("google.com, pub-7354323580032872, DIRECT, f08c47fec0942fa0")) {
-  failures.push("agentid.services ads.txt must authorize the configured AdSense publisher for site review");
+if (agentIdAdsBody.includes("google.com, pub-") || !agentIdAdsBody.includes("not active on this host")) {
+  failures.push("agentid.services ads.txt must not authorize the GPTMarketPlus AdSense publisher");
+}
+
+const agentIdChecklistResponse = await handleAgentIdSiteRequest(
+  new Request("https://agentid.services/free-ai-automation-audit-checklist"),
+  agentIdEnv,
+  { waitUntil() {} },
+);
+const agentIdChecklistBody = await agentIdChecklistResponse.text();
+if (!agentIdChecklistBody.includes("no signup required")
+  || !agentIdChecklistBody.includes("Download the checklist")
+  || agentIdChecklistBody.includes("form-gated")
+  || agentIdChecklistBody.includes("Get the Free Checklist")
+  || agentIdChecklistBody.includes("pagead2.googlesyndication.com")
+  || agentIdChecklistBody.includes("adsbygoogle")) {
+  failures.push("AgentID checklist must be ungated, downloadable, and ad-free");
+}
+const agentIdChecklistDownload = await handleAgentIdSiteRequest(
+  new Request("https://agentid.services/downloads/ai-automation-audit-checklist.md"),
+  agentIdEnv,
+  { waitUntil() {} },
+);
+if (agentIdChecklistDownload.status !== 200
+  || agentIdChecklistDownload.headers.get("content-disposition") !== 'attachment; filename="AI-Automation-Audit-Checklist.md"') {
+  failures.push("AgentID checklist download must be publicly available with a stable filename");
 }
 
 const calendarlessConsultationResponse = await handleAgentIdSiteRequest(
