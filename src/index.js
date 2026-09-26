@@ -9511,7 +9511,7 @@ function requestScopedEnv(env, url) {
       ...env,
       SITE_URL: "https://agentid.services",
       BRAND_NAME: "AgentID Services",
-      ADSENSE_ENABLED: "true",
+      ADSENSE_ENABLED: "false",
       PUBLIC_OFFER_URL: "https://agentid.services/#start",
       SUPPORT_EMAIL: env.SUPPORT_EMAIL || "admin@gptmarketplus.com",
     };
