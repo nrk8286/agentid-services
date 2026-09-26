@@ -7355,8 +7355,8 @@ function renderLeadMagnetPage(env) {
   const form = renderLeadForm({
     action: "/api/lead-magnet",
     formId: "lead-magnet-form",
-    cta: "Get the Free Checklist",
-    note: "Free AI Automation Audit Checklist. Find 10 tasks your business can automate this month.",
+    cta: "Get a Tailored Automation Plan",
+    note: "Optional. The checklist is already available above. Submit this short form only if you want a recommendation for your business.",
     turnstileHtml: renderTurnstileWidget(env),
     dataAttrs: 'data-form-type="lead_magnet" data-preview-target="#lead-magnet-delivery"',
     fields: [
@@ -7365,6 +7365,7 @@ function renderLeadMagnetPage(env) {
       { name: "phone", label: "Phone (optional)", placeholder: "(555) 555-5555", required: false },
       { name: "businessType", label: "Business type", type: "select", required: true, options: businessTypeCatalog() },
       { name: "website", label: "Website (optional)", type: "url", placeholder: "https://yourbusiness.com", required: false },
+      { name: "whatDoYouWantToAutomate", label: "What should the first workflow improve?", type: "textarea", rows: 4, placeholder: "Examples: missed leads, appointment requests, customer questions, or repetitive admin work.", required: true },
       { name: "contactConsent", label: "I agree to be contacted about my request.", type: "checkbox", required: true },
       { name: "marketingConsent", label: "Send me occasional practical AI workflow tips and Launch Kit updates.", type: "checkbox", required: false },
     ],
@@ -7373,10 +7374,15 @@ function renderLeadMagnetPage(env) {
   const body = `
     <section class="page-hero split-section">
       <div>
-        ${renderPageTitle("Lead Magnet", "Free AI Automation Audit Checklist", "Find 10 tasks your business can automate this month.")}
-        <p>Use this checklist to identify the fastest, most practical place to start with AI automation.</p>
+        ${renderPageTitle("Free resource", "Free AI Automation Audit Checklist", "Find 10 tasks your business can automate this month—no signup required.")}
+        <p>Use the checklist immediately, download a copy, and choose one workflow with a clear owner, measurable outcome, and safe human handoff.</p>
+        <div class="cta-row">
+          <a class="button-primary" href="/downloads/ai-automation-audit-checklist.md" download="AI-Automation-Audit-Checklist.md" data-track-event="resource_download" data-track-label="Download Free AI Automation Audit Checklist">Download the checklist</a>
+          <a class="button-secondary" href="${escapeHtml(directLaunchKitUrl)}" data-track-event="product_view" data-track-label="View AI Agent Launch Kit">See the $29 Launch Kit</a>
+        </div>
       </div>
       <div class="side-note">
+        <p class="card-kicker">Use it now</p>
         <ol class="checklist">
           ${LEAD_MAGNET_CHECKLIST.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
         </ol>
@@ -7384,17 +7390,29 @@ function renderLeadMagnetPage(env) {
     </section>
     <section class="section split-section">
       <div>
-        ${form}
-        <div id="lead-magnet-delivery" class="review-panel lead-magnet-delivery" aria-live="polite">
-          <p class="form-note">Submit the short form and the checklist will appear here immediately.</p>
+        ${renderSectionTitle("Prioritize", "Score the opportunities before you automate", "Choose the workflow with the best combination of frequency, time cost, business value, data readiness, ownership, and manageable risk.")}
+        <div class="review-panel">
+          <ol class="benefit-list compact">
+            <li>Write down the repeated task and who owns it.</li>
+            <li>Record the current volume, time, and missed-opportunity cost.</li>
+            <li>Mark what information the agent may use and what it must never handle.</li>
+            <li>Define the human handoff and the metric that proves the workflow works.</li>
+          </ol>
         </div>
       </div>
       <div class="side-note">
-        <p class="card-kicker">After submit</p>
-        <p class="card-kicker">Already know what you need?</p>
-        <p>Skip the checklist form and open the private $29 Launch Kit workspace path.</p>
-        <a class="button-secondary" href="${escapeHtml(directLaunchKitUrl)}" data-track-event="product_view" data-track-label="Lead Magnet Direct Launch Kit CTA">Open the $29 Launch Kit</a>
-        <p>Your checklist appears immediately. We’ll also prepare consent-aware follow-up and show the $29 Launch Kit as the self-serve next step.</p>
+        <p class="card-kicker">No hidden gate</p>
+        <strong>Read the full checklist or download it without creating an account.</strong>
+        <p>The optional form below is only for visitors who want a tailored recommendation. It is not required to access the resource.</p>
+      </div>
+    </section>
+    <section class="section split-section">
+      <div>${form}</div>
+      <div class="side-note">
+        <p class="card-kicker">Optional next step</p>
+        <strong>Want help choosing the first workflow?</strong>
+        <p>We’ll review the problem you describe, recommend the best starting package, and point you to the next practical step.</p>
+        <p><a class="button-secondary" href="/book-a-consultation" data-track-event="cta_click" data-track-label="Book a Free Strategy Call from Checklist">Book a free strategy call</a></p>
       </div>
     </section>
   `;
@@ -7409,7 +7427,62 @@ function renderLeadMagnetPage(env) {
   });
 }
 
+export function renderLeadMagnetMarkdown(env = {}) {
+  const origin = siteUrl(env);
+  return `# Free AI Automation Audit Checklist
 
+Use this checklist to find practical automation opportunities without starting with a vague chatbot project.
+
+## Ten opportunities to review
+
+${LEAD_MAGNET_CHECKLIST.map((item, index) => `${index + 1}. ${item}`).join("\n")}
+
+## Prioritize one workflow
+
+For each opportunity, score it from 1 (low) to 5 (high):
+
+| Workflow | Frequency | Time cost | Business value | Data readiness | Clear owner | Risk if wrong | Total |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| | | | | | | | |
+| | | | | | | | |
+| | | | | | | | |
+
+Choose the workflow with frequent demand, usable information, a clear owner, and a safe boundary.
+
+## Write the first workflow brief
+
+- Business outcome:
+- Workflow owner:
+- Trigger:
+- Information the agent may use:
+- Questions the agent may ask:
+- Action the agent may take:
+- Action requiring human approval:
+- Escalation condition:
+- Human handoff destination:
+- Baseline metric:
+- 30-day target:
+
+## Launch guardrails
+
+- The agent identifies itself as automated.
+- It answers only from approved business information.
+- It does not invent prices, availability, policies, or outcomes.
+- It asks only for information required for the next step.
+- It respects consent and opt-out requests.
+- It escalates uncertainty and high-consequence actions.
+
+## Thirty-day review
+
+Track response time, workflow starts, completed workflows, qualified handoffs, bookings or quotes, human escalations, wrong answers, opt-outs, time saved, and operating cost.
+
+At day 30, decide whether to keep, adjust, expand, or stop. Expansion is earned by reliable outcomes—not message volume.
+
+## Optional implementation help
+
+AgentID Services can turn this plan into a scoped workflow. Start with the [free strategy call](${origin}/book-a-consultation) or review the [$29 AI Agent Launch Kit](${origin}/ai-agent-launch-kit).
+`;
+}
 
 function validateRequiredFields(body, fields) {
   const missing = [];
@@ -8740,7 +8813,7 @@ const AGENTID_PUBLIC_PAGES = [
   { path: "/privacy", title: "Privacy Policy", description: "Privacy, data usage, and consent terms." },
   { path: "/terms", title: "Terms of Service", description: "Terms and use conditions for GPTMarketPlus." },
   { path: "/refund-policy", title: "Refund Policy", description: "Refund, replacement, and cancellation terms for GPTMarketPlus products and services." },
-  { path: "/free-ai-automation-audit-checklist", title: "Free AI Automation Audit Checklist", description: "A form-gated checklist that helps businesses find 10 automation opportunities this month." },
+  { path: "/free-ai-automation-audit-checklist", title: "Free AI Automation Audit Checklist", description: "An ungated checklist that helps businesses find 10 practical automation opportunities this month." },
 ];
 
 function renderNav(activePath) {
@@ -9284,6 +9357,9 @@ function adSenseAdSlot(env) {
 }
 
 function adSenseEnabled(env) {
+  // AgentID Services is a separate, ad-free property. Keep this host-level
+  // safeguard even if a shared production variable contains the .com publisher ID.
+  if (isAgentIdSite(env)) return false;
   return String(env.ADSENSE_ENABLED || "true").trim().toLowerCase() !== "false";
 }
 
@@ -13550,7 +13626,7 @@ function renderLlmsFullTxt(env) {
             : page.path === "/book-a-consultation"
               ? "Booking-focused page with qualification and calendar integration."
               : page.path === "/free-ai-automation-audit-checklist"
-                ? "Form-gated lead magnet to identify automation opportunities."
+                ? "Ungated checklist for identifying automation opportunities, with an optional tailored-plan request."
                 : "Business-focused public page.";
     return `### ${page.path}\n${page.title}\n${page.description}\n${extra}`;
   }).join("\n\n");
@@ -14206,6 +14282,15 @@ export async function handleAgentIdSiteRequest(request, env, ctx) {
 
   if (path === "/ads.txt") {
     return textResponse(renderAdsTxt(env));
+  }
+
+  if (path === "/downloads/ai-automation-audit-checklist.md" && method === "GET") {
+    return textResponse(renderLeadMagnetMarkdown(env), 200, {
+      "content-type": "text/markdown; charset=utf-8",
+      "content-disposition": 'attachment; filename="AI-Automation-Audit-Checklist.md"',
+      "cache-control": "public, max-age=3600",
+      "x-robots-tag": "noindex, nofollow, noarchive",
+    });
   }
 
   if (path === `/${GOOGLE_SITE_VERIFICATION_FILE}`) {
@@ -15076,9 +15161,10 @@ async function handleLeadMagnetSubmission(request, env, ctx) {
       "name",
       "email",
       "businessType",
+      "whatDoYouWantToAutomate",
       "contactConsent",
     ],
-    message: "Your checklist is ready below. We also included the $29 Launch Kit as the self-serve next step.",
+    message: "Your request has been received. We’ll review the workflow you described and recommend the next practical step.",
     trackEvent: "lead_magnet_submit",
     crmStage: "nurture",
     customerBlueprintHtml: renderLeadMagnetDelivery(env),
