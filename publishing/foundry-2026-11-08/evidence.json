@@ -1,0 +1,25 @@
+{
+  "checked_date": "2026-11-08",
+  "preparation": "AI-assisted writing and first-party automated checks by the development agent; no independent or named human review claimed.",
+  "environment": "Python 3.13.9 in WSL; temporary extraction directories; included synthetic examples only",
+  "products": [
+    {
+      "name": "CueKeeper 1.0.0",
+      "product_url": "https://score.agentid.life/cuekeeper",
+      "archive_sha256": "b9d7fdb31bdbe69423b5031e1681a9868406b7fb093cef82b8db66396fcc6dcc",
+      "command": "python3 app.py convert samples/valid.srt -o output --dialogue-only",
+      "exit_status": 0,
+      "observed_files": ["output/batch-summary.json", "output/valid.dialogue.txt", "output/valid.md", "output/valid.report.json"]
+    },
+    {
+      "name": "Supabase Recovery Evidence Agent 1.0.0",
+      "product_url": "https://score.agentid.life/supabase-recovery",
+      "archive_sha256": "5cd828eafe16cc1243767a06659fadb52b655605dbccfdaa2e4b97b82ab97083",
+      "command": "python3 app.py examples/sample_incident.json --output-dir output --clock 2026-08-29T01:00:00Z",
+      "exit_status": 0,
+      "observed_files": ["output/escalation.md", "output/report.json"]
+    }
+  ],
+  "public_offer_check": {"paypal_usd_per_tool": "1.00", "usdc_on_base_per_tool": "1.00", "declared_python_requirement": "3.10+", "third_party_python_dependencies": false},
+  "limits": ["Synthetic sample execution and file creation only; not an exhaustive product evaluation.", "No real customer input, payment, support submission, infrastructure recovery, measured savings, revenue, or profit was established.", "The sample execution used Python 3.13.9; it does not independently verify every supported Python version."]
+}

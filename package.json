@@ -25,7 +25,8 @@
   "type": "module",
   "scripts": {
     "check": "node --check src/index.js && node --check src/revenue-agent.js && node --check src/agentid-site.js && node --check src/customer-apps.js && node --check src/customer-app-ui.js",
-    "test": "npm run check && npm run test:revenue-agent && npm run validate:bindings && npm run validate:links && npm run validate:google-ads && npm run validate:paypal-cpc && npm run validate:paypal-subscription-approvals",
+    "test": "npm run check && npm run test:publication && npm run test:revenue-agent && npm run validate:bindings && npm run validate:links && npm run validate:google-ads && npm run validate:paypal-cpc && npm run validate:paypal-subscription-approvals",
+    "test:publication": "node --test tests/foundry-publication.test.mjs",
     "test:revenue-agent": "node --test tests/revenue-agent.test.mjs",
     "test:revenue-agent:live": "node scripts/validate-revenue-agent-live.mjs",
     "validate": "npm test && npx wrangler deploy --dry-run",
