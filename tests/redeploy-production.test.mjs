@@ -7,7 +7,7 @@ const names = ["portfolio-wrapper.mjs", "index.js", "portfolio-ui.mjs", "foundry
 const bytes = (name) => Buffer.from(`// fixture ${name}\nexport default {};\n`);
 const settings = { bindings: [{ name: "FLAGSHIP", type: "flagship", app_id: "existing-app" }], compatibility_date: "2026-08-08", annotations: { deployment: "before" } };
 
-function harness({ changeContentAt, changeSettingsAt, entrypoint = "portfolio-wrapper.mjs", trackedMismatch = false, extraModule = false, failUpload = false, staleAtUpload = false, missingEtag = false, uploadVersion } = {}) {
+function harness({ changeContentAt, changeSettingsAt, entrypoint = "portfolio-wrapper.mjs", trackedMismatch = false, extraModule = false, failUpload = false, staleAtUpload = false, missingEtag = false, uploadVersion = "version123" } = {}) {
   let contentReads = 0, settingsReads = 0, uploadAttempts = 0;
   const uploads = [];
   async function fetchImpl(url, options) {
@@ -116,4 +116,10 @@ test("maps the upload's compact version ID to the canonical deployment and versi
 
 test("a different latest version cannot be reported as this upload's deployment", async () => {
   await assert.rejects(harness({ uploadVersion: "other-version" }).run(), /canonical version differs/);
+});
+
+test("a missing upload version ID cannot report an uncorrelated deployment", async () => {
+  const h = harness({ uploadVersion: null });
+  await assert.rejects(h.run(), /omitted the version ID/);
+  assert.equal(h.uploadAttempts, 1);
 });

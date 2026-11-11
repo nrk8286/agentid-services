@@ -78,6 +78,7 @@ export async function redeployProduction({ env = process.env, fetchImpl = fetch,
   form.set("metadata", JSON.stringify({ main_module: ENTRYPOINT }));
   for (const { name, bytes, type } of before.modules) form.set(name, new Blob([bytes], { type }), name);
   const release = await json("/content", { method: "PUT", headers: { "If-Match": before.etag }, body: form });
+  assert.ok(typeof release.deployment_id === "string" && release.deployment_id.length > 0, "Upload response omitted the version ID; inspect production before any retry");
   const after = await snapshot();
   assert.deepEqual(manifest(after), expected, "Published content differs from the verified release; inspect production before any retry");
   assert.deepEqual(runtimeSettings(after.settings), runtimeSettings(before.settings), "Runtime settings changed; inspect production before any retry");
@@ -85,9 +86,7 @@ export async function redeployProduction({ env = process.env, fetchImpl = fetch,
   assert.ok(deployment?.id, "Cloudflare did not return a canonical deployment ID");
   assert.equal(deployment.versions?.length, 1, "Expected one fully deployed Worker version");
   assert.equal(deployment.versions[0].percentage, 100, "Expected the verified version to receive all traffic");
-  if (release.deployment_id) {
-    assert.equal(deployment.versions[0].version_id.replaceAll("-", ""), release.deployment_id.replaceAll("-", ""), "The canonical version differs from the upload response");
-  }
+  assert.equal(deployment.versions[0].version_id.replaceAll("-", ""), release.deployment_id.replaceAll("-", ""), "The canonical version differs from the upload response");
   return {
     worker: WORKER,
     sourceCommit: env.GITHUB_SHA || null,
