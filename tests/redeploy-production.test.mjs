@@ -7,8 +7,8 @@ const names = ["portfolio-wrapper.mjs", "index.js", "portfolio-ui.mjs", "foundry
 const bytes = (name) => Buffer.from(`// fixture ${name}\nexport default {};\n`);
 const settings = { bindings: [{ name: "FLAGSHIP", type: "flagship", app_id: "existing-app" }], compatibility_date: "2026-08-08", annotations: { deployment: "before" } };
 
-function harness({ changeContentAt, changeSettingsAt, entrypoint = "portfolio-wrapper.mjs", trackedMismatch = false, extraModule = false, failUpload = false } = {}) {
-  let contentReads = 0, settingsReads = 0;
+function harness({ changeContentAt, changeSettingsAt, entrypoint = "portfolio-wrapper.mjs", trackedMismatch = false, extraModule = false, failUpload = false, staleAtUpload = false, missingEtag = false, uploadVersion = "version123" } = {}) {
+  let contentReads = 0, settingsReads = 0, uploadAttempts = 0;
   const uploads = [];
   async function fetchImpl(url, options) {
     assert.equal(new URL(url).origin, "https://api.cloudflare.com");
@@ -23,6 +23,7 @@ function harness({ changeContentAt, changeSettingsAt, entrypoint = "portfolio-wr
       }
       const response = new Response(form);
       response.headers.set("cf-entrypoint", entrypoint);
+      if (!missingEtag) response.headers.set("etag", '"verified-content-etag"');
       return response;
     }
     if (url.endsWith("/settings")) {
@@ -32,13 +33,20 @@ function harness({ changeContentAt, changeSettingsAt, entrypoint = "portfolio-wr
       if (settingsReads === 3) result.annotations.deployment = "after";
       return Response.json({ success: true, result });
     }
+    if (url.endsWith("/deployments")) {
+      return Response.json({ success: true, result: { deployments: [{ id: "release-123", versions: [{ version_id: "version-123", percentage: 100 }] }] } });
+    }
     assert.ok(url.endsWith("/content"));
     assert.equal(options.method, "PUT");
+    assert.equal(options.headers["If-Match"], '"verified-content-etag"');
+    uploadAttempts++;
+    if (staleAtUpload) return new Response(null, { status: 412 });
     uploads.push(options.body);
-    return Response.json({ success: !failUpload, result: { deployment_id: "release-123" }, errors: failUpload ? [{ code: 10023 }] : [] });
+    return Response.json({ success: !failUpload, result: { etag: "verified-content-etag", deployment_id: uploadVersion }, errors: failUpload ? [{ code: 10023 }] : [] });
   }
   return {
     uploads,
+    get uploadAttempts() { return uploadAttempts; },
     run: () => redeployProduction({ env, fetchImpl, readFileImpl: async (url) => trackedMismatch ? Buffer.from("changed locally") : bytes(url.pathname.split("/").at(-1)) }),
   };
 }
@@ -47,6 +55,7 @@ test("releases every verified module through content-only replacement and preser
   const h = harness();
   const result = await h.run();
   assert.equal(result.deploymentId, "release-123");
+  assert.equal(result.versionId, "version-123");
   assert.equal(result.sourceCommit, "test-commit");
   assert.equal(result.runtimeSettingsPreserved, true);
   assert.equal(h.uploads.length, 1);
@@ -84,4 +93,33 @@ test("a rejected Cloudflare upload cannot report a successful release", async ()
   const h = harness({ failUpload: true });
   await assert.rejects(h.run(), /rejected the request.*10023/);
   assert.equal(h.uploads.length, 1);
+});
+
+test("a change after preflight is rejected by the conditional upload without retry", async () => {
+  const h = harness({ staleAtUpload: true });
+  await assert.rejects(h.run(), /HTTP 412/);
+  assert.equal(h.uploads.length, 0);
+  assert.equal(h.uploadAttempts, 1);
+});
+
+test("missing ETag aborts instead of falling back to an unconditional write", async () => {
+  const h = harness({ missingEtag: true });
+  await assert.rejects(h.run(), /strong live content ETag/);
+  assert.equal(h.uploads.length, 0);
+});
+
+test("maps the upload's compact version ID to the canonical deployment and version", async () => {
+  const result = await harness({ uploadVersion: "version123" }).run();
+  assert.equal(result.deploymentId, "release-123");
+  assert.equal(result.versionId, "version-123");
+});
+
+test("a different latest version cannot be reported as this upload's deployment", async () => {
+  await assert.rejects(harness({ uploadVersion: "other-version" }).run(), /canonical version differs/);
+});
+
+test("a missing upload version ID cannot report an uncorrelated deployment", async () => {
+  const h = harness({ uploadVersion: null });
+  await assert.rejects(h.run(), /omitted the version ID/);
+  assert.equal(h.uploadAttempts, 1);
 });
