@@ -2,6 +2,11 @@ name: Deploy Cloudflare Worker
 
 on:
   workflow_dispatch:
+    inputs:
+      inspect_only:
+        description: Inspect release and conditional-request support without publishing
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -32,7 +37,14 @@ jobs:
       - run: npm ci
       - run: npm run validate
       - name: Redeploy verified production publisher content
+        if: ${{ !inputs.inspect_only }}
         run: node scripts/redeploy-production.mjs
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Inspect production release without publishing
+        if: ${{ inputs.inspect_only }}
+        run: node scripts/inspect-production-release.mjs
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
