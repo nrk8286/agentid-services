@@ -49,6 +49,8 @@ Production currently has a newer private publisher runtime than `src/index.js`.
 The deployment command verifies that the two tracked publication modules match
 production, rechecks all five live modules and settings for concurrent changes,
 then re-publishes those exact modules through Cloudflare's [content-only API](https://developers.cloudflare.com/api/resources/workers/subresources/scripts/subresources/content/methods/update/).
+The upload includes the verified strong ETag in `If-Match`; a failed precondition
+aborts without retry. Release and version IDs are read from the deployments API.
 It verifies every module hash and the runtime settings afterward. Source and
 settings remain in memory; only release IDs and module hashes enter the logs.
 This releases toolchain/workflow corrections without reverting the live publisher

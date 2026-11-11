@@ -34,7 +34,7 @@ export async function redeployProduction({ env = process.env, fetchImpl = fetch,
   async function request(path, options = {}) {
     const response = await fetchImpl(base + path, {
       ...options,
-      headers: { authorization: `Bearer ${env.CLOUDFLARE_API_TOKEN}` },
+      headers: { ...options.headers, authorization: `Bearer ${env.CLOUDFLARE_API_TOKEN}` },
       redirect: "error",
       signal: AbortSignal.timeout(60_000),
     });
@@ -48,6 +48,8 @@ export async function redeployProduction({ env = process.env, fetchImpl = fetch,
   }
   async function content() {
     const response = await request("/content/v2");
+    const etag = response.headers.get("etag");
+    assert.match(etag || "", /^"[^"\r\n]+"$/, "A strong live content ETag is required for conditional publication");
     assert.equal(response.headers.get("cf-entrypoint"), ENTRYPOINT, "Unexpected live entry point; refusing to overwrite production");
     assert.match(response.headers.get("content-type") || "", /^multipart\/form-data/i, "Expected a module Worker");
     const modules = [];
@@ -56,7 +58,7 @@ export async function redeployProduction({ env = process.env, fetchImpl = fetch,
       modules.push({ name, type: file.type, bytes: Buffer.from(await file.arrayBuffer()) });
     }
     assert.deepEqual(modules.map((m) => m.name).sort(), MODULES, "Unexpected module set; inspect the live release before proceeding");
-    return { entrypoint: ENTRYPOINT, modules };
+    return { entrypoint: ENTRYPOINT, modules, etag };
   }
   async function snapshot() {
     const [code, settings] = await Promise.all([content(), json("/settings")]);
@@ -70,18 +72,27 @@ export async function redeployProduction({ env = process.env, fetchImpl = fetch,
   // Re-read immediately before upload. Never replay a stale captured release.
   const latest = await snapshot();
   assert.deepEqual(manifest(latest), expected, "Production content changed during verification; retry after review");
+  assert.equal(latest.etag, before.etag, "Production ETag changed during verification; retry after review");
   assert.deepEqual(latest.settings, before.settings, "Production settings changed during verification; retry after review");
   const form = new FormData();
   form.set("metadata", JSON.stringify({ main_module: ENTRYPOINT }));
   for (const { name, bytes, type } of before.modules) form.set(name, new Blob([bytes], { type }), name);
-  const release = await json("/content", { method: "PUT", body: form });
+  const release = await json("/content", { method: "PUT", headers: { "If-Match": before.etag }, body: form });
   const after = await snapshot();
   assert.deepEqual(manifest(after), expected, "Published content differs from the verified release; inspect production before any retry");
   assert.deepEqual(runtimeSettings(after.settings), runtimeSettings(before.settings), "Runtime settings changed; inspect production before any retry");
+  const deployment = (await json("/deployments")).deployments?.[0];
+  assert.ok(deployment?.id, "Cloudflare did not return a canonical deployment ID");
+  assert.equal(deployment.versions?.length, 1, "Expected one fully deployed Worker version");
+  assert.equal(deployment.versions[0].percentage, 100, "Expected the verified version to receive all traffic");
+  if (release.deployment_id) {
+    assert.equal(deployment.versions[0].version_id.replaceAll("-", ""), release.deployment_id.replaceAll("-", ""), "The canonical version differs from the upload response");
+  }
   return {
     worker: WORKER,
     sourceCommit: env.GITHUB_SHA || null,
-    deploymentId: release.deployment_id || null,
+    deploymentId: deployment.id,
+    versionId: deployment.versions[0].version_id,
     etag: release.etag || null,
     modifiedOn: release.modified_on || null,
     content: expected,
