@@ -32,7 +32,7 @@
     "test:revenue-agent:live": "node scripts/validate-revenue-agent-live.mjs",
     "validate": "npm test && npx wrangler deploy --dry-run",
     "dev": "wrangler dev --port 8787",
-    "deploy": "npm run validate && node scripts/redeploy-production.mjs",
+    "deploy": "npm run validate && node scripts/inspect-production-release.mjs && node scripts/redeploy-production.mjs",
     "migrate:d1": "wrangler d1 migrations apply agentid-services --remote",
     "tail": "wrangler tail",
     "validate:bindings": "node scripts/validate-cloudflare-bindings.mjs",
