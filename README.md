@@ -43,7 +43,21 @@ npx wrangler deploy --dry-run
 npm run deploy
 ```
 
-The shell needs `CLOUDFLARE_API_TOKEN` set for `wrangler deploy`.
+Set `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` before `npm run deploy`, or run the **Deploy Cloudflare Worker** GitHub workflow.
+
+Production currently has a newer private publisher runtime than `src/index.js`.
+The deployment command verifies that the two tracked publication modules match
+production, rechecks all five live modules and settings for concurrent changes,
+then re-publishes those exact modules through Cloudflare's [content-only API](https://developers.cloudflare.com/api/resources/workers/subresources/scripts/subresources/content/methods/update/).
+It verifies every module hash and the runtime settings afterward. Source and
+settings remain in memory; only release IDs and module hashes enter the logs.
+This releases toolchain/workflow corrections without reverting the live publisher
+or changing bindings, routes, secrets, feature flags, or database schema.
+
+Do not use `wrangler deploy` to publish the older repository entry point.
+Runtime or article changes require a separately reviewed publication based on
+the current private live source, as documented in `publishing/`. A source or
+module mismatch aborts deployment instead of overwriting a newer release.
 
 The AgentID Worker uses a SQLite-backed Durable Object alarm to run its guarded revenue-agent cycle every six hours without consuming an account Cron Trigger. A health request idempotently initializes or repairs the alarm, and `GET /api/agents/scheduler` reports its next run and last outcome. The Worker also exposes the duplicate-run-guarded `POST /api/agents/run` endpoint for operational testing and recovery.
 
