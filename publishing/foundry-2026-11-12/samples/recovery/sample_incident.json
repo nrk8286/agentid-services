@@ -1,0 +1,22 @@
+{
+  "schema_version": "1.0",
+  "incident": {
+    "incident_id": "INC-DEMO-001",
+    "project_alias": "production-api-redacted",
+    "region": "us-example",
+    "incident_types": ["billing", "unpause", "dns", "service_health"],
+    "impact_summary": "Customers reported API errors while the project state appeared inconsistent.",
+    "impact_start": "2026-08-28T18:00:00-05:00"
+  },
+  "evidence": [
+    {"source_id": "billing-1", "category": "billing", "subject": "invoice", "observed_at": "2026-08-28T18:10:00-05:00", "observed_state": "PAID", "collection_method": "dashboard screenshot", "artifact_ref": "local:billing-redacted.png", "notes": "Operator observed paid status."},
+    {"source_id": "control-1", "category": "control_plane", "subject": "project-main", "observed_at": "2026-08-28T23:15:00Z", "observed_state": "PAUSED", "collection_method": "dashboard observation"},
+    {"source_id": "control-2", "category": "control_plane", "subject": "project-main", "observed_at": "2026-08-28T23:18:00Z", "observed_state": "RUNNING", "collection_method": "dashboard observation"},
+    {"source_id": "health-1", "category": "service_health", "subject": "rest-api", "observed_at": "2026-08-28T23:20:00Z", "observed_state": "UNHEALTHY", "collection_method": "redacted client observation"},
+    {"source_id": "dns-1", "category": "dns", "subject": "api-host", "timestamp_unknown": true, "observed_state": "RESOLVING", "collection_method": "safe client lookup", "notes": "Unknown collection time retained explicitly."}
+  ],
+  "actions": [{"timestamp": "2026-08-28T23:12:00Z", "description": "Operator selected the dashboard unpause control.", "outcome": "Dashboard later showed differing states.", "source_id": "control-1"}],
+  "current_state": [],
+  "support_case": {},
+  "review": {"status": "pending", "notes": "Review before sharing."}
+}

@@ -1,0 +1,268 @@
+{
+  "actions": [
+    {
+      "description": "Operator selected the dashboard unpause control.",
+      "outcome": "Dashboard later showed differing states.",
+      "source_id": "control-1",
+      "timestamp": "2026-08-28T23:12:00Z"
+    }
+  ],
+  "checklist": [
+    {
+      "id": "verify_billing",
+      "instruction": "Review supplied billing evidence and record a timestamped confirmation.",
+      "status": "completed",
+      "type": "operator_action"
+    },
+    {
+      "id": "record_control_plane",
+      "instruction": "Record the current control-plane project state with source and time.",
+      "status": "completed",
+      "type": "operator_action"
+    },
+    {
+      "id": "record_service_health",
+      "instruction": "Record current service-health observations without changing infrastructure.",
+      "status": "completed",
+      "type": "operator_action"
+    },
+    {
+      "id": "check_dns",
+      "instruction": "Check DNS resolution from a safe client and preserve the observed result.",
+      "status": "completed",
+      "type": "operator_action"
+    },
+    {
+      "id": "preserve_errors",
+      "instruction": "Preserve representative application errors with timestamps and sensitive data removed.",
+      "status": "pending",
+      "type": "operator_action"
+    },
+    {
+      "id": "manual_escalation",
+      "instruction": "After operator review, manually escalate to support if observed states remain inconsistent.",
+      "status": "pending",
+      "type": "operator_action"
+    }
+  ],
+  "configuration": {
+    "contradiction_window_minutes": 15
+  },
+  "contradictions": [
+    {
+      "contradiction_id": "ctr-650aa209d7",
+      "explanation": "Incompatible observed states were recorded within the configured 15-minute window.",
+      "source_ids": [
+        "control-1",
+        "control-2"
+      ],
+      "states": [
+        "PAUSED",
+        "RUNNING"
+      ],
+      "subject": "project-main",
+      "type": "derived_finding"
+    }
+  ],
+  "current_state": [],
+  "generated_at": "2026-08-29T01:00:00Z",
+  "incident": {
+    "impact_start": "2026-08-28T18:00:00-05:00",
+    "impact_summary": "Customers reported API errors while the project state appeared inconsistent.",
+    "incident_id": "INC-DEMO-001",
+    "incident_types": [
+      "billing",
+      "unpause",
+      "dns",
+      "service_health"
+    ],
+    "project_alias": "production-api-redacted",
+    "region": "us-example"
+  },
+  "missing_evidence": [
+    {
+      "detail": "No explicit current project-state observation was supplied.",
+      "id": "current_project_state",
+      "type": "derived_finding"
+    },
+    {
+      "detail": "No impact end time was supplied.",
+      "id": "impact_end_time",
+      "type": "derived_finding"
+    },
+    {
+      "detail": "No support case identifier was supplied.",
+      "id": "support_case_identifier",
+      "type": "derived_finding"
+    }
+  ],
+  "normalized_evidence": [
+    {
+      "artifact_ref": "local:billing-redacted.png",
+      "category": "billing",
+      "collection_method": "dashboard screenshot",
+      "notes": "Operator observed paid status.",
+      "observed_at_original": "2026-08-28T18:10:00-05:00",
+      "observed_at_utc": "2026-08-28T23:10:00Z",
+      "observed_state": "PAID",
+      "source_id": "billing-1",
+      "subject": "invoice",
+      "timestamp_known": true,
+      "type": "supplied_observation"
+    },
+    {
+      "artifact_ref": null,
+      "category": "control_plane",
+      "collection_method": "dashboard observation",
+      "notes": null,
+      "observed_at_original": "2026-08-28T23:15:00Z",
+      "observed_at_utc": "2026-08-28T23:15:00Z",
+      "observed_state": "PAUSED",
+      "source_id": "control-1",
+      "subject": "project-main",
+      "timestamp_known": true,
+      "type": "supplied_observation"
+    },
+    {
+      "artifact_ref": null,
+      "category": "control_plane",
+      "collection_method": "dashboard observation",
+      "notes": null,
+      "observed_at_original": "2026-08-28T23:18:00Z",
+      "observed_at_utc": "2026-08-28T23:18:00Z",
+      "observed_state": "RUNNING",
+      "source_id": "control-2",
+      "subject": "project-main",
+      "timestamp_known": true,
+      "type": "supplied_observation"
+    },
+    {
+      "artifact_ref": null,
+      "category": "service_health",
+      "collection_method": "redacted client observation",
+      "notes": null,
+      "observed_at_original": "2026-08-28T23:20:00Z",
+      "observed_at_utc": "2026-08-28T23:20:00Z",
+      "observed_state": "UNHEALTHY",
+      "source_id": "health-1",
+      "subject": "rest-api",
+      "timestamp_known": true,
+      "type": "supplied_observation"
+    },
+    {
+      "artifact_ref": null,
+      "category": "dns",
+      "collection_method": "safe client lookup",
+      "notes": "Unknown collection time retained explicitly.",
+      "observed_at_original": null,
+      "observed_at_utc": null,
+      "observed_state": "RESOLVING",
+      "source_id": "dns-1",
+      "subject": "api-host",
+      "timestamp_known": false,
+      "type": "supplied_observation"
+    }
+  ],
+  "provenance": {
+    "billing-1": {
+      "artifact_ref": "local:billing-redacted.png",
+      "category": "billing"
+    },
+    "control-1": {
+      "artifact_ref": null,
+      "category": "control_plane"
+    },
+    "control-2": {
+      "artifact_ref": null,
+      "category": "control_plane"
+    },
+    "dns-1": {
+      "artifact_ref": null,
+      "category": "dns"
+    },
+    "health-1": {
+      "artifact_ref": null,
+      "category": "service_health"
+    }
+  },
+  "report_schema_version": "1.0",
+  "review": {
+    "notes": "Review before sharing.",
+    "status": "pending"
+  },
+  "timeline": [
+    {
+      "artifact_ref": "local:billing-redacted.png",
+      "category": "billing",
+      "collection_method": "dashboard screenshot",
+      "notes": "Operator observed paid status.",
+      "observed_at_original": "2026-08-28T18:10:00-05:00",
+      "observed_at_utc": "2026-08-28T23:10:00Z",
+      "observed_state": "PAID",
+      "source_id": "billing-1",
+      "subject": "invoice",
+      "timestamp_known": true,
+      "type": "supplied_observation"
+    },
+    {
+      "artifact_ref": null,
+      "category": "control_plane",
+      "collection_method": "dashboard observation",
+      "notes": null,
+      "observed_at_original": "2026-08-28T23:15:00Z",
+      "observed_at_utc": "2026-08-28T23:15:00Z",
+      "observed_state": "PAUSED",
+      "source_id": "control-1",
+      "subject": "project-main",
+      "timestamp_known": true,
+      "type": "supplied_observation"
+    },
+    {
+      "artifact_ref": null,
+      "category": "control_plane",
+      "collection_method": "dashboard observation",
+      "notes": null,
+      "observed_at_original": "2026-08-28T23:18:00Z",
+      "observed_at_utc": "2026-08-28T23:18:00Z",
+      "observed_state": "RUNNING",
+      "source_id": "control-2",
+      "subject": "project-main",
+      "timestamp_known": true,
+      "type": "supplied_observation"
+    },
+    {
+      "artifact_ref": null,
+      "category": "service_health",
+      "collection_method": "redacted client observation",
+      "notes": null,
+      "observed_at_original": "2026-08-28T23:20:00Z",
+      "observed_at_utc": "2026-08-28T23:20:00Z",
+      "observed_state": "UNHEALTHY",
+      "source_id": "health-1",
+      "subject": "rest-api",
+      "timestamp_known": true,
+      "type": "supplied_observation"
+    },
+    {
+      "artifact_ref": null,
+      "category": "dns",
+      "collection_method": "safe client lookup",
+      "notes": "Unknown collection time retained explicitly.",
+      "observed_at_original": null,
+      "observed_at_utc": null,
+      "observed_state": "RESOLVING",
+      "source_id": "dns-1",
+      "subject": "api-host",
+      "timestamp_known": false,
+      "type": "supplied_observation"
+    }
+  ],
+  "validation": {
+    "input_schema_version": "1.0",
+    "secret_scan": "passed",
+    "status": "passed"
+  },
+  "warnings": [
+    "Evidence is operator supplied and has not been independently verified."
+  ]
+}

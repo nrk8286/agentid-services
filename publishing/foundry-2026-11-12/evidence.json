@@ -1,0 +1,77 @@
+{
+  "checked_at": "2026-11-13T05:11:37.440Z",
+  "publication_date": "2026-11-12",
+  "timezone": "America/Chicago",
+  "python": "3.13.9",
+  "environment": "isolated temporary directories under WSL",
+  "method": "first-party automated sample execution",
+  "products": [
+    {
+      "product": "cuekeeper",
+      "version": "1.0.0",
+      "archive_sha256": "b9d7fdb31bdbe69423b5031e1681a9868406b7fb093cef82b8db66396fcc6dcc",
+      "command": "python3 app.py convert samples/valid.srt -o output --dialogue-only",
+      "exit_status": 0,
+      "files": [
+        {
+          "source": "samples/valid.srt",
+          "published": "samples/cuekeeper/valid.srt",
+          "sha256": "d3ba010668f832894357de0c8b0074bf52eb30fde17b2f6c37d2ace8ce533669",
+          "bytes": 139
+        },
+        {
+          "source": "output/valid.md",
+          "published": "samples/cuekeeper/valid.md",
+          "sha256": "60684f1e6bfd97453a380e363751de925fdd82309171e4b56dbab26cc474edca",
+          "bytes": 142
+        },
+        {
+          "source": "output/valid.dialogue.txt",
+          "published": "samples/cuekeeper/valid.dialogue.txt",
+          "sha256": "c1c33bd387832e2a0501f730c4cbae8eac0877e0a15cb843bcea081ae6f27b96",
+          "bytes": 75
+        },
+        {
+          "source": "output/valid.report.json",
+          "published": "samples/cuekeeper/valid.report.json",
+          "sha256": "e13905d5bb9f976210f6743e0c699f4a8b8368dbbdfe66b39220c733a3edc982",
+          "bytes": 304
+        },
+        {
+          "source": "output/batch-summary.json",
+          "published": "samples/cuekeeper/batch-summary.json",
+          "sha256": "33c86ffa4e89e0df31a02e1490b0e0561ddbe12173af733c751f3e37be726f4c",
+          "bytes": 472
+        }
+      ]
+    },
+    {
+      "product": "recovery",
+      "version": "1.0.0",
+      "archive_sha256": "5cd828eafe16cc1243767a06659fadb52b655605dbccfdaa2e4b97b82ab97083",
+      "command": "python3 app.py examples/sample_incident.json --output-dir output --clock 2026-08-29T01:00:00Z",
+      "exit_status": 0,
+      "files": [
+        {
+          "source": "examples/sample_incident.json",
+          "published": "samples/recovery/sample_incident.json",
+          "sha256": "42aa5a38e830950554a3dc64d942eb340b834ac9f9d2c82f96185113248c1edf",
+          "bytes": 1838
+        },
+        {
+          "source": "output/report.json",
+          "published": "samples/recovery/report.json",
+          "sha256": "a481ed41d5bc417a9e1b13a939f95d2e36abeb2fe429139ea09300cfd956ccb8",
+          "bytes": 7981
+        },
+        {
+          "source": "output/escalation.md",
+          "published": "samples/recovery/escalation.md",
+          "sha256": "d1e89621700a9c6ebeafc31dfb7a2ce02fc6f7360c97e3c7efca20d334c1be13",
+          "bytes": 2591
+        }
+      ]
+    }
+  ],
+  "limits": "Shipped fictional fixtures only. No customer data, real incident, media accuracy evaluation, provider account access, payment, support submission, customer result, or profit established."
+}
