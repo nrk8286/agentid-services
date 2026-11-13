@@ -1,0 +1,14 @@
+{
+  "artifact_paths": {
+    "dialogue_only": "valid.dialogue.txt",
+    "report": "valid.report.json",
+    "transcript": "valid.md"
+  },
+  "detected_format": "srt",
+  "emitted_cue_count": 2,
+  "errors": [],
+  "parsed_cue_count": 2,
+  "source_name": "valid.srt",
+  "status": "COMPLETE",
+  "warnings": []
+}

@@ -90,6 +90,102 @@ export const recoveryArticle = {
 
 export function applyFoundryPublication(articles) {
   if (!Array.isArray(articles) || articles.filter(({ slug }) => slug === cueSlug).length !== 1) throw new Error("Expected exactly one existing CueKeeper article");
-  if (articles.some(({ slug }) => slug === recoverySlug)) throw new Error("Recovery article already published");
-  return [recoveryArticle, ...articles.map((article) => article.slug === cueSlug ? cueArticle : article)];
+  if (articles.some(({ slug }) => [recoverySlug, cueExampleSlug, recoveryExampleSlug].includes(slug))) throw new Error("Foundry article already published");
+  return [cueExampleArticle, recoveryExampleArticle, recoveryArticle, ...articles.map((article) => article.slug === cueSlug ? cueArticle : article)];
 }
+
+// November 12 expansion: concrete output examples, preserving the earlier guides.
+export const cueExampleSlug = "srt-to-markdown-before-and-after";
+export const recoveryExampleSlug = "supabase-incident-packet-example";
+const exampleDate = "2026-11-12";
+const examplesBase = "https://github.com/nrk8286/agentid-services/blob/main/publishing/foundry-2026-11-12";
+const examplesTree = "https://github.com/nrk8286/agentid-services/tree/main/publishing/foundry-2026-11-12";
+const exampleDisclosure = '<p><strong>Ownership and preparation:</strong> We own and sell the tool described here. This article was prepared with AI assistance from a first-party automated run of the shipped fictional example on November 12, 2026. It is a commercial introduction, not an independent review or a customer result.</p>';
+const exampleCode = (text) => `<pre style="white-space:pre-wrap;overflow-wrap:anywhere"><code>${text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</code></pre>`;
+const examplePrice = (name, product, ref) => ({ name, url: `${origin}/${product}?ref=${ref}`, price: "$1.00 USD with PayPal; or 1.00 USDC on Base", note: "One-time toolkit purchase. Python 3.10+; no third-party Python packages. Checked November 12, 2026. Review current checkout terms." });
+
+export const cueExampleArticle = {
+  slug: cueExampleSlug,
+  title: "What stays when you turn subtitles into Markdown? A two-cue example",
+  description: "See the same fictional SRT excerpt as timestamped Markdown, dialogue-only text, and a quality report. Try a free 20-cue browser preview before buying CueKeeper.",
+  category: "ai-business", kind: "guide", status: "published",
+  publishedAt: exampleDate, updatedAt: exampleDate, readMinutes: 4,
+  verdict: "Keep the timed copy for traceability and the dialogue-only copy for reading. This sample makes the output format inspectable; your source captions still need review.",
+  pros: ["The timed export keeps both start and end times.", "A separate dialogue-only copy serves a different reading task.", "The report exposes cue counts, warnings, and errors."],
+  cons: ["A clean conversion report does not establish caption accuracy.", "This two-cue example does not cover every subtitle format or edge case."],
+  suitableFor: ["Creators and researchers who already have subtitle files and want to inspect the export format."],
+  notFor: ["Anyone who needs speech-to-text, translation, or verified speaker identification."],
+  prices: [examplePrice("CueKeeper", "cuekeeper", "gmp-cue-example-20261112")],
+  about: { "@type": "SoftwareApplication", name: "CueKeeper", url: `${origin}/cuekeeper` },
+  sources: [{ title: "Exact sample inputs, outputs, archive hashes, and run evidence", url: examplesTree }, { title: "CueKeeper product scope and purchase options", url: `${origin}/cuekeeper?ref=gmp-cue-example-20261112` }],
+  screenshots: [], structuredData: [], relatedProducts: [],
+  testing: {
+    label: "First-party automated sample run", date: exampleDate,
+    scope: "Ran the shipped CueKeeper 1.0.0 valid.srt example with Python 3.13.9. The command exited 0, emitted two cues, and wrote a timed transcript, dialogue copy, report, and batch summary. The examples below are taken from those files.",
+    limits: "Synthetic subtitles only. This does not test media accuracy, time savings, customer use, payment settlement, or sales. The successful sample does not cover malformed or non-English input.",
+    steps: ["Verified the shipped ZIP SHA-256.", "Ran the exact command shown below in an isolated directory.", "Compared the generated files with the published sample artifacts."]
+  },
+  bodyHtml: `${exampleDisclosure}
+    <p>A reading copy and a source reference are different things. Here is what <a href="${origin}/cuekeeper?ref=gmp-cue-example-20261112">CueKeeper</a> produces from two fictional subtitle cues, so you can judge the format before spending $1.00 USD.</p>
+    <h2>Start with these two cues</h2>
+    ${exampleCode("1\n00:00:01,000 --> 00:00:03,250\nWelcome to CueKeeper.\nEvery timestamp stays attached.\n\n2\n00:00:04,500 --> 00:00:06,000\nReady for analysis.")}
+    <p>The first cue has two lines. The example contains no audio, real speaker, or customer data. You can paste it into the <a href="${origin}/cuekeeper/try?ref=gmp-cue-example-20261112">free browser preview</a>, which accepts up to 20 cues and processes the excerpt locally in your browser.</p>
+    <h2>The timed Markdown preserves the intervals</h2>
+    ${exampleCode(String.raw`[00:00:01.000 --> 00:00:03.250] Welcome to CueKeeper\. Every timestamp stays attached\.
+
+[00:00:04.500 --> 00:00:06.000] Ready for analysis\.`)}
+    <p>This is the raw <code>valid.md</code> output. The backslashes escape punctuation for Markdown. The two dialogue lines in the first cue become one line, while both endpoint timestamps stay attached. Keep the original subtitle file alongside this reading copy.</p>
+    <h2>The dialogue-only copy deliberately drops the times</h2>
+    ${exampleCode("Welcome to CueKeeper. Every timestamp stays attached.\n\nReady for analysis.")}
+    <p><code>valid.dialogue.txt</code> is convenient for reading or searching, but it cannot by itself tell you where a sentence occurred. Use the timed file when a reviewer needs to locate the passage in the original recording.</p>
+    <h2>The report says what the conversion did</h2>
+    ${exampleCode('{"status":"COMPLETE","detected_format":"srt","parsed_cue_count":2,"emitted_cue_count":2,"errors":[],"warnings":[]}')}
+    <p>This is a selected-field excerpt from <a href="${examplesBase}/samples/cuekeeper/valid.report.json">the full generated JSON report</a>. Two parsed cues became two emitted cues without reported issues in this sample. That does not prove the supplied text matches a recording, identify speakers, or certify a transcript.</p>
+    <h2>Run the same example locally</h2>
+    <p>The paid toolkit requires Python 3.10+ and no third-party packages. After extracting it, run this from the directory containing <code>app.py</code>:</p>
+    ${exampleCode("python3 app.py convert samples/valid.srt -o output --dialogue-only")}
+    <p>Use your installed Python launcher after checking its version. Our run used Python 3.13.9. Browse <a href="${examplesTree}/samples/cuekeeper">all four generated files and the input</a>, or read the <a href="https://gptmarketplus.com/guides/turn-srt-webvtt-into-timestamped-transcript">first-run walkthrough</a>.</p>
+    <h2>Try the format, then choose the toolkit</h2>
+    <p><a href="${origin}/cuekeeper/try?ref=gmp-cue-example-20261112">Try the free excerpt preview</a>. For local file and batch conversion, <a href="${origin}/cuekeeper/paypal?ref=gmp-cue-example-20261112">buy CueKeeper for $1.00 USD with PayPal</a>; the product page also offers 1.00 USDC on Base. The ZIP is released after verified payment. CueKeeper converts existing subtitles; it does not transcribe audio or translate dialogue.</p>`
+};
+
+export const recoveryExampleArticle = {
+  slug: recoveryExampleSlug,
+  title: "A Supabase incident packet you can inspect before buying the tool",
+  description: "Read a fictional incident timeline, unknown-time DNS observation, and escalation draft. See exactly what the local Recovery Evidence Agent outputs and what still needs review.",
+  category: "hosting-security", kind: "tutorial", status: "published",
+  publishedAt: exampleDate, updatedAt: exampleDate, readMinutes: 5,
+  verdict: "Use the packet to organize and question supplied evidence. A generated finding or completed checklist label is not proof of a current service state, a performed action, or a root cause.",
+  pros: ["Preserves source identifiers and original timestamps in JSON.", "Keeps unknown observation times explicit.", "Provides a readable draft and a structured report for review."],
+  cons: ["Nearby state changes can be flagged as contradictions even when they describe a transition.", "Checklist completion labels reflect supplied evidence, not independent verification of operator work.", "The draft needs review and redaction before sharing."],
+  suitableFor: ["Developers evaluating the packet format before using a local evidence-organizing workflow."],
+  notFor: ["Anyone expecting automatic recovery, root-cause diagnosis, or an official Supabase support service."],
+  prices: [examplePrice("Supabase Recovery Evidence Agent", "supabase-recovery", "gmp-recovery-example-20261112")],
+  about: { "@type": "SoftwareApplication", name: "Supabase Recovery Evidence Agent", url: `${origin}/supabase-recovery` },
+  sources: [{ title: "Fictional input and complete generated packet", url: `${examplesTree}/samples/recovery` }, { title: "Dated run evidence and archive hashes", url: `${examplesBase}/evidence.json` }, { title: "Recovery product scope and purchase options", url: `${origin}/supabase-recovery?ref=gmp-recovery-example-20261112` }],
+  screenshots: [], structuredData: [], relatedProducts: [],
+  testing: {
+    label: "First-party automated sample run", date: exampleDate,
+    scope: "Ran Recovery Evidence Agent 1.0.0 with its shipped fictional sample, Python 3.13.9, and a fixed example clock. Exit status was 0. The complete generated report.json and escalation.md are published with this article.",
+    limits: "Synthetic example only. No Supabase account, real incident, customer data, infrastructure recovery, support response, paid receipt, or financial result was tested. Generated labels are not independent evidence.",
+    steps: ["Verified the shipped ZIP SHA-256.", "Ran the included sample with the fixed-clock command below.", "Reviewed the timeline, unknown-time observation, contradiction, missing evidence, and draft status against the input."]
+  },
+  bodyHtml: `${exampleDisclosure}
+    <p>Before buying an evidence tool, you should be able to read its output. This page shows the fictional packet produced by <a href="${origin}/supabase-recovery?ref=gmp-recovery-example-20261112">Supabase Recovery Evidence Agent</a>. The <a href="${examplesBase}/samples/recovery/report.json">full JSON report</a>, <a href="${examplesBase}/samples/recovery/escalation.md">Markdown escalation draft</a>, and <a href="${examplesBase}/samples/recovery/sample_incident.json">input fixture</a> are available to inspect without a purchase.</p>
+    <p>This is an independent product, not affiliated with Supabase. It organizes already-redacted observations locally. It does not log into Supabase, repair infrastructure, determine a definitive root cause, or contact support.</p>
+    <h2>Four timestamped observations, one unknown time</h2>
+    ${exampleCode("2026-08-28T23:10:00Z  billing / invoice: PAID          source billing-1\n2026-08-28T23:15:00Z  control_plane: PAUSED          source control-1\n2026-08-28T23:18:00Z  control_plane: RUNNING         source control-2\n2026-08-28T23:20:00Z  service_health: UNHEALTHY      source health-1\nUnknown time          dns / api-host: RESOLVING      source dns-1")}
+    <p>This compact display follows the generated timeline. The billing input used <code>2026-08-28T18:10:00-05:00</code>; the JSON retains that original value and the normalized UTC value. The DNS observation has no timestamp, so it stays explicitly unknown. A resolving hostname does not establish a healthy API, and an invoice marked paid does not establish a running project.</p>
+    <h2>A contradiction flag is a question to investigate</h2>
+    <p>The sample flags <code>PAUSED</code> and <code>RUNNING</code> for the same project within its configured 15-minute window, citing <code>control-1</code> and <code>control-2</code>. Those observations are three minutes apart. They may describe a state transition; the flag does not prove both states existed at once or diagnose a platform fault. Read the source times before treating a derived finding as a conclusion.</p>
+    <h2>Missing evidence remains visible</h2>
+    <p>The report explicitly lists a missing current project-state observation, impact end time, and support case identifier. None is filled with a guess. The draft keeps the attempted unpause action separate from its reported outcome and proposes questions an operator can edit before contacting support.</p>
+    <h2>Review the generated labels too</h2>
+    <p>The sample JSON says <code>review.status: pending</code>. The Markdown template begins with “Operator-reviewed draft,” but generating that text does not complete a human review. Likewise, a checklist item marked <code>completed</code> reflects the presence of supplied evidence; it does not prove that an operator checked the current state or that the service recovered. Review and correct the draft before relying on or sending it.</p>
+    <h2>Reproduce the packet</h2>
+    <p>The local toolkit requires Python 3.10+ and no third-party packages. After extracting the purchased ZIP, run:</p>
+    ${exampleCode("python3 app.py examples/sample_incident.json --output-dir output --clock 2026-08-29T01:00:00Z")}
+    <p>The fixed clock belongs to the fictional example. Our Python 3.13.9 run created <code>output/report.json</code> and <code>output/escalation.md</code>. For your own incident, follow the included schema, use actual observations and timestamps, and redact sensitive information before creating the input. Pattern checks are an aid, not an automatic redaction service.</p>
+    <h2>Use the example or get the local generator</h2>
+    <p>You can use the example to evaluate the format and the <a href="https://gptmarketplus.com/guides/supabase-incident-evidence-packet">incident-packet walkthrough</a> to understand the workflow. If you want the local generator, <a href="${origin}/supabase-recovery/paypal?ref=gmp-recovery-example-20261112">buy it for $1.00 USD with PayPal</a>, or use the product page's 1.00 USDC on Base option. The ZIP is delivered after verified payment; incident response and recovery services are not included.</p>`
+};
