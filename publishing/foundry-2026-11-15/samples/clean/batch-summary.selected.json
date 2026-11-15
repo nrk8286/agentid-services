@@ -1,0 +1,17 @@
+{
+  "completed_files": 1,
+  "failed_files": 0,
+  "results": [
+    {
+      "detected_format": "srt",
+      "emitted_cue_count": 2,
+      "errors": [],
+      "parsed_cue_count": 2,
+      "source_name": "clean.srt",
+      "status": "COMPLETE",
+      "warnings": []
+    }
+  ],
+  "status": "COMPLETE",
+  "total_files": 1
+}

@@ -1,0 +1,5 @@
+[00:00:01.000 --> 00:00:10.000] Long fictional cue\.
+
+[00:00:02.000 --> 00:00:03.000] Short fictional cue\.
+
+[00:00:04.000 --> 00:00:05.000] Also inside the first cue\.
