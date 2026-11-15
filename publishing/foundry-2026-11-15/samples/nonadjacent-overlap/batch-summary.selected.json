@@ -1,0 +1,26 @@
+{
+  "completed_files": 1,
+  "failed_files": 0,
+  "results": [
+    {
+      "detected_format": "srt",
+      "emitted_cue_count": 3,
+      "errors": [],
+      "parsed_cue_count": 3,
+      "source_name": "nonadjacent-overlap.srt",
+      "status": "COMPLETE",
+      "warnings": [
+        {
+          "code": "OVERLAP",
+          "cue_indices": [
+            1,
+            2
+          ],
+          "message": "Cue overlaps the preceding cue"
+        }
+      ]
+    }
+  ],
+  "status": "COMPLETE",
+  "total_files": 1
+}

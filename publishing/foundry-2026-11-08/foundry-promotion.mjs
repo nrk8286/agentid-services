@@ -90,8 +90,8 @@ export const recoveryArticle = {
 
 export function applyFoundryPublication(articles) {
   if (!Array.isArray(articles) || articles.filter(({ slug }) => slug === cueSlug).length !== 1) throw new Error("Expected exactly one existing CueKeeper article");
-  if (articles.some(({ slug }) => [recoverySlug, cueExampleSlug, recoveryExampleSlug].includes(slug))) throw new Error("Foundry article already published");
-  return [cueExampleArticle, recoveryExampleArticle, recoveryArticle, ...articles.map((article) => article.slug === cueSlug ? cueArticle : article)];
+  if (articles.some(({ slug }) => [recoverySlug, cueExampleSlug, recoveryExampleSlug, cueQualitySlug].includes(slug))) throw new Error("Foundry article already published");
+  return [cueQualityArticle, cueExampleArticle, recoveryExampleArticle, recoveryArticle, ...articles.map((article) => article.slug === cueSlug ? cueArticle : article)];
 }
 
 // November 12 expansion: concrete output examples, preserving the earlier guides.
@@ -188,4 +188,69 @@ export const recoveryExampleArticle = {
     <p>The fixed clock belongs to the fictional example. Our Python 3.13.9 run created <code>output/report.json</code> and <code>output/escalation.md</code>. For your own incident, follow the included schema, use actual observations and timestamps, and redact sensitive information before creating the input. Pattern checks are an aid, not an automatic redaction service.</p>
     <h2>Use the example or get the local generator</h2>
     <p>You can use the example to evaluate the format and the <a href="https://gptmarketplus.com/guides/supabase-incident-evidence-packet">incident-packet walkthrough</a> to understand the workflow. If you want the local generator, <a href="${origin}/supabase-recovery/paypal?ref=gmp-recovery-example-20261112">buy it for $1.00 USD with PayPal</a>, or use the product page's 1.00 USDC on Base option. The ZIP is delivered after verified payment; incident response and recovery services are not included.</p>`
+};
+
+// November 15: an offline, fictional SRT quality checklist and observed limits.
+export const cueQualitySlug = "srt-subtitle-quality-checklist";
+const qualityRef = "gmp-cue-qc-20261115";
+const qualityBase = "https://github.com/nrk8286/agentid-services/blob/main/publishing/foundry-2026-11-15";
+const qualityTree = "https://github.com/nrk8286/agentid-services/tree/main/publishing/foundry-2026-11-15";
+const qualityCode = (text) => `<pre style="white-space:pre-wrap;overflow-wrap:anywhere"><code>${text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</code></pre>`;
+
+export const cueQualityArticle = {
+  slug: cueQualitySlug,
+  title: "Five SRT quality checks: CueKeeper's actual errors and limits",
+  description: "Inspect fictional malformed timestamps, reversed intervals, empty cues, overlap and duplicates. See what CueKeeper 1.0.0 reports and two timing problems it misses.",
+  category: "ai-business", kind: "guide", status: "published",
+  publishedAt: "2026-11-15", updatedAt: "2026-11-15", readMinutes: 8,
+  verdict: "Use the manual checklist without buying anything. CueKeeper can report several structural issues, but a successful export is not a caption-quality certificate and its timing checks have specific gaps.",
+  pros: ["Shows actual CLI outcomes for seven public fictional fixtures.", "Separates conversion errors from warnings that retain the cues.", "Includes manual checks for zero-length and nonadjacent overlaps that the shipped parser misses."],
+  cons: ["The Python toolkit accepts zero-length cues without a warning.", "Its overlap check compares only adjacent cues, not every intersecting interval.", "The free preview and Python toolkit differ; neither verifies captions against media."],
+  suitableFor: ["People reviewing existing SRT files before turning them into a reading copy.", "Buyers who want to inspect error reports and limitations before installing a local tool."],
+  notFor: ["Speech-to-text, translation, speaker identification, or exhaustive SRT/WebVTT conformance certification."],
+  prices: [{ name: "CueKeeper", url: `${origin}/cuekeeper?ref=${qualityRef}`, price: "$1.00 USD with PayPal; or 1.00 USDC on Base", note: "One-time local toolkit purchase. Python 3.10+ and no third-party packages. The checklist and fictional artifacts are free to read; review current checkout terms before paying." }],
+  about: { "@type": "SoftwareApplication", name: "CueKeeper", url: `${origin}/cuekeeper` },
+  sources: [{ title: "Seven fictional inputs and selected observed outputs", url: `${qualityTree}/samples` }, { title: "Archive hash, runtime, commands, exit statuses and artifact hashes", url: `${qualityBase}/evidence.json` }, { title: "Offline reproduction instructions and selection rules", url: `${qualityBase}/README.md` }, { title: "CueKeeper scope and purchase options", url: `${origin}/cuekeeper?ref=${qualityRef}` }],
+  screenshots: [], structuredData: [], relatedProducts: [],
+  testing: {
+    label: "First-party automated synthetic CLI checks", date: "2026-11-15",
+    scope: "Ran seven fictional SRT fixtures through the unchanged shipped CueKeeper 1.0.0 CLI with CPython 3.13.14 on Windows in an isolated temporary directory. Three invalid fixtures exited 2; four other fixtures exited 0. Selected reports, generated transcripts and hashes are published with this guide.",
+    limits: "Synthetic SRT examples only. No customer data, media accuracy, exhaustive WebVTT/SRT conformance, usability, time savings, payment settlement, sales, or profit was tested. Python 3.10+ is the declared requirement; these CLI runs used 3.13.14. Public reports contain selected deterministic fields, not full unmodified reports.",
+    steps: ["Verified archive SHA-256 b9d7fdb31bdbe69423b5031e1681a9868406b7fb093cef82b8db66396fcc6dcc.", "Ran the recorded commands in one isolated toolkit working directory, with separate per-case output directories and a constrained child environment.", "Recorded exit statuses and raw-output hashes; copied only fictional inputs, generated text, and selected report fields for publication.", "Checked both the detected issues and the zero-length/nonadjacent-overlap counterexamples."]
+  },
+  bodyHtml: `<p><strong>Ownership and preparation:</strong> We own and sell CueKeeper. This guide was prepared with AI assistance from first-party automated runs of fictional SRT fixtures on November 15, 2026. It is not an independent review or a customer result.</p>
+    <p>A subtitle file can convert successfully and still need review. This checklist shows what the shipped CueKeeper 1.0.0 CLI actually reports, including two timing cases it misses. You can use all five manual checks and read the <a href="${qualityTree}/samples">fictional inputs and selected outputs</a> without buying the toolkit.</p>
+    <h2>A five-check manual pass</h2>
+    <ol><li>Check the timestamp components and timing-line structure.</li><li>Require each cue's end to be later than its start.</li><li>Check that each timed cue contains dialogue.</li><li>Review overlaps and exact duplicates against the original material.</li><li>Compare the exported text with the source after styling and entity conversion.</li></ol>
+    <p>Keep an untouched copy of the original subtitle file. These checks concern the supplied text and intervals; important passages still need comparison with the recording. For the clean starting point, see the <a href="https://gptmarketplus.com/guides/srt-to-markdown-before-and-after">two-cue before-and-after example</a>. Our clean fixture emitted two cues without reported issues.</p>
+    <h2>1. A malformed timestamp stops this conversion</h2>
+    ${qualityCode("1\n00:00:61,000 --> 00:01:02,000\nFictional malformed timestamp.")}
+    <p>The seconds component is 61. In this run the command exited <code>2</code>, the report status was <code>FAILED</code>, and the error was <code>INVALID_TIMESTAMP</code> at cue 1. No transcript was generated in the new output directory. Check the intended time against your source rather than guessing a correction.</p>
+    ${qualityCode('{"status":"FAILED","emitted_cue_count":0,"errors":[{"code":"INVALID_TIMESTAMP","cue_index":1}]}')}
+    <p>This display selects a few fields from the <a href="${qualityBase}/samples/invalid-timestamp/invalid-timestamp.report.selected.json">published selected report</a>. It omits the error message and other fields; it is not the full unmodified report.</p>
+    <h2>2. A reversed interval is an error; a zero-length interval slips through</h2>
+    ${qualityCode("1\n00:00:02,000 --> 00:00:01,000\nFictional reversed interval.")}
+    <p>The <a href="${qualityBase}/samples/reversed-interval/reversed-interval.report.selected.json">reversed-interval run</a> exited <code>2</code> with <code>INVALID_INTERVAL</code> at cue 1. For a manual review, require a positive duration: the end should be greater than the start.</p>
+    ${qualityCode("1\n00:00:01,000 --> 00:00:01,000\nFictional zero-length cue.")}
+    <p>The shipped Python toolkit <strong>accepts this zero-length cue without a warning</strong>: exit <code>0</code>, <code>COMPLETE</code>, one emitted cue. Inspect the <a href="${qualityBase}/samples/zero-length/zero-length.report.selected.json">selected report</a> and <a href="${qualityBase}/samples/zero-length/zero-length.md">generated transcript</a>. A completed conversion is not proof that every cue has a useful duration. The free browser preview uses a stricter end-after-start check and rejects this example.</p>
+    <h2>3. A timing range without dialogue is not a reading copy</h2>
+    ${qualityCode("1\n00:00:01,000 --> 00:00:02,000\n")}
+    <p>The <a href="${qualityBase}/samples/empty-dialogue/empty-dialogue.report.selected.json">empty-dialogue fixture</a> exited <code>2</code> with <code>EMPTY_DIALOGUE</code> at cue 1. Check for missing text, accidental cue separators, or a cue that contains only styling. The tool cannot reconstruct missing words.</p>
+    <h2>4. Warnings keep the cues, so review them</h2>
+    ${qualityCode("1\n00:00:01,000 --> 00:00:03,000\n<i>Hello</i> &amp; goodbye\n\n2\n00:00:02,000 --> 00:00:04,000\nOverlap\n\n3\n00:00:02,000 --> 00:00:04,000\nOverlap")}
+    <p>This run exited <code>0</code> with <code>COMPLETE</code> and three emitted cues. Its <a href="${qualityBase}/samples/warnings/warnings.report.selected.json">selected report</a> includes <code>UNSUPPORTED_MARKUP</code>, <code>OVERLAP</code>, <code>DUPLICATE_CUE</code>, and another <code>OVERLAP</code>. All three passages remain in the <a href="${qualityBase}/samples/warnings/warnings.md">timed export</a>.</p>
+    <p>An exact duplicate has the same start, end, and cleaned dialogue. A repeated phrase at a different time is not that same test. Overlapping captions may be intentional, such as simultaneous dialogue; check the source before deleting or retiming anything.</p>
+    <h2>Check nonadjacent overlaps yourself</h2>
+    ${qualityCode("1\n00:00:01,000 --> 00:00:10,000\nLong fictional cue.\n\n2\n00:00:02,000 --> 00:00:03,000\nShort fictional cue.\n\n3\n00:00:04,000 --> 00:00:05,000\nAlso inside the first cue.")}
+    <p>Cue 3 is still inside cue 1's interval. The Python toolkit compares each cue with only the preceding cue: this run reports an overlap for cues 1 and 2, but <strong>does not flag cue 3's nonadjacent overlap with cue 1</strong>. Its <a href="${qualityBase}/samples/nonadjacent-overlap/nonadjacent-overlap.report.selected.json">selected report</a> has one overlap warning and three emitted cues. Review long intervals against all cues inside them; this is not exhaustive overlap detection or automatic repair.</p>
+    <h2>5. Compare the words after formatting changes</h2>
+    <p>The first cue in the warnings fixture contains <code>&lt;i&gt;Hello&lt;/i&gt; &amp;amp; goodbye</code>. In the Python toolkit it becomes <code>Hello &amp; goodbye</code>, with an <code>UNSUPPORTED_MARKUP</code> warning. The <a href="${qualityBase}/samples/warnings/warnings.dialogue.txt">dialogue-only output</a> retains the words but drops the timestamps and styling. Markdown output also escapes punctuation. Compare the reading copy with the original; a styling transformation is not a spelling, translation, or accuracy check.</p>
+    <p>The free preview keeps that markup and entity text literally rather than performing the Python toolkit's cleanup. It also groups overlap/out-of-order warnings differently. The preview and the paid Python parser are separate implementations: use it to inspect a short excerpt, not as a promise of an identical full report. This guide's captured CLI fixtures are SRT only and do not establish complete SRT/WebVTT conformance.</p>
+    <h2>Read the evidence or reproduce the CLI runs</h2>
+    <p>The <a href="${qualityBase}/evidence.json">evidence manifest</a> records the archive hash, CPython 3.13.14 runtime, commands, exit statuses, and file hashes for all seven cases. Public report names end in <code>.report.selected.json</code>; batch excerpts are named <code>batch-summary.selected.json</code>. They contain selected deterministic fields, sorted and formatted with LF newlines. Generated transcript text is copied unchanged. Raw output and report hashes are recorded; raw reports and runtime files are not published.</p>
+    <p>Reproduction needs your own purchased CueKeeper 1.0.0 archive; no paid source or ZIP is republished here. The <a href="${qualityBase}/README.md">offline reproduction instructions</a> create a fresh directory outside the repository. After extracting the toolkit manually, this is one of the recorded case commands:</p>
+    ${qualityCode("python app.py convert fixtures/invalid-timestamp.srt -o output/invalid-timestamp --dialogue-only")}
+    <p>Use the fixture from this guide and the Python launcher for your installation. Exit <code>2</code> is the expected result for this invalid example. Python 3.10+ is the toolkit's declared requirement; this run used 3.13.14. No customer subtitles, media recording, time-saving benchmark, payment, sale, or profit was evaluated.</p>
+    <h2>Use the checklist, then decide whether you need the toolkit</h2>
+    <p><a href="${origin}/cuekeeper/try?ref=${qualityRef}">Try the free browser excerpt preview</a> with up to 20 cues, or keep using this manual checklist. If local file/batch conversion and reports suit your workflow, <a href="${origin}/cuekeeper/paypal?ref=${qualityRef}">buy CueKeeper for a one-time $1.00 USD through PayPal</a>. The <a href="${origin}/cuekeeper?ref=${qualityRef}">product page</a> also offers 1.00 USDC on Base. The full toolkit needs Python 3.10+ and no third-party Python packages. It converts subtitles you already have; it does not transcribe media, translate dialogue, identify speakers, or certify caption accuracy.</p>`
 };

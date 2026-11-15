@@ -1,0 +1,15 @@
+{
+  "detected_format": null,
+  "emitted_cue_count": 0,
+  "errors": [
+    {
+      "code": "INVALID_TIMESTAMP",
+      "cue_index": 1,
+      "message": "Invalid timestamp: 00:00:61,000"
+    }
+  ],
+  "parsed_cue_count": 0,
+  "source_name": "invalid-timestamp.srt",
+  "status": "FAILED",
+  "warnings": []
+}

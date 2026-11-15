@@ -1,0 +1,49 @@
+{
+  "completed_files": 1,
+  "failed_files": 0,
+  "results": [
+    {
+      "detected_format": "srt",
+      "emitted_cue_count": 3,
+      "errors": [],
+      "parsed_cue_count": 3,
+      "source_name": "warnings.srt",
+      "status": "COMPLETE",
+      "warnings": [
+        {
+          "code": "UNSUPPORTED_MARKUP",
+          "cue_indices": [
+            1
+          ],
+          "message": "Markup tags were removed; literal text was retained"
+        },
+        {
+          "code": "OVERLAP",
+          "cue_indices": [
+            1,
+            2
+          ],
+          "message": "Cue overlaps the preceding cue"
+        },
+        {
+          "code": "DUPLICATE_CUE",
+          "cue_indices": [
+            2,
+            3
+          ],
+          "message": "Identical cue found"
+        },
+        {
+          "code": "OVERLAP",
+          "cue_indices": [
+            2,
+            3
+          ],
+          "message": "Cue overlaps the preceding cue"
+        }
+      ]
+    }
+  ],
+  "status": "COMPLETE",
+  "total_files": 1
+}

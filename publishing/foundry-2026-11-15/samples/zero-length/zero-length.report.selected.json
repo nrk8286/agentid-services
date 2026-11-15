@@ -1,0 +1,9 @@
+{
+  "detected_format": "srt",
+  "emitted_cue_count": 1,
+  "errors": [],
+  "parsed_cue_count": 1,
+  "source_name": "zero-length.srt",
+  "status": "COMPLETE",
+  "warnings": []
+}
