@@ -2,17 +2,12 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
+import { identifyPublisherRuntime, verifyPublisherRuntime } from "./release-publisher-theme.mjs";
 
 // Production has a newer private publisher runtime than src/index.js. This
 // release only re-publishes verified existing content; it never uploads the
 // legacy entry point, configuration, credentials, or database migrations.
 const WORKER = "agentid-services-agent-system";
-const ENTRYPOINT = "portfolio-wrapper.mjs";
-const MODULES = ["foundry-promotion.mjs", "guide-discovery.mjs", "index.js", "portfolio-ui.mjs", ENTRYPOINT].sort();
-const TRACKED = {
-  "foundry-promotion.mjs": new URL("../publishing/foundry-2026-11-08/foundry-promotion.mjs", import.meta.url),
-  "guide-discovery.mjs": new URL("../publishing/foundry-2026-11-09/guide-discovery.mjs", import.meta.url),
-};
 const digest = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const manifest = ({ entrypoint, modules }) => ({
   entrypoint,
@@ -50,24 +45,23 @@ export async function redeployProduction({ env = process.env, fetchImpl = fetch,
     const response = await request("/content/v2");
     const etag = response.headers.get("etag");
     assert.match(etag || "", /^"[^"\r\n]+"$/, "A strong live content ETag is required for conditional publication");
-    assert.equal(response.headers.get("cf-entrypoint"), ENTRYPOINT, "Unexpected live entry point; refusing to overwrite production");
+    const entrypoint = response.headers.get("cf-entrypoint");
     assert.match(response.headers.get("content-type") || "", /^multipart\/form-data/i, "Expected a module Worker");
     const modules = [];
     for (const [name, file] of await response.formData()) {
       assert.ok(file instanceof Blob, "Expected a file for every Worker module");
       modules.push({ name, type: file.type, bytes: Buffer.from(await file.arrayBuffer()) });
     }
-    assert.deepEqual(modules.map((m) => m.name).sort(), MODULES, "Unexpected module set; inspect the live release before proceeding");
-    return { entrypoint: ENTRYPOINT, modules, etag };
+    const code = { entrypoint, modules, etag };
+    identifyPublisherRuntime(code);
+    return code;
   }
   async function snapshot() {
     const [code, settings] = await Promise.all([content(), json("/settings")]);
     return { ...code, settings };
   }
   const before = await snapshot();
-  for (const [name, path] of Object.entries(TRACKED)) {
-    assert.equal(digest(before.modules.find((m) => m.name === name).bytes), digest(await readFileImpl(path)), `Live ${name} differs from this commit; prepare a reviewed content release first`);
-  }
+  await verifyPublisherRuntime(before, { readFileImpl });
   const expected = manifest(before);
   // Re-read immediately before upload. Never replay a stale captured release.
   const latest = await snapshot();
@@ -75,7 +69,7 @@ export async function redeployProduction({ env = process.env, fetchImpl = fetch,
   assert.equal(latest.etag, before.etag, "Production ETag changed during verification; retry after review");
   assert.deepEqual(latest.settings, before.settings, "Production settings changed during verification; retry after review");
   const form = new FormData();
-  form.set("metadata", JSON.stringify({ main_module: ENTRYPOINT }));
+  form.set("metadata", JSON.stringify({ main_module: before.entrypoint }));
   for (const { name, bytes, type } of before.modules) form.set(name, new Blob([bytes], { type }), name);
   const release = await json("/content", { method: "PUT", headers: { "If-Match": before.etag }, body: form });
   assert.ok(typeof release.deployment_id === "string" && release.deployment_id.length > 0, "Upload response omitted the version ID; inspect production before any retry");

@@ -26,7 +26,7 @@
   "scripts": {
     "check": "node --check src/index.js && node --check src/revenue-agent.js && node --check src/agentid-site.js && node --check src/customer-apps.js && node --check src/customer-app-ui.js",
     "test": "npm run check && npm run test:publication && npm run test:revenue-agent && npm run test:deployment && npm run validate:bindings && npm run validate:links && npm run validate:google-ads && npm run validate:paypal-cpc && npm run validate:paypal-subscription-approvals",
-    "test:deployment": "node --test tests/redeploy-production.test.mjs",
+    "test:deployment": "node --test tests/redeploy-production.test.mjs tests/publisher-theme-release.test.mjs tests/publisher-theme.test.mjs",
     "test:publication": "node --test tests/foundry-publication.test.mjs tests/publisher-guide-discovery.test.mjs",
     "test:revenue-agent": "node --test tests/revenue-agent.test.mjs",
     "test:revenue-agent:live": "node scripts/validate-revenue-agent-live.mjs",
