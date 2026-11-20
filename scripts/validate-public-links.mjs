@@ -51,8 +51,8 @@ if (process.argv.includes("--live")) {
         let title = "none";
         if (type.includes("text/html")) {
           const body = (await response.text()).slice(0, 4096);
-          const match = body.match(/<title[^>]*>([^<]{1,120})<\\/title>/i);
-          if (match) title = match[1].replace(/\\s+/g, " ").trim();
+          const match = body.match(/<title[^>]*>([^<]{1,120})<\/title>/i);
+          if (match) title = match[1].replace(/\s+/g, " ").trim();
         }
         failures.push(
           `${name} returned HTTP ${response.status}` +
