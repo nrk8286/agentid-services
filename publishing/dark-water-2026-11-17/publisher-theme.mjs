@@ -1,6 +1,6 @@
 // One palette for the publisher and the legacy product-page components.
 // Scoped by the wrapper so the other domains on this Worker are unaffected.
-export const THEME_VERSION = "20261117-dark-water-1";
+export const THEME_VERSION = "20261117-dark-water-2";
 
 export const THEME_CSS = String.raw`
 html[data-gmp-theme="dark-water"] {
@@ -30,7 +30,7 @@ html[data-gmp-theme="dark-water"] {
   --warning: #f1ce93;
   --danger: #ffabb5;
 }
-html[data-gmp-theme="dark-water"] body {
+html[data-gmp-theme="dark-water"] :is(body,.publisher-page) {
   --pub-paper: transparent;
   --pub-white: rgba(16,30,41,.94);
   --pub-ink: var(--gmp-text);
@@ -41,6 +41,8 @@ html[data-gmp-theme="dark-water"] body {
   --pub-gold: #f1ce93;
   --pf-accent: var(--gmp-accent);
   --pf-border: var(--gmp-line);
+}
+html[data-gmp-theme="dark-water"] body {
   min-height: 100vh;
   color: var(--gmp-text);
   background:
