@@ -40,7 +40,11 @@ if (process.argv.includes("--live")) {
         signal: AbortSignal.timeout(15_000),
       });
       if (response.status >= 400) {
-        failures.push(`${name} returned HTTP ${response.status}`);
+        const destination = new URL(response.url);
+        const challenge = response.headers.get("cf-mitigated") === "challenge";
+        // Keep every HTTP failure blocking. Report an explicit edge challenge
+        // separately, without logging response bodies, cookies or URL queries.
+        failures.push(`${name} returned HTTP ${response.status} at ${destination.origin}${destination.pathname}${challenge ? " (Cloudflare challenge; application response unverified)" : " (no explicit Cloudflare challenge header)"}`);
       }
     } catch (error) {
       failures.push(`${name} failed: ${error.message}`);
