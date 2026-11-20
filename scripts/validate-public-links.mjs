@@ -40,7 +40,25 @@ if (process.argv.includes("--live")) {
         signal: AbortSignal.timeout(15_000),
       });
       if (response.status >= 400) {
-        failures.push(`${name} returned HTTP ${response.status}`);
+        // A Cloudflare security rule can reject automated CI requests while
+        // public routes remain reachable elsewhere. Keep the gate strict, but
+        // expose enough safe response metadata to find the rejecting layer.
+        const host = new URL(response.url).hostname;
+        const server = response.headers.get("server") || "unknown";
+        const ray = response.headers.get("cf-ray") || "none";
+        const mitigation = response.headers.get("cf-mitigated") || "none";
+        const type = response.headers.get("content-type") || "unknown";
+        let title = "none";
+        if (type.includes("text/html")) {
+          const body = (await response.text()).slice(0, 4096);
+          const match = body.match(/<title[^>]*>([^<]{1,120})<\/title>/i);
+          if (match) title = match[1].replace(/\s+/g, " ").trim();
+        }
+        failures.push(
+          `${name} returned HTTP ${response.status}` +
+            ` (host=${host}, server=${server}, cf-ray=${ray},` +
+            ` cf-mitigated=${mitigation}, content-type=${type}, title=${title})`,
+        );
       }
     } catch (error) {
       failures.push(`${name} failed: ${error.message}`);
