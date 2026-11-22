@@ -726,20 +726,22 @@ const DIGITAL_PRODUCTS = [
   },
 ];
 
-const CUEKEEPER_X402_PRODUCT = {
+const cuekeeperCatalogAttribution = "utm_source=gptmarketplus.com&utm_medium=owned&utm_campaign=agent_foundry_release&utm_content=product_catalog";
+const CUEKEEPER_PRODUCT = {
   id: "cuekeeper_agent_foundry_release",
   name: "CueKeeper",
-  priceLabel: "$1 USDC",
-  checkoutUrl: "https://score.agentid.life/cuekeeper?utm_source=gptmarketplus.com&utm_medium=owned&utm_campaign=agent_foundry_release&utm_content=product_catalog",
+  priceLabel: "$1.00 USD via PayPal, one time",
+  checkoutUrl: `https://score.agentid.life/cuekeeper/paypal?${cuekeeperCatalogAttribution}`,
+  previewUrl: `https://score.agentid.life/cuekeeper/try?${cuekeeperCatalogAttribution}`,
   summary: "A local Python toolkit that converts SRT and WebVTT subtitles into timestamp-preserving transcripts with deterministic JSON quality reports.",
   includes: [
     "Local CLI and browser interface",
     "Timestamp-preserving transcript output",
     "Deterministic quality and failure reports",
   ],
-  limitation: "This separate x402 checkout requires a Base-compatible wallet with USDC. Review the live preview, release hash, and payment terms before signing.",
-  trackingLabel: "Products CueKeeper x402",
-  actionLabel: "View the $1 CueKeeper release",
+  limitation: "Requires Python 3.10+. Download the ZIP after PayPal verifies your payment.",
+  trackingLabel: "Products CueKeeper PayPal",
+  actionLabel: "Pay $1.00 USD with PayPal",
 };
 
 const SUPABASE_RECOVERY_X402_PRODUCT = {
@@ -759,7 +761,7 @@ const SUPABASE_RECOVERY_X402_PRODUCT = {
 };
 
 const AGENT_FOUNDRY_X402_PRODUCTS = [
-  CUEKEEPER_X402_PRODUCT,
+  CUEKEEPER_PRODUCT,
   SUPABASE_RECOVERY_X402_PRODUCT,
 ];
 
@@ -6334,7 +6336,8 @@ function renderProductsPage(env, requestUrl = null) {
       <ul>${product.includes.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
       <p class="marketplace-limit">${escapeHtml(product.limitation)}</p>
       <div class="marketplace-card-actions"><a class="button-primary" href="${escapeHtml(product.checkoutUrl)}"
-        data-track-event="select_offer" data-track-label="${escapeHtml(product.trackingLabel)}">${escapeHtml(product.actionLabel)}</a></div>
+        data-track-event="select_offer" data-track-label="${escapeHtml(product.trackingLabel)}">${escapeHtml(product.actionLabel)}</a>${product.previewUrl ? `
+        <a class="storefront-detail-link" href="${escapeHtml(product.previewUrl)}">Try the free preview</a>` : ""}</div>
     </article>`).join("");
   const body = `
     <section class="page-hero split-section product-store-hero animated-marketplace-hero" aria-labelledby="products-title">
@@ -6368,10 +6371,10 @@ function renderProductsPage(env, requestUrl = null) {
       <article class="command-panel listing-sample"><div><p class="card-kicker">Listing draft</p><strong>Magnetic Pantry Labels - Clear, Reusable Organization Set</strong></div><span class="storefront-status warning">Needs human review</span></article>
       <div class="featured-sample-checkout"><div><p class="card-kicker">Featured private workspace</p><strong>Auto Dropshipping Agent Team &middot; $49 one-time</strong><p>Access opens only after PayPal verifies a completed capture.</p></div>${featuredCheckout}</div>
     </section>
-    <section class="section">${renderSectionTitle("Clear delivery", "How purchase and access work", "No product unlocks from a browser message alone. GPTMarketPlus products use verified PayPal capture; separately hosted Agent Foundry releases use verified x402 settlement.")}<div class="workflow-steps"><article><span>01</span><h3>Choose a product</h3><p>Review its price, format, inclusions, limitations, and payment rail.</p></article><article><span>02</span><h3>Approve the payment</h3><p>Use PayPal for GPTMarketPlus products or Base USDC for clearly labeled Agent Foundry x402 releases. No subscription is created.</p></article><article><span>03</span><h3>Settlement is verified</h3><p>The delivery service verifies the completed PayPal capture or x402 settlement before access opens.</p></article><article><span>04</span><h3>Open or download</h3><p>Use the private workspace or download the product, then review every output.</p></article></div></section>
+    <section class="section">${renderSectionTitle("Clear delivery", "How purchase and access work", "No product unlocks from a browser message alone. Delivery follows verified PayPal capture or verified x402 settlement, depending on the offer.")}<div class="workflow-steps"><article><span>01</span><h3>Choose a product</h3><p>Review its price, format, inclusions, limitations, and payment rail.</p></article><article><span>02</span><h3>Approve the payment</h3><p>Use the payment method listed on the offer. No subscription is created.</p></article><article><span>03</span><h3>Settlement is verified</h3><p>The delivery service verifies the completed PayPal capture or x402 settlement before access opens.</p></article><article><span>04</span><h3>Open or download</h3><p>Use the private workspace or download the product, then review every output.</p></article></div></section>
     <section class="section product-compare-section">${renderSectionTitle("At a glance", "Workspace or report?", "Choose the format that matches your next decision.")}<div class="table-wrap"><table class="data-table"><thead><tr><th>Product type</th><th>What you receive</th><th>Best for</th><th>Control point</th></tr></thead><tbody><tr><td><strong>Private workspace</strong></td><td>Guided inputs, structured outputs, checklists, drafts, and review queues</td><td>Operators building or improving a workflow</td><td>You approve all external actions</td></tr><tr><td><strong>Research report</strong></td><td>A downloadable comparison of practical software opportunities</td><td>People deciding what to validate or build</td><td>You validate fit, evidence, and scope</td></tr></tbody></table></div></section>
     <section class="section human-control-strip"><div><p class="eyebrow">Human-control position</p><h2>Automation organizes the work. You decide the action.</h2><p>Publishing, outreach, prices, orders, refunds, customer communication, claims, compliance checks, and financial decisions remain under your review.</p></div><a class="button-secondary" href="/refund-policy">Review refund policy</a></section>
-    <section class="section storefront-faq">${renderSectionTitle("Before you choose", "Frequently asked questions", "Clear answers about access, scope, and control.")}<div class="faq-list"><details><summary>When do I receive my product?</summary><p>GPTMarketPlus workspaces and reports open after PayPal reports a completed capture. Agent Foundry downloads open after their separate x402 service verifies Base USDC settlement. Browser success parameters alone cannot unlock access.</p></details><details><summary>Do the agent teams send messages or publish automatically?</summary><p>No. They prepare drafts, rules, checklists, calculations, and queues. You or your authorized team review and approve external actions.</p></details><details><summary>Are leads, rankings, suppliers, or revenue guaranteed?</summary><p>No. Examples are illustrative, costs and evidence require verification, and no product promises revenue, traffic, rankings, winning products, supplier approval, or unattended operations.</p></details><details><summary>Does a product include custom installation or integrations?</summary><p>No. These are self-serve workspaces, reports, or local utilities. Credentials, installation, custom integrations, production testing, and ongoing support require a separate written scope.</p></details></div></section>
+    <section class="section storefront-faq">${renderSectionTitle("Before you choose", "Frequently asked questions", "Clear answers about access, scope, and control.")}<div class="faq-list"><details><summary>When do I receive my product?</summary><p>GPTMarketPlus workspaces and reports open after PayPal reports a completed capture. Agent Foundry downloads open after the storefront verifies the listed PayPal or Base USDC payment. Browser success parameters alone cannot unlock access.</p></details><details><summary>Do the agent teams send messages or publish automatically?</summary><p>No. They prepare drafts, rules, checklists, calculations, and queues. You or your authorized team review and approve external actions.</p></details><details><summary>Are leads, rankings, suppliers, or revenue guaranteed?</summary><p>No. Examples are illustrative, costs and evidence require verification, and no product promises revenue, traffic, rankings, winning products, supplier approval, or unattended operations.</p></details><details><summary>Does a product include custom installation or integrations?</summary><p>No. These are self-serve workspaces, reports, or local utilities. Credentials, installation, custom integrations, production testing, and ongoing support require a separate written scope.</p></details></div></section>
     ${renderViewItemTracking(DROPSHIPPING_PRODUCT)}`;
 
   return renderShell(env, {
