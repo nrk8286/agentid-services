@@ -445,7 +445,7 @@ test("renders the eight-product storefront with PayPal and labeled x402 checkout
   assert.match(cuekeeperCard, /class="button-primary" href="https:\/\/score\.agentid\.life\/cuekeeper\/paypal\?utm_source=gptmarketplus\.com/);
   assert.match(cuekeeperCard, /href="https:\/\/score\.agentid\.life\/cuekeeper\/try\?utm_source=gptmarketplus\.com[^"]*">Try the free preview<\/a>/);
   assert.match(html, /score\.agentid\.life\/supabase-recovery\?utm_source=gptmarketplus\.com/);
-  assert.match(html, /Base-compatible wallet with USDC/);
+  assert.match(html.match(/<article\b[^>]*id="supabase_recovery_agent_foundry_release"[^>]*>[\s\S]*?<\/article>/)?.[0] ?? "", /\$1 USDC/);
   assert.doesNotMatch(html, /name="productId" value="cuekeeper_agent_foundry_release"/);
   assert.doesNotMatch(html, /name="productId" value="supabase_recovery_agent_foundry_release"/);
   assert.match(html, /Sample (?:&middot;|·) not a live store/i);
